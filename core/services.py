@@ -151,7 +151,7 @@ def get_collaboration_suggestions(
         if total_score <= 0:
             continue
 
-        # Ortak tag/skill isimlerini listele
+        # Ortak tag/skill isimleri
         common_tag_names = [tag_names[t_id] for t_id in common_tag_ids]
         common_skill_names = [skill_names[s_id] for s_id in common_skill_ids]
 
