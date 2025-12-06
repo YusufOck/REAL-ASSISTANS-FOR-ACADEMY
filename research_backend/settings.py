@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-
+import dj_database_url
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ze9%a7&&b9j1-l(nu=6a+fd$8!=+_c%+5u_fp=6pr0-n=$bsng'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = []
 
@@ -40,6 +40,7 @@ INSTALLED_APPS = [
 
     # 3rd-party
     'rest_framework',
+    'corsheaders',
     'drf_spectacular',
     'drf_spectacular_sidecar',
     'core',
@@ -67,6 +68,7 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -98,16 +100,32 @@ WSGI_APPLICATION = 'research_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'research_platform',   # pgAdmin’de oluşturduğun DB adı
+#         'USER': 'teammate',            # kendi postgres kullanıcın
+#         'PASSWORD': 'Yusuf63123.',    # şifren
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
+
+
+ALLOWED_HOSTS = ['*']  # Yıldız koyarak tüm internetten erişime açıyoruz
+
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'research_platform',   # pgAdmin’de oluşturduğun DB adı
-        'USER': 'teammate',            # kendi postgres kullanıcın
-        'PASSWORD': 'Yusuf63123.',    # şifren
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.parse(
+        # Link formatı: postgresql://postgres:[ŞİFREN]@db.[PROJE-KODU].supabase.co:5432/postgres
+        # Şifreyi yazarken köşeli parantez [] kullanma!
+        "postgresql://postgres.htjsmgqxsiajzxpqesdk:MehmetProject2025@aws-1-ap-south-1.pooler.supabase.com:5432/postgres",
+        
+        conn_max_age=600,
+        ssl_require=True  # Bu satır Supabase bağlantısı için kritiktir
+    )
 }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -158,3 +176,13 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     # İleride istersen burada security vb. ekleyebiliriz.
 }
+
+
+
+import os
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+
+
+# CORS AYARLARI
+CORS_ALLOW_ALL_ORIGINS = True
