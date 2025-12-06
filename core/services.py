@@ -1,51 +1,52 @@
 from collections import defaultdict
 from typing import List, Dict, Any, Set, Tuple 
 from django.db import connection
-from .models import Department, Researcher # Modellerin import edildiğinden emin ol
+from .models import Department, Researcher
+
+# AI / NLP Kütüphaneleri
+try:
+    from sentence_transformers import SentenceTransformer, util
+    # Küçük ve hızlı bir model kullanıyoruz (all-MiniLM-L6-v2)
+    # Bu model metinleri 384 boyutlu vektörlere çevirir.
+    AI_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
+    AI_AVAILABLE = True
+    print("✅ AI Modeli Yüklendi: Semantic Search Aktif")
+except ImportError:
+    AI_MODEL = None
+    AI_AVAILABLE = False
+    print("⚠️ UYARI: sentence-transformers yüklü değil. Semantic Search çalışmayacak.")
+
+# ---------------------------------------------------------
+# VERİ YÜKLEME YARDIMCILARI
+# ---------------------------------------------------------
 
 def _load_researcher_basic_data():
-    """
-    Tüm araştırmacıların temel bilgilerini tek seferde çeker:
-    researcher_id, full_name, email, department_id
-    """
-    sql = """
-        SELECT researcher_id, full_name, email, department_id
-        FROM researcher
-    """
+    """ ID, İsim, Bio ve Bölüm verilerini çeker """
+    sql = "SELECT researcher_id, full_name, email, department_id, bio FROM researcher"
     with connection.cursor() as cursor:
         cursor.execute(sql)
         rows = cursor.fetchall()
 
     researchers = {}
     for row in rows:
-        r_id, name, email, dept_id = row
-        researchers[r_id] = {
-            "researcher_id": r_id,
-            "full_name": name,
-            "email": email,
-            "department_id": dept_id,
+        researchers[row[0]] = {
+            "researcher_id": row[0],
+            "full_name": row[1],
+            "email": row[2],
+            "department_id": row[3],
+            "bio": row[4] or "" # Bio boşsa boş string yap
         }
     return researchers
 
-
 def _load_department_names() -> Dict[int, str]:
-    """
-    department_id -> department_name sözlüğü
-    """
     data = {}
     for dept in Department.objects.all():
         data[dept.department_id] = dept.name
     return data
 
-
 def _load_researcher_tags() -> Tuple[Dict[int, Set[int]], Dict[int, str]]:
-    """
-    Her araştırmacı için tag_id kümesini ve tag_id -> tag_name sözlüğünü döner.
-    """
     researcher_tags = defaultdict(set)
-    tag_names: Dict[int, str] = {}
-
-    # RAW SQL: entity_tag tablosundan researcher olanları çek
+    tag_names = {}
     sql = """
         SELECT et.entity_id, t.tag_id, t.name
         FROM entity_tag et
@@ -56,22 +57,14 @@ def _load_researcher_tags() -> Tuple[Dict[int, Set[int]], Dict[int, str]]:
         cursor.execute(sql)
         rows = cursor.fetchall()
     
-    for row in rows:
-        r_id, tag_id, tag_name = row
-        researcher_tags[r_id].add(tag_id)
-        tag_names[tag_id] = tag_name
-
+    for r_id, t_id, t_name in rows:
+        researcher_tags[r_id].add(t_id)
+        tag_names[t_id] = t_name
     return researcher_tags, tag_names
 
-
 def _load_researcher_skills() -> Tuple[Dict[int, Set[int]], Dict[int, str]]:
-    """
-    Her araştırmacı için skill_id kümesini ve skill_id -> skill_name sözlüğünü döner.
-    """
     researcher_skills = defaultdict(set)
-    skill_names: Dict[int, str] = {}
-
-    # RAW SQL: researcher_skill tablosunu çek
+    skill_names = {}
     sql = """
         SELECT rs.researcher_id, s.skill_id, s.name
         FROM researcher_skill rs
@@ -81,92 +74,129 @@ def _load_researcher_skills() -> Tuple[Dict[int, Set[int]], Dict[int, str]]:
         cursor.execute(sql)
         rows = cursor.fetchall()
 
-    for row in rows:
-        r_id, s_id, s_name = row
+    for r_id, s_id, s_name in rows:
         researcher_skills[r_id].add(s_id)
         skill_names[s_id] = s_name
-
     return researcher_skills, skill_names
 
+def _load_collaboration_network() -> Dict[int, Set[int]]:
+    network = defaultdict(set)
+    
+    # Proje ve Yayın Arkadaşlıklarını Birleştir
+    sql = """
+        SELECT pr1.researcher_id, pr2.researcher_id
+        FROM project_researcher pr1
+        JOIN project_researcher pr2 ON pr1.project_id = pr2.project_id
+        WHERE pr1.researcher_id != pr2.researcher_id
+        UNION
+        SELECT ap1.researcher_id, ap2.researcher_id
+        FROM author_publication ap1
+        JOIN author_publication ap2 ON ap1.publication_id = ap2.publication_id
+        WHERE ap1.researcher_id != ap2.researcher_id
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql)
+        for r1, r2 in cursor.fetchall():
+            network[r1].add(r2)
+            
+    return network
+
+# ---------------------------------------------------------
+# ANA ALGORİTMA (HYBRID: GRAPH + SEMANTIC AI)
+# ---------------------------------------------------------
 
 def get_collaboration_suggestions(
     base_researcher_id: int,
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
-    """
-    Belirli bir araştırmacı için (base_researcher_id),
-    tag, skill ve department benzerliğine göre en uygun işbirliği adaylarını döner.
-    """
-
-    # 1) Temel verileri yükle
+    
+    # 1) Verileri Yükle
     researchers = _load_researcher_basic_data()
     department_names = _load_department_names()
-
+    
     if base_researcher_id not in researchers:
         return []
 
     base_info = researchers[base_researcher_id]
-    base_department_id = base_info["department_id"]
+    base_dept_id = base_info["department_id"]
+    base_bio = base_info["bio"]
 
-    # 2) Tüm araştırmacılar için tag ve skill profillerini yükle
     researcher_tags, tag_names = _load_researcher_tags()
     researcher_skills, skill_names = _load_researcher_skills()
+    network_graph = _load_collaboration_network()
 
     base_tags = researcher_tags.get(base_researcher_id, set())
     base_skills = researcher_skills.get(base_researcher_id, set())
+    base_partners = network_graph.get(base_researcher_id, set())
 
-    # 0'a bölmeyi önlemek için
-    base_tag_count = len(base_tags) if len(base_tags) > 0 else 1
-    base_skill_count = len(base_skills) if len(base_skills) > 0 else 1
+    base_tag_count = len(base_tags) or 1
+    base_skill_count = len(base_skills) or 1
+
+    # --- AI SEMANTIC HAZIRLIK ---
+    # Eğer AI modeli yüklüyse, hedef kişinin biyografisini vektöre çevir
+    base_embedding = None
+    if AI_AVAILABLE and base_bio and len(base_bio) > 10:
+        base_embedding = AI_MODEL.encode(base_bio, convert_to_tensor=True)
 
     suggestions = []
 
-    # 3) Tüm adayları dolaş (kendisi hariç)
+    # 2) Adayları Tara
     for candidate_id, info in researchers.items():
         if candidate_id == base_researcher_id:
             continue
 
-        candidate_tags = researcher_tags.get(candidate_id, set())
-        candidate_skills = researcher_skills.get(candidate_id, set())
-        candidate_dept_id = info["department_id"]
+        # A. İçerik Skoru (Tag & Skill)
+        cand_tags = researcher_tags.get(candidate_id, set())
+        cand_skills = researcher_skills.get(candidate_id, set())
+        
+        common_tag_ids = base_tags.intersection(cand_tags)
+        common_skill_ids = base_skills.intersection(cand_skills)
+        
+        tag_score = len(common_tag_ids) / base_tag_count
+        skill_score = len(common_skill_ids) / base_skill_count
+        
+        # B. Departman Bonusu
+        dept_score = 1.0 if base_dept_id == info["department_id"] else 0.0
 
-        # Kesişim (Ortak olanlar)
-        common_tag_ids = base_tags.intersection(candidate_tags)
-        common_skill_ids = base_skills.intersection(candidate_skills)
+        # C. Network Skoru (Triadic Closure)
+        cand_partners = network_graph.get(candidate_id, set())
+        common_partners = base_partners.intersection(cand_partners)
+        network_score = min(len(common_partners) / 3.0, 1.0) # 3 ortak arkadaş = Max puan
 
-        tag_overlap = len(common_tag_ids)
-        skill_overlap = len(common_skill_ids)
+        # D. AI Semantic Skor (Anlamsal Benzerlik) 🧠
+        semantic_score = 0.0
+        if base_embedding is not None and info["bio"] and len(info["bio"]) > 10:
+            # Adayın biyografisini vektöre çevir
+            cand_embedding = AI_MODEL.encode(info["bio"], convert_to_tensor=True)
+            # Cosine Similarity hesapla (0 ile 1 arası değer döner)
+            similarity = util.cos_sim(base_embedding, cand_embedding)
+            semantic_score = float(similarity[0][0])
+            # Negatif benzerlikleri 0 yapalım
+            semantic_score = max(0.0, semantic_score)
 
-        # Hiçbir ortak nokta yoksa ve departman farklıysa atla
-        if tag_overlap == 0 and skill_overlap == 0 and base_department_id != candidate_dept_id:
+        # 3) Ağırlıklı Final Skor
+        # Formül: %30 Tag + %20 Skill + %10 Dept + %20 Network + %20 AI
+        total_score = (0.3 * tag_score) + \
+                      (0.2 * skill_score) + \
+                      (0.1 * dept_score) + \
+                      (0.2 * network_score) + \
+                      (0.2 * semantic_score)
+
+        if total_score <= 0.1: # Çok düşükleri ele
             continue
-
-        # Skor Hesaplama
-        tag_score = tag_overlap / base_tag_count
-        skill_score = skill_overlap / base_skill_count
-        dept_score = 1.0 if (base_department_id == candidate_dept_id) else 0.0
-
-        total_score = (0.5 * tag_score) + (0.3 * skill_score) + (0.2 * dept_score)
-
-        if total_score <= 0:
-            continue
-
-        # Ortak tag/skill isimleri
-        common_tag_names = [tag_names[t_id] for t_id in common_tag_ids]
-        common_skill_names = [skill_names[s_id] for s_id in common_skill_ids]
 
         suggestions.append({
             "researcher_id": candidate_id,
             "full_name": info["full_name"],
-            "email": info["email"],
-            "department_id": candidate_dept_id,
-            "department_name": department_names.get(candidate_dept_id),
+            "department_name": department_names.get(info["department_id"]),
             "score": round(float(total_score), 4),
-            "same_department": bool(dept_score),
-            "common_tags": sorted(common_tag_names),
-            "common_skills": sorted(common_skill_names),
+            "reasons": {
+                "common_tags": [tag_names[t] for t in common_tag_ids],
+                "common_skills": [skill_names[s] for s in common_skill_ids],
+                "common_connections": len(common_partners),
+                "semantic_match": f"%{int(semantic_score * 100)}" # AI ne kadar benzetti?
+            }
         })
 
-    # 4) Sıralama ve Limit
     suggestions.sort(key=lambda x: x["score"], reverse=True)
     return suggestions[:limit]
