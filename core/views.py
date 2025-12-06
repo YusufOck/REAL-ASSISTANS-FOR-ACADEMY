@@ -3,7 +3,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .services import get_collaboration_suggestions
-
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 
 from .models import (
     Department,
@@ -41,7 +42,21 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class ResearcherViewSet(viewsets.ModelViewSet):
     queryset = Researcher.objects.all().order_by('researcher_id')
     serializer_class = ResearcherSerializer
-
+    # --- YENİ EKLENEN KISIM ---
+   # Filtreleme Motorlarını Aktif Et
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    # --- BURAYI DEĞİŞTİRİYORUZ (Eskisi listeydi, şimdi sözlük yaptık) ---
+    filterset_fields = {
+        'department': ['exact'],        # ID olduğu için TAM eşleşme olsun (1 ise 1)
+        'title': ['icontains'],         # "Dr" yazınca "Prof. Dr." da gelsin (Partial Match)
+        'email': ['icontains'],         # "ali" yazınca "ali@univ..." gelsin
+        'full_name': ['icontains'],     # İsimde parça arama
+    }
+    # -------------------------------------------------------------------
+    
+    search_fields = ['full_name', 'email', 'bio']
+    ordering_fields = ['full_name', 'created_at']
     @action(detail=False, methods=['post'], url_path='onboard')
     def onboard(self, request):
         """
@@ -220,6 +235,20 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all().order_by('project_id')
     serializer_class = ProjectSerializer
+    # --- YENİ EKLENEN KISIM ---
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    # --- GÜNCELLENMİŞ KISIM ---
+    filterset_fields = {
+        'department': ['exact'],
+        'pi': ['exact'],
+        'status': ['icontains'],       # "act" yazınca "active" gelsin
+        'title': ['icontains'],        # Başlıkta geçen kelimeye göre filtrele
+    }
+    # --------------------------
+    
+    search_fields = ['title', 'summary']
+    ordering_fields = ['start_date', 'end_date', 'created_at']
 
     @action(detail=True, methods=['get'])
     def researchers(self, request, pk=None):
