@@ -43,10 +43,25 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'drf_spectacular_sidecar',
     'core',
+    'django_filters',
 ]
 
+# research_backend/settings.py
+
 REST_FRAMEWORK = {
+    # 1. Dokümantasyon (Swagger) için Gerekli Ayar (EKSİK OLAN BU)
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
+    # 2. Filtreleme, Arama ve Sıralama Ayarları
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+
+    # 3. Sayfalama (Pagination)
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10
 }
 
 MIDDLEWARE = [
