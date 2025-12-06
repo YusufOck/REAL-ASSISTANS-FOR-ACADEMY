@@ -514,3 +514,84 @@ class DashboardViewSet(viewsets.ViewSet):
         ]
         
         return Response(data)
+    
+
+# -------------------------
+#  Network / İlişki Ağı API
+# -------------------------
+
+class NetworkViewSet(viewsets.ViewSet):
+    """
+    Araştırmacılar arasındaki ilişkileri (Graph Data) döner.
+    Frontend'de (React Flow, Cytoscape.js) çizim yapmak için kullanılır.
+    """
+
+    def list(self, request):
+        """
+        GET /api/network/
+        """
+        nodes = []
+        edges = []
+        
+        # 1. NODES (Düğümler - Araştırmacılar)
+        # Her araştırmacı bir düğümdür.
+        researchers = Researcher.objects.select_related('department').all()
+        for r in researchers:
+            nodes.append({
+                "id": r.researcher_id,
+                "label": r.full_name,
+                "group": r.department.name if r.department else "Unknown",
+                "title": r.title  # Mouse ile üzerine gelince görünsün diye
+            })
+
+        # 2. EDGES - PROJE İLİŞKİLERİ
+        # Aynı projede çalışanları bul (Self Join)
+        # pr1.researcher_id < pr2.researcher_id koşulu, (Ali-Ayşe) ve (Ayşe-Ali) diye iki kere saymayı önler.
+        project_sql = """
+            SELECT pr1.researcher_id, pr2.researcher_id, COUNT(*) as weight
+            FROM project_researcher pr1
+            JOIN project_researcher pr2 ON pr1.project_id = pr2.project_id
+            WHERE pr1.researcher_id < pr2.researcher_id
+            GROUP BY pr1.researcher_id, pr2.researcher_id
+        """
+        
+        with connection.cursor() as cursor:
+            cursor.execute(project_sql)
+            rows = cursor.fetchall()
+            
+        for row in rows:
+            source, target, weight = row
+            edges.append({
+                "from": source,
+                "to": target,
+                "value": weight,   # Çizgi kalınlığı
+                "type": "project"  # İlişki türü
+            })
+
+        # 3. EDGES - YAYIN İLİŞKİLERİ
+        # Aynı yayında yazarlığı olanları bul
+        pub_sql = """
+            SELECT ap1.researcher_id, ap2.researcher_id, COUNT(*) as weight
+            FROM author_publication ap1
+            JOIN author_publication ap2 ON ap1.publication_id = ap2.publication_id
+            WHERE ap1.researcher_id < ap2.researcher_id
+            GROUP BY ap1.researcher_id, ap2.researcher_id
+        """
+
+        with connection.cursor() as cursor:
+            cursor.execute(pub_sql)
+            rows = cursor.fetchall()
+
+        for row in rows:
+            source, target, weight = row
+            edges.append({
+                "from": source,
+                "to": target,
+                "value": weight,       # Yayın ilişkisi daha değerliyse Frontend'de *2 yapılabilir
+                "type": "publication"
+            })
+
+        return Response({
+            "nodes": nodes,
+            "edges": edges
+        })
