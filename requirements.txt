@@ -10,3 +10,5 @@ whitenoise
 sentence-transformers
 scikit-learn
 numpy
+drf-spectacular-sidecar
+
