@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from .services import get_collaboration_suggestions
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
+from django.db.models import Count, Sum, Avg
 from .models import (
     Department,
     Researcher,
@@ -439,3 +439,78 @@ class EntityTagViewSet(viewsets.ModelViewSet):
 class SkillViewSet(viewsets.ModelViewSet):
     queryset = Skill.objects.all().order_by('skill_id')
     serializer_class = SkillSerializer
+
+
+# -------------------------
+#  Dashboard / İstatistik API
+# -------------------------
+
+class DashboardViewSet(viewsets.ViewSet):
+    """
+    Bu ViewSet bir Model'e bağlı değildir.
+    Sistemin genel istatistiklerini ve raporlarını sunar.
+    """
+
+    @action(detail=False, methods=['get'])
+    def general_stats(self, request):
+        """
+        /api/dashboard/general-stats/
+        Yönetici paneli tepesindeki özet sayı kartları için veri döner.
+        """
+        total_researchers = Researcher.objects.count()
+        total_projects = Project.objects.count()
+        active_projects = Project.objects.filter(status__icontains='active').count()
+        total_publications = Publication.objects.count()
+        
+        # Toplam hibe miktarını hesapla (Currency ayrımı yapmadan basit toplam - geliştirilebilir)
+        total_funding = FundingAgencyGrant.objects.aggregate(Sum('amount'))['amount__sum'] or 0
+
+        return Response({
+            "total_researchers": total_researchers,
+            "total_projects": total_projects,
+            "active_projects": active_projects,
+            "total_publications": total_publications,
+            "total_funding_amount": total_funding
+        })
+
+    @action(detail=False, methods=['get'])
+    def department_distribution(self, request):
+        """
+        /api/dashboard/department-distribution/
+        Hangi bölümde kaç araştırmacı var? (Pie Chart için)
+        """
+        # Group By işlemi: Department'a göre grupla ve say
+        data = Department.objects.annotate(
+            researcher_count=Count('researchers')
+        ).values('name', 'researcher_count').order_by('-researcher_count')
+
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def top_skills(self, request):
+        """
+        /api/dashboard/top-skills/
+        Okulda en çok sahip olunan yetenekler neler? (Bar Chart için)
+        Raw SQL kullanılarak düzeltildi.
+        """
+        # SQL Sorgusu: Skill tablosunu researcher_skill ile birleştir ve say
+        sql = """
+            SELECT s.name, COUNT(rs.researcher_id) as usage_count
+            FROM skill s
+            JOIN researcher_skill rs ON s.skill_id = rs.skill_id
+            GROUP BY s.name
+            ORDER BY usage_count DESC
+            LIMIT 10;
+        """
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+
+        # SQL sonucunu JSON formatına çevir
+        data = [
+            {"skill": row[0], "researcher_count": row[1]} 
+            for row in rows
+        ]
+        
+        return Response(data)

@@ -11,6 +11,7 @@ from .views import (
     TagViewSet,
     EntityTagViewSet,
     SkillViewSet,
+    DashboardViewSet
 )
 
 router = DefaultRouter()
@@ -23,7 +24,9 @@ router.register(r'funding-grants', FundingAgencyGrantViewSet, basename='funding-
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'entity-tags', EntityTagViewSet, basename='entity-tag')
 router.register(r'skills', SkillViewSet, basename='skill')
-
+# --- YENİ EKLENEN SATIR ---
+# Basename zorunludur çünkü queryset'i olmayan özel bir ViewSet bu.
+router.register(r'dashboard', DashboardViewSet, basename='dashboard')
 urlpatterns = [
     path('', include(router.urls)),
 ]
