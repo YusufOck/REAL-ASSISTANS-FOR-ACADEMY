@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ze9%a7&&b9j1-l(nu=6a+fd$8!=+_c%+5u_fp=6pr0-n=$bsng'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = []
 
@@ -110,6 +110,9 @@ WSGI_APPLICATION = 'research_backend.wsgi.application'
 # }
 
 
+ALLOWED_HOSTS = ['*']  # Yıldız koyarak tüm internetten erişime açıyoruz
+
+
 DATABASES = {
     'default': dj_database_url.parse(
         # Link formatı: postgresql://postgres:[ŞİFREN]@db.[PROJE-KODU].supabase.co:5432/postgres
@@ -171,3 +174,8 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     # İleride istersen burada security vb. ekleyebiliriz.
 }
+
+
+
+import os
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
