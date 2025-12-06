@@ -3,13 +3,26 @@ from typing import List, Dict, Any, Set, Tuple
 from django.db import connection
 from .models import Department, Researcher
 
+# AI / NLP Kütüphaneleri
+try:
+    from sentence_transformers import SentenceTransformer, util
+    # Küçük ve hızlı bir model kullanıyoruz (all-MiniLM-L6-v2)
+    # Bu model metinleri 384 boyutlu vektörlere çevirir.
+    AI_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
+    AI_AVAILABLE = True
+    print("✅ AI Modeli Yüklendi: Semantic Search Aktif")
+except ImportError:
+    AI_MODEL = None
+    AI_AVAILABLE = False
+    print("⚠️ UYARI: sentence-transformers yüklü değil. Semantic Search çalışmayacak.")
+
 # ---------------------------------------------------------
-# VERİ YÜKLEME YARDIMCILARI (DATA LOADERS)
+# VERİ YÜKLEME YARDIMCILARI
 # ---------------------------------------------------------
 
 def _load_researcher_basic_data():
-    """ Tüm araştırmacıların temel bilgilerini çeker. """
-    sql = "SELECT researcher_id, full_name, email, department_id FROM researcher"
+    """ ID, İsim, Bio ve Bölüm verilerini çeker """
+    sql = "SELECT researcher_id, full_name, email, department_id, bio FROM researcher"
     with connection.cursor() as cursor:
         cursor.execute(sql)
         rows = cursor.fetchall()
@@ -21,6 +34,7 @@ def _load_researcher_basic_data():
             "full_name": row[1],
             "email": row[2],
             "department_id": row[3],
+            "bio": row[4] or "" # Bio boşsa boş string yap
         }
     return researchers
 
@@ -66,43 +80,29 @@ def _load_researcher_skills() -> Tuple[Dict[int, Set[int]], Dict[int, str]]:
     return researcher_skills, skill_names
 
 def _load_collaboration_network() -> Dict[int, Set[int]]:
-    """
-    Kimin kiminle çalıştığını (Network Graph) hafızaya yükler.
-    Çıktı: {ResearcherID: {Partner1, Partner2, ...}}
-    """
     network = defaultdict(set)
     
-    # 1. Proje Arkadaşlıkları
-    sql_projects = """
+    # Proje ve Yayın Arkadaşlıklarını Birleştir
+    sql = """
         SELECT pr1.researcher_id, pr2.researcher_id
         FROM project_researcher pr1
         JOIN project_researcher pr2 ON pr1.project_id = pr2.project_id
         WHERE pr1.researcher_id != pr2.researcher_id
-    """
-    
-    # 2. Yayın Arkadaşlıkları
-    sql_pubs = """
+        UNION
         SELECT ap1.researcher_id, ap2.researcher_id
         FROM author_publication ap1
         JOIN author_publication ap2 ON ap1.publication_id = ap2.publication_id
         WHERE ap1.researcher_id != ap2.researcher_id
     """
-
     with connection.cursor() as cursor:
-        # Projeleri işle
-        cursor.execute(sql_projects)
-        for r1, r2 in cursor.fetchall():
-            network[r1].add(r2)
-            
-        # Yayınları işle
-        cursor.execute(sql_pubs)
+        cursor.execute(sql)
         for r1, r2 in cursor.fetchall():
             network[r1].add(r2)
             
     return network
 
 # ---------------------------------------------------------
-# ANA ALGORİTMA (GRAPH AWARE)
+# ANA ALGORİTMA (HYBRID: GRAPH + SEMANTIC AI)
 # ---------------------------------------------------------
 
 def get_collaboration_suggestions(
@@ -110,7 +110,7 @@ def get_collaboration_suggestions(
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
     
-    # 1) Verileri Hafızaya Çek
+    # 1) Verileri Yükle
     researchers = _load_researcher_basic_data()
     department_names = _load_department_names()
     
@@ -119,18 +119,24 @@ def get_collaboration_suggestions(
 
     base_info = researchers[base_researcher_id]
     base_dept_id = base_info["department_id"]
+    base_bio = base_info["bio"]
 
     researcher_tags, tag_names = _load_researcher_tags()
     researcher_skills, skill_names = _load_researcher_skills()
-    network_graph = _load_collaboration_network() # <--- YENİ: Ağı yükle
+    network_graph = _load_collaboration_network()
 
-    # Hedef kişinin profili
     base_tags = researcher_tags.get(base_researcher_id, set())
     base_skills = researcher_skills.get(base_researcher_id, set())
-    base_partners = network_graph.get(base_researcher_id, set()) # <--- Kişinin tanıdıkları
+    base_partners = network_graph.get(base_researcher_id, set())
 
     base_tag_count = len(base_tags) or 1
     base_skill_count = len(base_skills) or 1
+
+    # --- AI SEMANTIC HAZIRLIK ---
+    # Eğer AI modeli yüklüyse, hedef kişinin biyografisini vektöre çevir
+    base_embedding = None
+    if AI_AVAILABLE and base_bio and len(base_bio) > 10:
+        base_embedding = AI_MODEL.encode(base_bio, convert_to_tensor=True)
 
     suggestions = []
 
@@ -139,7 +145,7 @@ def get_collaboration_suggestions(
         if candidate_id == base_researcher_id:
             continue
 
-        # A. İçerik Benzerliği (Tag & Skill)
+        # A. İçerik Skoru (Tag & Skill)
         cand_tags = researcher_tags.get(candidate_id, set())
         cand_skills = researcher_skills.get(candidate_id, set())
         
@@ -152,28 +158,31 @@ def get_collaboration_suggestions(
         # B. Departman Bonusu
         dept_score = 1.0 if base_dept_id == info["department_id"] else 0.0
 
-        # C. Network Skoru (Ortak Tanıdıklar) - YENİ ÖZELLİK 🕸️
+        # C. Network Skoru (Triadic Closure)
         cand_partners = network_graph.get(candidate_id, set())
-        
-        # Zaten tanışıyorlarsa (doğrudan bağlantı varsa) network skorunu düşük tutabiliriz
-        # Amaç yeni kişiler önermek. Ama yine de güçlü bağ iyidir.
-        already_connected = candidate_id in base_partners
-        
-        # Ortak arkadaş sayısı (Intersection of Neighbors)
         common_partners = base_partners.intersection(cand_partners)
-        common_partner_count = len(common_partners)
-        
-        # Network skoru normalizasyonu (Basitçe: 3 ortak arkadaş = Tam puan gibi scale edelim)
-        network_score = min(common_partner_count / 3.0, 1.0)
+        network_score = min(len(common_partners) / 3.0, 1.0) # 3 ortak arkadaş = Max puan
 
-        # 3) Ağırlıklı Toplam Skor Hesapla
-        # Formül: %40 Tag + %20 Skill + %10 Dept + %30 Network
-        total_score = (0.4 * tag_score) + \
+        # D. AI Semantic Skor (Anlamsal Benzerlik) 🧠
+        semantic_score = 0.0
+        if base_embedding is not None and info["bio"] and len(info["bio"]) > 10:
+            # Adayın biyografisini vektöre çevir
+            cand_embedding = AI_MODEL.encode(info["bio"], convert_to_tensor=True)
+            # Cosine Similarity hesapla (0 ile 1 arası değer döner)
+            similarity = util.cos_sim(base_embedding, cand_embedding)
+            semantic_score = float(similarity[0][0])
+            # Negatif benzerlikleri 0 yapalım
+            semantic_score = max(0.0, semantic_score)
+
+        # 3) Ağırlıklı Final Skor
+        # Formül: %30 Tag + %20 Skill + %10 Dept + %20 Network + %20 AI
+        total_score = (0.3 * tag_score) + \
                       (0.2 * skill_score) + \
                       (0.1 * dept_score) + \
-                      (0.3 * network_score)
+                      (0.2 * network_score) + \
+                      (0.2 * semantic_score)
 
-        if total_score <= 0:
+        if total_score <= 0.1: # Çok düşükleri ele
             continue
 
         suggestions.append({
@@ -184,8 +193,8 @@ def get_collaboration_suggestions(
             "reasons": {
                 "common_tags": [tag_names[t] for t in common_tag_ids],
                 "common_skills": [skill_names[s] for s in common_skill_ids],
-                "common_connections_count": common_partner_count, # <--- JSON'a ekledik
-                "already_connected": already_connected
+                "common_connections": len(common_partners),
+                "semantic_match": f"%{int(semantic_score * 100)}" # AI ne kadar benzetti?
             }
         })
 
