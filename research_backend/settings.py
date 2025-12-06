@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-
+import dj_database_url
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -98,16 +98,29 @@ WSGI_APPLICATION = 'research_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'research_platform',   # pgAdmin’de oluşturduğun DB adı
+#         'USER': 'teammate',            # kendi postgres kullanıcın
+#         'PASSWORD': 'Yusuf63123.',    # şifren
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
+
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'research_platform',   # pgAdmin’de oluşturduğun DB adı
-        'USER': 'teammate',            # kendi postgres kullanıcın
-        'PASSWORD': 'Yusuf63123.',    # şifren
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.parse(
+        # Link formatı: postgresql://postgres:[ŞİFREN]@db.[PROJE-KODU].supabase.co:5432/postgres
+        # Şifreyi yazarken köşeli parantez [] kullanma!
+        "postgresql://postgres.htjsmgqxsiajzxpqesdk:MehmetProject2025@aws-1-ap-south-1.pooler.supabase.com:5432/postgres",
+        
+        conn_max_age=600,
+        ssl_require=True  # Bu satır Supabase bağlantısı için kritiktir
+    )
 }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
