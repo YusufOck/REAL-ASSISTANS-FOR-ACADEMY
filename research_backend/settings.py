@@ -40,6 +40,7 @@ INSTALLED_APPS = [
 
     # 3rd-party
     'rest_framework',
+    'corsheaders',
     'drf_spectacular',
     'drf_spectacular_sidecar',
     'core',
@@ -67,6 +68,7 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -179,3 +181,8 @@ SPECTACULAR_SETTINGS = {
 
 import os
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+
+
+# CORS AYARLARI
+CORS_ALLOW_ALL_ORIGINS = True
