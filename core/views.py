@@ -1,14 +1,15 @@
-from django.db import connection, transaction
-from django.db.models import Count, Sum, Avg
-from rest_framework import viewsets, status, permissions, filters
+from django.db import connection,transaction
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
-
-# Servisler (Local Imports)
 from .services import get_collaboration_suggestions
-
-# Modellerin hepsi tek satırda veya parantez içinde
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+from django.db.models import Count, Sum, Avg
+from .permissions import IsAcademicianOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly # <--- Yeni eklenen
+from rest_framework.permissions import AllowAny # <--- BUNU EKLE
 from .models import (
     Department,
     Researcher,
@@ -19,12 +20,7 @@ from .models import (
     Tag,
     EntityTag,
     Skill,
-    ResearcherSkill,
-    ProjectResearcher,
-    AuthorPublication,
 )
-
-# Serializer'ların hepsi tek yerde
 from .serializers import (
     DepartmentSerializer,
     ResearcherSerializer,
@@ -36,6 +32,7 @@ from .serializers import (
     EntityTagSerializer,
     SkillSerializer,
 )
+
 
 # -------------------------
 #  Basit CRUD ViewSet'ler
