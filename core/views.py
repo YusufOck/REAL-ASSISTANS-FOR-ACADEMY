@@ -6,6 +6,9 @@ from .services import get_collaboration_suggestions
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.db.models import Count, Sum, Avg
+from .permissions import IsAcademicianOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly # <--- Yeni eklenen
 from .models import (
     Department,
     Researcher,
@@ -42,6 +45,15 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class ResearcherViewSet(viewsets.ModelViewSet):
     queryset = Researcher.objects.all().order_by('researcher_id')
     serializer_class = ResearcherSerializer
+
+
+    # --- GÜVENLİK DUVARI ---
+    # 1. IsAuthenticatedOrReadOnly: Giriş yapmayanlar sadece okur.
+    # 2. IsResearcherOwnerOrReadOnly: Giriş yapan sadece KENDİSİNİ düzenler.
+    permission_classes = [IsResearcherOwnerOrReadOnly]
+    # -----------------------
+
+    
     # --- YENİ EKLENEN KISIM ---
    # Filtreleme Motorlarını Aktif Et
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -235,6 +247,12 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all().order_by('project_id')
     serializer_class = ProjectSerializer
+    # --- GÜVENLİK DUVARI BURADA ---
+    # IsAcademicianOrReadOnly: Sadece hocalar proje ekleyebilir/silebilir.
+    permission_classes = [IsAcademicianOrReadOnly] 
+    # ------------------------------
+
+    
     # --- YENİ EKLENEN KISIM ---
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
