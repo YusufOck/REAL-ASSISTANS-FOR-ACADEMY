@@ -34,4 +34,15 @@ def auto_tag_researcher(sender, instance, created, **kwargs):
             entity_id=instance.researcher_id,
             tag=tag
         )
-        print(f"✅ OTOMATİK ETİKETLENDİ: {instance.full_name} -> {tag.name}")
+        entity_tag, created = EntityTag.objects.get_or_create(
+        entity_type="researcher",
+        entity_id=instance.researcher_id,
+        tag=tag,
+        )
+        if created:
+            print(f"✅ OTOMATİK ETİKETLENDİ: {instance.full_name} -> {tag_obj.name}")
+    # yeni kayıt oluştuktan sonra logla
+        else:
+    # zaten vardı, tekrar eklemeye çalışma, sessizce geç
+            pass
+            
