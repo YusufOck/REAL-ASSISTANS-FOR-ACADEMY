@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ze9%a7&&b9j1-l(nu=6a+fd$8!=+_c%+5u_fp=6pr0-n=$bsng'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = []
 
@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # 3rd-party
+    'jazzmin',
     'rest_framework',
     'corsheaders',
     'drf_spectacular',
@@ -62,7 +63,19 @@ REST_FRAMEWORK = {
 
     # 3. Sayfalama (Pagination)
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10
+    'PAGE_SIZE': 10,
+    # --- YENİ EKLENEN GÜVENLİK AYARLARI ---
+    
+    # Kimlik Doğrulama: Sadece JWT kabul et
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    
+    # İzinler: Varsayılan olarak HER YER KİLİTLİ OLSUN (IsAuthenticated)
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+
 }
 
 MIDDLEWARE = [
@@ -119,7 +132,7 @@ DATABASES = {
     'default': dj_database_url.parse(
         # Link formatı: postgresql://postgres:[ŞİFREN]@db.[PROJE-KODU].supabase.co:5432/postgres
         # Şifreyi yazarken köşeli parantez [] kullanma!
-        "postgresql://postgres.htjsmgqxsiajzxpqesdk:MehmetProject2025@aws-1-ap-south-1.pooler.supabase.com:5432/postgres",
+        "postgresql://postgres.htjsmgqxsiajzxpqesdk:MehmetProject2025@aws-1-ap-south-1.pooler.supabase.com:6543/postgres",
         
         conn_max_age=600,
         ssl_require=True  # Bu satır Supabase bağlantısı için kritiktir
@@ -186,3 +199,26 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # CORS AYARLARI
 CORS_ALLOW_ALL_ORIGINS = True
+
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Anahtar 60 dk geçerli
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # Yenileme anahtarı 1 gün
+    'AUTH_HEADER_TYPES': ('Bearer',),                # Anahtar kelime
+}
+
+
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Research Platform API',
+    'DESCRIPTION': 'Academic Research Management System',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # Swagger UI'da kilit butonunu aktif et
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SECURITY': [{'Bearer': []}],         
+}
+

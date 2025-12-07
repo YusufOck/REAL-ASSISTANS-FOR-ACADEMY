@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-
+from django.contrib.auth.models import User
 
 class Department(models.Model):
     department_id = models.AutoField(primary_key=True)
@@ -13,7 +13,7 @@ class Department(models.Model):
         #managed = False
         unique_together = (('name', 'faculty'),)
 
-    def _str_(self):
+    def __str__(self):
         return f"{self.code or ''} - {self.name}"
 
 
@@ -22,6 +22,9 @@ class Researcher(models.Model):
     full_name = models.CharField(max_length=150)
     email = models.CharField(max_length=150, unique=True)
     title = models.CharField(max_length=100, null=True, blank=True)
+    # --- YENİ EKLENENLER ---
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, db_column='user_id')
+    role = models.CharField(max_length=20, default='student')
     department = models.ForeignKey(
         Department,
         models.SET_NULL,
@@ -37,7 +40,7 @@ class Researcher(models.Model):
         db_table = 'researcher'
         #managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.full_name
 
 
@@ -71,7 +74,7 @@ class Project(models.Model):
         db_table = 'project'
         #managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.title
 
 
@@ -177,7 +180,7 @@ class FundingAgency(models.Model):
         db_table = 'funding_agency'
         #managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.name
 
 
@@ -209,7 +212,7 @@ class FundingAgencyGrant(models.Model):
         #managed = False
         unique_together = (('project', 'funding_agency', 'program_name'),)
 
-    def _str_(self):
+    def __str__(self):
         return f"{self.project} - {self.funding_agency} - {self.program_name or ''}"
 
 
@@ -221,7 +224,7 @@ class Tag(models.Model):
         db_table = 'tag'
         #managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.name
 
 
@@ -241,7 +244,7 @@ class EntityTag(models.Model):
         #managed = False
         unique_together = (('entity_type', 'entity_id', 'tag'),)
 
-    def _str_(self):
+    def __str__(self):
         return f"{self.entity_type}({self.entity_id}) -> {self.tag.name}"
 
 
@@ -253,10 +256,8 @@ class Skill(models.Model):
         db_table = 'skill'
         #managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.name
-    
-
 
 
 class ResearcherSkill(models.Model):
@@ -280,5 +281,3 @@ class ResearcherSkill(models.Model):
     class Meta:
         db_table = "researcher_skill"
         unique_together = ("researcher", "skill")
-
-

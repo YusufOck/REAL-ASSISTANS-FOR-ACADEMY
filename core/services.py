@@ -2,19 +2,24 @@ from collections import defaultdict
 from typing import List, Dict, Any, Set, Tuple 
 from django.db import connection
 from .models import Department, Researcher
-
-# AI / NLP Kütüphaneleri
+# YENİ
 try:
     from sentence_transformers import SentenceTransformer, util
-    # Küçük ve hızlı bir model kullanıyoruz (all-MiniLM-L6-v2)
-    # Bu model metinleri 384 boyutlu vektörlere çevirir.
-    AI_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
     AI_AVAILABLE = True
-    print("✅ AI Modeli Yüklendi: Semantic Search Aktif")
 except ImportError:
-    AI_MODEL = None
     AI_AVAILABLE = False
-    print("⚠️ UYARI: sentence-transformers yüklü değil. Semantic Search çalışmayacak.")
+
+# Global değişkeni boş başlatıyoruz
+AI_MODEL = None
+
+def load_ai_model():
+    """Modeli sadece ihtiyaç anında yükler (Lazy Loading)"""
+    global AI_MODEL
+    if AI_MODEL is None and AI_AVAILABLE:
+        print("⏳ AI Modeli Yükleniyor... (İlk istek)")
+        AI_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
+        print("✅ AI Modeli Hazır!")
+    return AI_MODEL
 
 # ---------------------------------------------------------
 # VERİ YÜKLEME YARDIMCILARI
@@ -132,11 +137,13 @@ def get_collaboration_suggestions(
     base_tag_count = len(base_tags) or 1
     base_skill_count = len(base_skills) or 1
 
-    # --- AI SEMANTIC HAZIRLIK ---
-    # Eğer AI modeli yüklüyse, hedef kişinin biyografisini vektöre çevir
+# --- AI SEMANTIC HAZIRLIK ---
     base_embedding = None
-    if AI_AVAILABLE and base_bio and len(base_bio) > 10:
-        base_embedding = AI_MODEL.encode(base_bio, convert_to_tensor=True)
+    # Önce modeli yüklemeyi dene
+    model = load_ai_model() 
+    
+    if model is not None and base_bio and len(base_bio) > 10:
+        base_embedding = model.encode(base_bio, convert_to_tensor=True)
 
     suggestions = []
 
@@ -163,12 +170,11 @@ def get_collaboration_suggestions(
         common_partners = base_partners.intersection(cand_partners)
         network_score = min(len(common_partners) / 3.0, 1.0) # 3 ortak arkadaş = Max puan
 
-        # D. AI Semantic Skor (Anlamsal Benzerlik) 🧠
+        # D. AI Semantic Skor
         semantic_score = 0.0
+        # model değişkenini kullan
         if base_embedding is not None and info["bio"] and len(info["bio"]) > 10:
-            # Adayın biyografisini vektöre çevir
-            cand_embedding = AI_MODEL.encode(info["bio"], convert_to_tensor=True)
-            # Cosine Similarity hesapla (0 ile 1 arası değer döner)
+            cand_embedding = model.encode(info["bio"], convert_to_tensor=True) 
             similarity = util.cos_sim(base_embedding, cand_embedding)
             semantic_score = float(similarity[0][0])
             # Negatif benzerlikleri 0 yapalım

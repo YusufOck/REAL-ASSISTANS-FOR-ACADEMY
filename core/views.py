@@ -1,15 +1,16 @@
-from django.db import connection,transaction
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from .services import get_collaboration_suggestions
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters
+from django.db import connection, transaction
 from django.db.models import Count, Sum, Avg
 
-from rest_framework import viewsets, permissions
-from .models import Researcher, Department, Project, Publication, Skill, ResearcherSkill
+from rest_framework import viewsets, status, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+
+from .services import get_collaboration_suggestions
+from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly
 
 from .models import (
     Department,
@@ -38,6 +39,7 @@ from .serializers import (
 )
 
 
+
 # -------------------------
 #  Basit CRUD ViewSet'ler
 # -------------------------
@@ -50,6 +52,27 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class ResearcherViewSet(viewsets.ModelViewSet):
     queryset = Researcher.objects.all().order_by('researcher_id')
     serializer_class = ResearcherSerializer
+     # --- YENİ EKLENEN AYAR ---
+    def get_permissions(self):
+        """
+        Özel İzin Ayarları:
+        - onboard: Herkese açık (AllowAny) -> Çünkü adam kayıt olmaya gelmiş, token'ı yok.
+        - diğerleri: Varsayılan kural (IsResearcherOwnerOrReadOnly) -> Token gerekir.
+        """
+        if self.action == 'onboard':
+            return [AllowAny()]  # <--- Kapıyı açıyoruz!
+        return super().get_permissions()
+    # -------------------------
+
+
+    # --- GÜVENLİK DUVARI ---
+    # 1. IsAuthenticatedOrReadOnly: Giriş yapmayanlar sadece okur.
+    # 2. IsResearcherOwnerOrReadOnly: Giriş yapan sadece KENDİSİNİ düzenler.
+    permission_classes = [IsResearcherOwnerOrReadOnly]
+    # -----------------------
+
+   
+
     # --- YENİ EKLENEN KISIM ---
    # Filtreleme Motorlarını Aktif Et
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -66,13 +89,13 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     search_fields = ['full_name', 'email', 'bio']
     ordering_fields = ['full_name', 'created_at']
     # --------------------------
-    @action(detail=False, methods=['post'], url_path='onboard')
+        @action(detail=False, methods=['post'], url_path='onboard')
     def onboard(self, request):
         """
         POST /api/researchers/onboard/
         
         Bu endpoint:
-        1. Yeni bir araştırmacı oluşturur.
+        1. Yeni bir araştırmacı oluşturur (Rolüyle birlikte).
         2. Gelen skill_ids ve tag_ids listelerine göre ilişkileri kurar.
         3. İşlem biter bitmez AI algoritmasını çalıştırıp önerileri döner.
         """
@@ -87,34 +110,46 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # 2) Rol Kontrolü (GÜVENLİK ADIMI) 🛡️
+        role = data.get('role', 'student')  # Gönderilmezse 'student' olsun
+
+        if role == 'admin':
+            return Response(
+                {"detail": "Üzgünüm, 'admin' rolünü kendiniz seçemezsiniz."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if role not in ['student', 'academician']:
+            return Response(
+                {"detail": "Geçersiz rol. Sadece 'student' veya 'academician' seçilebilir."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             with transaction.atomic():
-                # A) Araştırmacıyı kaydet
+                # A) Araştırmacıyı oluştur
                 new_researcher = Researcher.objects.create(
                     full_name=data['full_name'],
                     email=data['email'],
                     department_id=data['department_id'],
                     title=data.get('title', ''),
-                    bio=data.get('bio', '')
+                    bio=data.get('bio', ''),
+                    role=role,  # Rolü ekliyoruz
                 )
                 new_id = new_researcher.researcher_id
 
-                # B) Yetenekleri (Skills) ekle
-                #    - Dizi içindeki tekrarları engellemek için set() kullanıyoruz
+                # B) Yetenekleri (Skills) ekle - ORM ile güvenli
                 skill_ids = data.get('skill_ids', []) or []
                 for s_id in set(skill_ids):
                     if not s_id:
                         continue
-                    # ResearcherSkill tablosuna güvenli şekilde ekle
                     ResearcherSkill.objects.get_or_create(
                         researcher_id=new_id,
                         skill_id=s_id,
-                        defaults={"level": 1},  # level alanın varsa, 1 yapıyoruz
+                        defaults={"level": 1},
                     )
 
-                # C) İlgi alanlarını (Tags) ekle
-                #    - entity_tag tablosundaki UNIQUE constraint'i kırmamak için
-                #      get_or_create kullanıyoruz.
+                # C) İlgi alanlarını (Tags) ekle - ORM ile güvenli
                 tag_ids = data.get('tag_ids', []) or []
                 for t_id in set(tag_ids):
                     if not t_id:
@@ -130,11 +165,12 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
             return Response(
                 {
-                    "message": "Araştırmacı başarıyla sisteme eklendi ve analiz edildi.",
+                    "message": f"Araştırmacı ({role}) başarıyla sisteme eklendi ve analiz edildi.",
                     "new_researcher": {
                         "id": new_id,
                         "name": new_researcher.full_name,
                         "email": new_researcher.email,
+                        "role": new_researcher.role,
                         "department": str(new_researcher.department),
                     },
                     "collaboration_suggestions": suggestions,
@@ -143,11 +179,12 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             )
 
         except Exception as e:
-            # Buraya düşen hata artık *entity_tag duplicate* olmamalı
+            # Buraya düşen hata artık entity_tag / researcher_skill duplicate olmamalı
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 
     @action(detail=True, methods=['get'], url_path='collaboration-suggestions')
@@ -248,6 +285,12 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all().order_by('project_id')
     serializer_class = ProjectSerializer
+    # --- GÜVENLİK DUVARI BURADA ---
+    # IsAcademicianOrReadOnly: Sadece hocalar proje ekleyebilir/silebilir.
+    permission_classes = [IsAcademicianOrReadOnly] 
+    # ------------------------------
+
+    
     # --- YENİ EKLENEN KISIM ---
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
