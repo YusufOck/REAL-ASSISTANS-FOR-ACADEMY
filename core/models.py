@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-
+from django.contrib.auth.models import User
 
 class Department(models.Model):
     department_id = models.AutoField(primary_key=True)
@@ -22,6 +22,9 @@ class Researcher(models.Model):
     full_name = models.CharField(max_length=150)
     email = models.CharField(max_length=150, unique=True)
     title = models.CharField(max_length=100, null=True, blank=True)
+    # --- YENİ EKLENENLER ---
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, db_column='user_id')
+    role = models.CharField(max_length=20, default='student')
     department = models.ForeignKey(
         Department,
         models.SET_NULL,
