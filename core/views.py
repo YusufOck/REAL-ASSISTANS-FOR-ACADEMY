@@ -9,6 +9,7 @@ from django.db.models import Count, Sum, Avg
 from .permissions import IsAcademicianOrReadOnly
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly # <--- Yeni eklenen
+from rest_framework.permissions import AllowAny # <--- BUNU EKLE
 from .models import (
     Department,
     Researcher,
@@ -45,6 +46,17 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class ResearcherViewSet(viewsets.ModelViewSet):
     queryset = Researcher.objects.all().order_by('researcher_id')
     serializer_class = ResearcherSerializer
+     # --- YENİ EKLENEN AYAR ---
+    def get_permissions(self):
+        """
+        Özel İzin Ayarları:
+        - onboard: Herkese açık (AllowAny) -> Çünkü adam kayıt olmaya gelmiş, token'ı yok.
+        - diğerleri: Varsayılan kural (IsResearcherOwnerOrReadOnly) -> Token gerekir.
+        """
+        if self.action == 'onboard':
+            return [AllowAny()]  # <--- Kapıyı açıyoruz!
+        return super().get_permissions()
+    # -------------------------
 
 
     # --- GÜVENLİK DUVARI ---
@@ -52,6 +64,9 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # 2. IsResearcherOwnerOrReadOnly: Giriş yapan sadece KENDİSİNİ düzenler.
     permission_classes = [IsResearcherOwnerOrReadOnly]
     # -----------------------
+
+   
+
     # --- YENİ EKLENEN KISIM ---
    # Filtreleme Motorlarını Aktif Et
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -156,7 +171,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        
+
 
     @action(detail=True, methods=['get'], url_path='collaboration-suggestions')
     def collaboration_suggestions(self, request, pk=None):

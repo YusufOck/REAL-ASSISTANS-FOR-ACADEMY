@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
+from django.conf import settings             # <-- EKLENDİ
+from django.conf.urls.static import static   # <-- EKLENDİ
 
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -8,10 +10,9 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
-# --- YENİ IMPORTLAR ---
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,  # Login (Token Alma)
-    TokenRefreshView,     # Token Yenileme
+    TokenObtainPairView,
+    TokenRefreshView,
 )
 
 urlpatterns = [
@@ -32,3 +33,7 @@ urlpatterns = [
     # API Endpointleri
     path('api/', include('core.urls')),
 ]
+
+# --- BU KISIM EKSİKTİ, BUNU EKLEMEK CSS SORUNUNU ÇÖZECEK ---
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

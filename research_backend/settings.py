@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ze9%a7&&b9j1-l(nu=6a+fd$8!=+_c%+5u_fp=6pr0-n=$bsng'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = []
 
@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # 3rd-party
+    'jazzmin',
     'rest_framework',
     'corsheaders',
     'drf_spectacular',
@@ -220,3 +221,4 @@ SPECTACULAR_SETTINGS = {
     'COMPONENT_SPLIT_REQUEST': True,
     'SECURITY': [{'Bearer': []}],         
 }
+

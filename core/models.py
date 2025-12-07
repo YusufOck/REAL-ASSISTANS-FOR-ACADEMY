@@ -13,7 +13,7 @@ class Department(models.Model):
         managed = False
         unique_together = (('name', 'faculty'),)
 
-    def _str_(self):
+    def __str__(self):
         return f"{self.code or ''} - {self.name}"
 
 
@@ -40,7 +40,7 @@ class Researcher(models.Model):
         db_table = 'researcher'
         managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.full_name
 
 
@@ -74,7 +74,7 @@ class Project(models.Model):
         db_table = 'project'
         managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.title
 
 
@@ -100,7 +100,7 @@ class Publication(models.Model):
         db_table = 'publication'
         managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.title
 
 
@@ -114,7 +114,7 @@ class FundingAgency(models.Model):
         db_table = 'funding_agency'
         managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.name
 
 
@@ -146,7 +146,7 @@ class FundingAgencyGrant(models.Model):
         managed = False
         unique_together = (('project', 'funding_agency', 'program_name'),)
 
-    def _str_(self):
+    def __str__(self):
         return f"{self.project} - {self.funding_agency} - {self.program_name or ''}"
 
 
@@ -158,7 +158,7 @@ class Tag(models.Model):
         db_table = 'tag'
         managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.name
 
 
@@ -178,7 +178,7 @@ class EntityTag(models.Model):
         managed = False
         unique_together = (('entity_type', 'entity_id', 'tag'),)
 
-    def _str_(self):
+    def __str__(self):
         return f"{self.entity_type}({self.entity_id}) -> {self.tag.name}"
 
 
@@ -190,5 +190,5 @@ class Skill(models.Model):
         db_table = 'skill'
         managed = False
 
-    def _str_(self):
+    def __str__(self):
         return self.name
