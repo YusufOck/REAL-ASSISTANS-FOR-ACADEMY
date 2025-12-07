@@ -131,7 +131,7 @@ DATABASES = {
     'default': dj_database_url.parse(
         # Link formatı: postgresql://postgres:[ŞİFREN]@db.[PROJE-KODU].supabase.co:5432/postgres
         # Şifreyi yazarken köşeli parantez [] kullanma!
-        "postgresql://postgres.htjsmgqxsiajzxpqesdk:MehmetProject2025@aws-1-ap-south-1.pooler.supabase.com:5432/postgres",
+        "postgresql://postgres.htjsmgqxsiajzxpqesdk:MehmetProject2025@aws-1-ap-south-1.pooler.supabase.com:6543/postgres",
         
         conn_max_age=600,
         ssl_require=True  # Bu satır Supabase bağlantısı için kritiktir

@@ -52,8 +52,6 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # 2. IsResearcherOwnerOrReadOnly: Giriş yapan sadece KENDİSİNİ düzenler.
     permission_classes = [IsResearcherOwnerOrReadOnly]
     # -----------------------
-
-    
     # --- YENİ EKLENEN KISIM ---
    # Filtreleme Motorlarını Aktif Et
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -75,7 +73,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         POST /api/researchers/onboard/
         
         Bu endpoint:
-        1. Yeni bir araştırmacı oluşturur.
+        1. Yeni bir araştırmacı oluşturur (Rolüyle birlikte).
         2. Gelen skill_ids ve tag_ids listelerine göre ilişkileri kurar.
         3. İşlem biter bitmez AI algoritmasını çalıştırıp önerileri döner.
         """
@@ -90,16 +88,31 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # 2. Rol Kontrolü (GÜVENLİK ADIMI) 🛡️
+        role = data.get('role', 'student') # Gönderilmezse 'student' olsun
+        
+        if role == 'admin':
+            return Response(
+                {"detail": "Üzgünüm, 'admin' rolünü kendiniz seçemezsiniz."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if role not in ['student', 'academician']:
+            return Response(
+                {"detail": "Geçersiz rol. Sadece 'student' veya 'academician' seçilebilir."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
-            # transaction.atomic(): Ya hepsi kaydedilir ya hiçbiri (Hata olursa geri alır)
             with transaction.atomic():
-                # A) Araştırmacıyı Kaydet
+                # A) Araştırmacıyı Kaydet (Rolüyle birlikte)
                 new_researcher = Researcher.objects.create(
                     full_name=data['full_name'],
                     email=data['email'],
                     department_id=data['department_id'],
                     title=data.get('title', ''),
-                    bio=data.get('bio', '')
+                    bio=data.get('bio', ''),
+                    role=role  # <--- YENİ EKLENEN KISIM
                 )
                 
                 new_id = new_researcher.researcher_id
@@ -107,14 +120,12 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                 # B) Yetenekleri (Skills) Ekle
                 skill_ids = data.get('skill_ids', [])
                 if skill_ids:
-                    # Raw SQL ile performansı artırıyoruz
                     with connection.cursor() as cursor:
                         for s_id in skill_ids:
                             cursor.execute("""
                                 INSERT INTO researcher_skill (researcher_id, skill_id, level)
                                 VALUES (%s, %s, 1) 
                             """, [new_id, s_id]) 
-                            # Not: Varsayılan level 1 olarak atandı, istersen parametre olarak alabilirsin.
 
                 # C) İlgi Alanlarını (Tags) Ekle
                 tag_ids = data.get('tag_ids', [])
@@ -126,28 +137,26 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                                 VALUES ('researcher', %s, %s)
                             """, [new_id, t_id])
 
-            # Transaction bitti, veriler güvenle kaydedildi.
+            # Transaction bitti.
             
-            # 2. AI Analizi: Yeni eklenen kişi için önerileri getir
+            # 3. AI Analizi
             suggestions = get_collaboration_suggestions(new_id, limit=5)
 
-            # 3. Yanıt Dön
             return Response({
-                "message": "Araştırmacı başarıyla sisteme eklendi ve analiz edildi.",
+                "message": f"Araştırmacı ({role}) başarıyla eklendi.",
                 "new_researcher": {
                     "id": new_id,
                     "name": new_researcher.full_name,
-                    "email": new_researcher.email,
-                    "department": str(new_researcher.department) # __str__ metodunu kullanır
+                    "role": new_researcher.role,  # Yanıtta rolü de görelim
+                    "department": str(new_researcher.department)
                 },
                 "collaboration_suggestions": suggestions
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            # Herhangi bir hata durumunda (örn: email zaten kayıtlı) buraya düşer
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
+        
+        
 
     @action(detail=True, methods=['get'], url_path='collaboration-suggestions')
     def collaboration_suggestions(self, request, pk=None):
