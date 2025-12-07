@@ -62,7 +62,19 @@ REST_FRAMEWORK = {
 
     # 3. Sayfalama (Pagination)
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10
+    'PAGE_SIZE': 10,
+    # --- YENİ EKLENEN GÜVENLİK AYARLARI ---
+    
+    # Kimlik Doğrulama: Sadece JWT kabul et
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    
+    # İzinler: Varsayılan olarak HER YER KİLİTLİ OLSUN (IsAuthenticated)
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+
 }
 
 MIDDLEWARE = [
@@ -186,3 +198,25 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # CORS AYARLARI
 CORS_ALLOW_ALL_ORIGINS = True
+
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Anahtar 60 dk geçerli
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # Yenileme anahtarı 1 gün
+    'AUTH_HEADER_TYPES': ('Bearer',),                # Anahtar kelime
+}
+
+
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Research Platform API',
+    'DESCRIPTION': 'Academic Research Management System',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # Swagger UI'da kilit butonunu aktif et
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SECURITY': [{'Bearer': []}],         
+}
