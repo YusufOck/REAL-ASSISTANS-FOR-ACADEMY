@@ -1,15 +1,17 @@
-from django.db import connection,transaction
-from rest_framework import viewsets, status
+from django.db import connection, transaction
+from django.db.models import Count, Sum, Avg
+
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .services import get_collaboration_suggestions
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from django.db.models import Count, Sum, Avg
-from .permissions import IsAcademicianOrReadOnly
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly # <--- Yeni eklenen
-from rest_framework.permissions import AllowAny # <--- BUNU EKLE
+
+from .services import get_collaboration_suggestions
+from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly
+
 from .models import (
     Department,
     Researcher,
@@ -20,6 +22,9 @@ from .models import (
     Tag,
     EntityTag,
     Skill,
+    ResearcherSkill,
+    ProjectResearcher,
+    AuthorPublication,
 )
 from .serializers import (
     DepartmentSerializer,
@@ -32,6 +37,7 @@ from .serializers import (
     EntityTagSerializer,
     SkillSerializer,
 )
+
 
 
 # -------------------------
@@ -82,7 +88,8 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     
     search_fields = ['full_name', 'email', 'bio']
     ordering_fields = ['full_name', 'created_at']
-    @action(detail=False, methods=['post'], url_path='onboard')
+    # --------------------------
+        @action(detail=False, methods=['post'], url_path='onboard')
     def onboard(self, request):
         """
         POST /api/researchers/onboard/
@@ -93,25 +100,25 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         3. İşlem biter bitmez AI algoritmasını çalıştırıp önerileri döner.
         """
         data = request.data
-        
-        # 1. Validasyon: Zorunlu alanlar var mı?
+
+        # 1) Zorunlu alanları kontrol et
         required_fields = ['full_name', 'email', 'department_id']
         for field in required_fields:
             if field not in data:
                 return Response(
-                    {"detail": f"Eksik bilgi: {field} alanı zorunludur."}, 
+                    {"detail": f"Eksik bilgi: {field} alanı zorunludur."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-        # 2. Rol Kontrolü (GÜVENLİK ADIMI) 🛡️
-        role = data.get('role', 'student') # Gönderilmezse 'student' olsun
-        
+        # 2) Rol Kontrolü (GÜVENLİK ADIMI) 🛡️
+        role = data.get('role', 'student')  # Gönderilmezse 'student' olsun
+
         if role == 'admin':
             return Response(
                 {"detail": "Üzgünüm, 'admin' rolünü kendiniz seçemezsiniz."},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
         if role not in ['student', 'academician']:
             return Response(
                 {"detail": "Geçersiz rol. Sadece 'student' veya 'academician' seçilebilir."},
@@ -120,57 +127,64 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # A) Araştırmacıyı Kaydet (Rolüyle birlikte)
+                # A) Araştırmacıyı oluştur
                 new_researcher = Researcher.objects.create(
                     full_name=data['full_name'],
                     email=data['email'],
                     department_id=data['department_id'],
                     title=data.get('title', ''),
                     bio=data.get('bio', ''),
-                    role=role  # <--- YENİ EKLENEN KISIM
+                    role=role,  # Rolü ekliyoruz
                 )
-                
                 new_id = new_researcher.researcher_id
 
-                # B) Yetenekleri (Skills) Ekle
-                skill_ids = data.get('skill_ids', [])
-                if skill_ids:
-                    with connection.cursor() as cursor:
-                        for s_id in skill_ids:
-                            cursor.execute("""
-                                INSERT INTO researcher_skill (researcher_id, skill_id, level)
-                                VALUES (%s, %s, 1) 
-                            """, [new_id, s_id]) 
+                # B) Yetenekleri (Skills) ekle - ORM ile güvenli
+                skill_ids = data.get('skill_ids', []) or []
+                for s_id in set(skill_ids):
+                    if not s_id:
+                        continue
+                    ResearcherSkill.objects.get_or_create(
+                        researcher_id=new_id,
+                        skill_id=s_id,
+                        defaults={"level": 1},
+                    )
 
-                # C) İlgi Alanlarını (Tags) Ekle
-                tag_ids = data.get('tag_ids', [])
-                if tag_ids:
-                    with connection.cursor() as cursor:
-                        for t_id in tag_ids:
-                            cursor.execute("""
-                                INSERT INTO entity_tag (entity_type, entity_id, tag_id)
-                                VALUES ('researcher', %s, %s)
-                            """, [new_id, t_id])
+                # C) İlgi alanlarını (Tags) ekle - ORM ile güvenli
+                tag_ids = data.get('tag_ids', []) or []
+                for t_id in set(tag_ids):
+                    if not t_id:
+                        continue
+                    EntityTag.objects.get_or_create(
+                        entity_type="researcher",
+                        entity_id=new_id,
+                        tag_id=t_id,
+                    )
 
-            # Transaction bitti.
-            
-            # 3. AI Analizi
+            # Transaction başarıyla bitti, şimdi AI önerilerini alalım
             suggestions = get_collaboration_suggestions(new_id, limit=5)
 
-            return Response({
-                "message": f"Araştırmacı ({role}) başarıyla eklendi.",
-                "new_researcher": {
-                    "id": new_id,
-                    "name": new_researcher.full_name,
-                    "role": new_researcher.role,  # Yanıtta rolü de görelim
-                    "department": str(new_researcher.department)
+            return Response(
+                {
+                    "message": f"Araştırmacı ({role}) başarıyla sisteme eklendi ve analiz edildi.",
+                    "new_researcher": {
+                        "id": new_id,
+                        "name": new_researcher.full_name,
+                        "email": new_researcher.email,
+                        "role": new_researcher.role,
+                        "department": str(new_researcher.department),
+                    },
+                    "collaboration_suggestions": suggestions,
                 },
-                "collaboration_suggestions": suggestions
-            }, status=status.HTTP_201_CREATED)
+                status=status.HTTP_201_CREATED,
+            )
 
         except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            # Buraya düşen hata artık entity_tag / researcher_skill duplicate olmamalı
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 
     @action(detail=True, methods=['get'], url_path='collaboration-suggestions')
@@ -483,80 +497,7 @@ class SkillViewSet(viewsets.ModelViewSet):
     serializer_class = SkillSerializer
 
 
-# -------------------------
-#  Dashboard / İstatistik API
-# -------------------------
 
-class DashboardViewSet(viewsets.ViewSet):
-    """
-    Bu ViewSet bir Model'e bağlı değildir.
-    Sistemin genel istatistiklerini ve raporlarını sunar.
-    """
-
-    @action(detail=False, methods=['get'])
-    def general_stats(self, request):
-        """
-        /api/dashboard/general-stats/
-        Yönetici paneli tepesindeki özet sayı kartları için veri döner.
-        """
-        total_researchers = Researcher.objects.count()
-        total_projects = Project.objects.count()
-        active_projects = Project.objects.filter(status__icontains='active').count()
-        total_publications = Publication.objects.count()
-        
-        # Toplam hibe miktarını hesapla (Currency ayrımı yapmadan basit toplam - geliştirilebilir)
-        total_funding = FundingAgencyGrant.objects.aggregate(Sum('amount'))['amount__sum'] or 0
-
-        return Response({
-            "total_researchers": total_researchers,
-            "total_projects": total_projects,
-            "active_projects": active_projects,
-            "total_publications": total_publications,
-            "total_funding_amount": total_funding
-        })
-
-    @action(detail=False, methods=['get'])
-    def department_distribution(self, request):
-        """
-        /api/dashboard/department-distribution/
-        Hangi bölümde kaç araştırmacı var? (Pie Chart için)
-        """
-        # Group By işlemi: Department'a göre grupla ve say
-        data = Department.objects.annotate(
-            researcher_count=Count('researchers')
-        ).values('name', 'researcher_count').order_by('-researcher_count')
-
-        return Response(data)
-
-    @action(detail=False, methods=['get'])
-    def top_skills(self, request):
-        """
-        /api/dashboard/top-skills/
-        Okulda en çok sahip olunan yetenekler neler? (Bar Chart için)
-        Raw SQL kullanılarak düzeltildi.
-        """
-        # SQL Sorgusu: Skill tablosunu researcher_skill ile birleştir ve say
-        sql = """
-            SELECT s.name, COUNT(rs.researcher_id) as usage_count
-            FROM skill s
-            JOIN researcher_skill rs ON s.skill_id = rs.skill_id
-            GROUP BY s.name
-            ORDER BY usage_count DESC
-            LIMIT 10;
-        """
-        
-        with connection.cursor() as cursor:
-            cursor.execute(sql)
-            rows = cursor.fetchall()
-
-        # SQL sonucunu JSON formatına çevir
-        data = [
-            {"skill": row[0], "researcher_count": row[1]} 
-            for row in rows
-        ]
-        
-        return Response(data)
-    
 
 # -------------------------
 #  Network / İlişki Ağı API
@@ -637,3 +578,83 @@ class NetworkViewSet(viewsets.ViewSet):
             "nodes": nodes,
             "edges": edges
         })
+    
+
+# -------------------------
+#  Dashboard / İstatistik API
+# -------------------------
+
+class DashboardViewSet(viewsets.ViewSet):
+    """
+    Dashboard için istatistik endpoint'leri:
+    - /api/dashboard/general-stats/
+    - /api/dashboard/department-distribution/
+    - /api/dashboard/top-skills/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    @action(detail=False, methods=["get"], url_path="general-stats")
+    def general_stats(self, request):
+        total_researchers = Researcher.objects.count()
+        total_projects = Project.objects.count()
+        total_publications = Publication.objects.count()
+
+        data = {
+            "total_researchers": total_researchers,
+            "total_projects": total_projects,
+            "total_publications": total_publications,
+        }
+        return Response(data)
+
+    @action(detail=False, methods=["get"], url_path="department-distribution")
+    def department_distribution(self, request):
+        """
+        Her departmandaki araştırmacı sayısını döner.
+        Dönen format:
+        [
+          {"department": "Computer Engineering", "researcher_count": 2},
+          {"department": "Electrical Eng.", "researcher_count": 1},
+          ...
+        ]
+        """
+        qs = (
+            Department.objects
+            .annotate(researcher_count=Count("researchers"))   # ✅ DOĞRU İLİŞKİ ADI
+            .values("name", "researcher_count")
+            .order_by("-researcher_count", "name")
+        )
+
+        data = [
+            {
+                "department": row["name"],              # test muhtemelen 'department' key'ini bekliyor
+                "researcher_count": row["researcher_count"],
+            }
+            for row in qs
+        ]
+        return Response(data)
+
+    @action(detail=False, methods=["get"], url_path="top-skills")
+    def top_skills(self, request):
+        """
+        En çok kullanılan skill'leri döner.
+        [
+          {"skill": "UAV", "researcher_count": 3},
+          {"skill": "Forest Fire Detection", "researcher_count": 2},
+          ...
+        ]
+        """
+        qs = (
+            ResearcherSkill.objects
+            .values("skill__name")
+            .annotate(researcher_count=Count("researcher_id", distinct=True))
+            .order_by("-researcher_count", "skill__name")
+        )
+
+        data = [
+            {
+                "skill": row["skill__name"],
+                "researcher_count": row["researcher_count"],
+            }
+            for row in qs
+        ]
+        return Response(data)

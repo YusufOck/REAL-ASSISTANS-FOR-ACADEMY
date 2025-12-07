@@ -10,7 +10,7 @@ class Department(models.Model):
 
     class Meta:
         db_table = 'department'
-        managed = False
+        #managed = False
         unique_together = (('name', 'faculty'),)
 
     def __str__(self):
@@ -38,7 +38,7 @@ class Researcher(models.Model):
 
     class Meta:
         db_table = 'researcher'
-        managed = False
+        #managed = False
 
     def __str__(self):
         return self.full_name
@@ -72,10 +72,35 @@ class Project(models.Model):
 
     class Meta:
         db_table = 'project'
-        managed = False
+        #managed = False
 
     def __str__(self):
         return self.title
+
+
+class ProjectResearcher(models.Model):
+    project = models.ForeignKey(
+        "Project",
+        on_delete=models.CASCADE,
+        db_column="project_id",
+    )
+    researcher = models.ForeignKey(
+        "Researcher",
+        on_delete=models.CASCADE,
+        db_column="researcher_id",
+    )
+    role = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Projede üstlendiği rol (PI, co-author, researcher vs.)"
+    )
+
+    class Meta:
+        db_table = "project_researcher"
+        unique_together = ("project", "researcher")
+
+
 
 
 class Publication(models.Model):
@@ -84,6 +109,24 @@ class Publication(models.Model):
     venue = models.CharField(max_length=200, null=True, blank=True)
     year = models.IntegerField(null=True, blank=True)
     doi = models.CharField(max_length=100, null=True, blank=True)
+
+    # 🔹 EKLEMEN GEREKEN ALAN 1
+    publication_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="journal / conference / thesis gibi tür bilgisi"
+    )
+
+    # 🔹 EKLEMEN GEREKEN ALAN 2
+    main_author = models.ForeignKey(
+        "Researcher",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="main_publications",
+        help_text="Bu yayının ana yazarı"
+    )
 
     project = models.ForeignKey(
         Project,
@@ -98,10 +141,33 @@ class Publication(models.Model):
 
     class Meta:
         db_table = 'publication'
-        managed = False
+        #managed = False
 
     def __str__(self):
         return self.title
+
+
+class AuthorPublication(models.Model):
+    publication = models.ForeignKey(
+        "Publication",
+        on_delete=models.CASCADE,
+        db_column="publication_id",
+    )
+    researcher = models.ForeignKey(
+        "Researcher",
+        on_delete=models.CASCADE,
+        db_column="researcher_id",
+    )
+    author_order = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Yayındaki yazar sırası (1 = birinci yazar, 2 = ikinci vb.)"
+    )
+
+    class Meta:
+        db_table = "author_publication"
+        unique_together = ("publication", "researcher")
+
 
 
 class FundingAgency(models.Model):
@@ -112,7 +178,7 @@ class FundingAgency(models.Model):
 
     class Meta:
         db_table = 'funding_agency'
-        managed = False
+        #managed = False
 
     def __str__(self):
         return self.name
@@ -143,7 +209,7 @@ class FundingAgencyGrant(models.Model):
 
     class Meta:
         db_table = 'funding_agency_grant'
-        managed = False
+        #managed = False
         unique_together = (('project', 'funding_agency', 'program_name'),)
 
     def __str__(self):
@@ -156,7 +222,7 @@ class Tag(models.Model):
 
     class Meta:
         db_table = 'tag'
-        managed = False
+        #managed = False
 
     def __str__(self):
         return self.name
@@ -175,7 +241,7 @@ class EntityTag(models.Model):
 
     class Meta:
         db_table = 'entity_tag'
-        managed = False
+        #managed = False
         unique_together = (('entity_type', 'entity_id', 'tag'),)
 
     def __str__(self):
@@ -188,7 +254,30 @@ class Skill(models.Model):
 
     class Meta:
         db_table = 'skill'
-        managed = False
+        #managed = False
 
     def __str__(self):
         return self.name
+
+
+class ResearcherSkill(models.Model):
+    researcher = models.ForeignKey(
+        "Researcher",
+        on_delete=models.CASCADE,
+        db_column="researcher_id",
+    )
+    skill = models.ForeignKey(
+        "Skill",
+        on_delete=models.CASCADE,
+        db_column="skill_id",
+    )
+
+    # 🔹 YENİ ALAN: skill seviyesi (1–5 arası gibi düşünebilirsin)
+    level = models.PositiveSmallIntegerField(
+        default=3,
+        help_text="Araştırmacının bu skilldeki seviyesi (1-5 arası)"
+    )
+
+    class Meta:
+        db_table = "researcher_skill"
+        unique_together = ("researcher", "skill")
