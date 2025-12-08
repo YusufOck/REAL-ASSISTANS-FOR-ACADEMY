@@ -89,7 +89,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     search_fields = ['full_name', 'email', 'bio']
     ordering_fields = ['full_name', 'created_at']
     # --------------------------
-        @action(detail=False, methods=['post'], url_path='onboard')
+    @action(detail=False, methods=['post'], url_path='onboard')
     def onboard(self, request):
         """
         POST /api/researchers/onboard/
