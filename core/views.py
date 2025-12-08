@@ -231,8 +231,8 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # =========================================================================
     @extend_schema(
         request=RespondCollaborationRequestSerializer,
-        summary="İsteği Cevapla",
-        description="Gelen isteği kabul eder veya reddeder. Cevapta işlem ID'lerini döner."
+        summary="İsteği Cevapla (Mesajlı)",
+        description="İsteği kabul/red eder ve opsiyonel olarak bir cevap mesajı kaydeder."
     )
     @action(detail=False, methods=['post'], url_path='respond-request')
     def respond_request(self, request):
@@ -242,54 +242,48 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         
         req_id = data['request_id']
         response_status = data['response']
+        response_msg = data.get('message', '')  # <-- Mesajı alıyoruz
         
         try:
             with transaction.atomic():
                 collab_req = CollaborationRequest.objects.select_related('project', 'sender', 'receiver').get(request_id=req_id)
                 
                 if collab_req.status != 'pending':
-                    return Response({
-                        "detail": "Bu istek daha önce cevaplanmış.",
-                        "request_id": req_id,
-                        "current_status": collab_req.status
-                    }, status=400)
+                    return Response({"detail": "Bu istek daha önce cevaplanmış."}, status=400)
 
-                # Durumu güncelle
+                # Durumu ve Cevap Mesajını Güncelle
                 collab_req.status = response_status
+                collab_req.response_message = response_msg  # <-- Kaydediyoruz
                 collab_req.save()
 
                 result_data = {
                     "detail": f"İstek {response_status} olarak işaretlendi.",
                     "request_id": req_id,
-                    "status": response_status
+                    "status": response_status,
+                    "response_message": response_msg # Cevapta da gösterelim
                 }
 
-                # KABUL EDİLDİYSE BAĞLANTIYI KUR
                 if response_status == 'accepted':
                     role = "Collaborator" if collab_req.request_type == 'invite' else "Researcher"
                     new_member = collab_req.receiver if collab_req.request_type == 'invite' else collab_req.sender
 
-                    # Zaten ekli değilse ekle
-                    pr_obj, created = ProjectResearcher.objects.get_or_create(
-                        project=collab_req.project,
-                        researcher=new_member,
-                        defaults={
-                            "role": role,
-                            "joined_at": timezone.now()
-                        }
-                    )
+                    if not ProjectResearcher.objects.filter(project=collab_req.project, researcher=new_member).exists():
+                        pr_obj = ProjectResearcher.objects.create(
+                            project=collab_req.project,
+                            researcher=new_member,
+                            role=role,
+                            joined_at=timezone.now()
+                        )
+                        result_data["project_membership_id"] = pr_obj.id
                     
                     result_data["detail"] = f"İstek kabul edildi. {new_member.full_name} projeye eklendi."
-                    # İŞTE BURASI: Yeni oluşan bağlantının ID'sini dönüyoruz
-                    result_data["project_membership_id"] = pr_obj.id 
-                    
-                return Response(result_data, status=200)
             
+            return Response(result_data, status=200)
+
         except CollaborationRequest.DoesNotExist:
             return Response({"detail": "İstek bulunamadı."}, status=404)
         except Exception as e:
             return Response({"detail": str(e)}, status=500)
-
     # =========================================================================
     # MEVCUT GET METODLARI (Aynen korundu)
     # =========================================================================
