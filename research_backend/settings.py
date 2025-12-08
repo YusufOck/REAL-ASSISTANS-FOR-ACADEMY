@@ -222,3 +222,7 @@ SPECTACULAR_SETTINGS = {
     'SECURITY': [{'Bearer': []}],         
 }
 
+# settings.py dosyasının en altı
+
+# Google Gemini API Key
+GEMINI_API_KEY = "AIzaSyBVNkvUqJc_6rQvfYy12UdFtcO83c-EiKM"
