@@ -229,7 +229,7 @@ class FundingAgencyGrant(models.Model):
 class Tag(models.Model):
     tag_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
-   
+    
     class Meta:
         db_table = 'tag'
        
@@ -295,7 +295,6 @@ class ResearcherSkill(models.Model):
 
 
 # core/models.py EN ALTI
-
 class CollaborationRequest(models.Model):
     REQUEST_TYPES = (
         ('invite', 'Davet (Gel Projeme Katıl)'),
@@ -308,13 +307,23 @@ class CollaborationRequest(models.Model):
     )
 
     request_id = models.AutoField(primary_key=True)
+    
+    # İlişkiler
     sender = models.ForeignKey('Researcher', on_delete=models.CASCADE, related_name='sent_requests')
     receiver = models.ForeignKey('Researcher', on_delete=models.CASCADE, related_name='received_requests')
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='collaboration_requests')
     
+    # Durum Bilgileri
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    message = models.TextField(null=True, blank=True)
+    
+    # --- MESAJ ALANLARI ---
+    message = models.TextField(null=True, blank=True, help_text="İsteği gönderen kişinin notu")
+    
+    # YENİ EKLENEN ALAN: Cevaplayan kişinin mesajı
+    response_message = models.TextField(null=True, blank=True, help_text="İsteği kabul/red eden kişinin notu")
+    # ----------------------
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
