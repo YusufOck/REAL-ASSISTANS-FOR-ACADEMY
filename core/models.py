@@ -10,7 +10,7 @@ class Department(models.Model):
 
     class Meta:
         db_table = 'department'
-        #managed = False
+        
         unique_together = (('name', 'faculty'),)
 
     def __str__(self):
@@ -38,7 +38,7 @@ class Researcher(models.Model):
 
     class Meta:
         db_table = 'researcher'
-        #managed = False
+        
 
     def __str__(self):
         return self.full_name
@@ -72,21 +72,20 @@ class Project(models.Model):
 
     class Meta:
         db_table = 'project'
-        #managed = False
+       
 
     def __str__(self):
         return self.title
 
 
 class ProjectResearcher(models.Model):
-    # Admin panelinde sorunsuz çalışması için ID'yi açıkça belirtiyoruz
-    id = models.AutoField(primary_key=True)
+    id = models.AutoField(primary_key=True) 
 
     project = models.ForeignKey(
         "Project",
         on_delete=models.CASCADE,
         db_column="project_id",
-        related_name='project_memberships' # Ters ilişki için gerekli
+        related_name='project_memberships'
     )
     researcher = models.ForeignKey(
         "Researcher",
@@ -100,19 +99,15 @@ class ProjectResearcher(models.Model):
         help_text="Projede üstlendiği rol (PI, co-author, researcher vs.)"
     )
     
-    # --- EKSİK OLAN VE HATAYA SEBEP OLAN ALANLAR ---
+    # Bu alanlar veritabanında var, modelde de kesin olmalı
     contribution_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     joined_at = models.DateField(null=True, blank=True)
-    # -----------------------------------------------
 
     class Meta:
         db_table = "project_researcher"
         unique_together = ("project", "researcher")
-        # Eğer tabloyu Django oluşturacaksa managed=True (varsayılan),
-        # Supabase'de elle açtıysan managed=False yapmalısın.
-        # Şimdilik hata almamak için managed satırını silebilirsin veya False bırakabilirsin.
-    
-    # Admin panelinde "Object" yerine isim görünmesi için:
+        # managed = False satırını SİLDİK! Artık Django patron.
+
     def __str__(self):
         return f"{self.project.title} - {self.researcher.full_name}"
 
@@ -133,7 +128,15 @@ class Publication(models.Model):
         help_text="journal / conference / thesis gibi tür bilgisi"
     )
 
-   
+    # 🔹 EKLEMEN GEREKEN ALAN 2
+    main_author = models.ForeignKey(
+        "Researcher",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="main_publications",
+        help_text="Bu yayının ana yazarı"
+    )
 
     project = models.ForeignKey(
         Project,
@@ -148,7 +151,7 @@ class Publication(models.Model):
 
     class Meta:
         db_table = 'publication'
-        #managed = False
+        
 
     def __str__(self):
         return self.title
@@ -185,7 +188,7 @@ class FundingAgency(models.Model):
 
     class Meta:
         db_table = 'funding_agency'
-        #managed = False
+        
 
     def __str__(self):
         return self.name
@@ -216,7 +219,7 @@ class FundingAgencyGrant(models.Model):
 
     class Meta:
         db_table = 'funding_agency_grant'
-        #managed = False
+        
         unique_together = (('project', 'funding_agency', 'program_name'),)
 
     def __str__(self):
@@ -226,10 +229,10 @@ class FundingAgencyGrant(models.Model):
 class Tag(models.Model):
     tag_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
-
+   
     class Meta:
         db_table = 'tag'
-        #managed = False
+       
 
     def __str__(self):
         return self.name
@@ -248,7 +251,7 @@ class EntityTag(models.Model):
 
     class Meta:
         db_table = 'entity_tag'
-        #managed = False
+        
         unique_together = (('entity_type', 'entity_id', 'tag'),)
 
     def __str__(self):
@@ -261,7 +264,7 @@ class Skill(models.Model):
 
     class Meta:
         db_table = 'skill'
-        #managed = False
+        
 
     def __str__(self):
         return self.name
@@ -289,7 +292,9 @@ class ResearcherSkill(models.Model):
         db_table = "researcher_skill"
         unique_together = ("researcher", "skill")
 
-# core/models.py dosyasının en altına ekle:
+
+
+# core/models.py EN ALTI
 
 class CollaborationRequest(models.Model):
     REQUEST_TYPES = (
@@ -303,9 +308,9 @@ class CollaborationRequest(models.Model):
     )
 
     request_id = models.AutoField(primary_key=True)
-    sender = models.ForeignKey(Researcher, on_delete=models.CASCADE, related_name='sent_requests')
-    receiver = models.ForeignKey(Researcher, on_delete=models.CASCADE, related_name='received_requests')
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='collaboration_requests')
+    sender = models.ForeignKey('Researcher', on_delete=models.CASCADE, related_name='sent_requests')
+    receiver = models.ForeignKey('Researcher', on_delete=models.CASCADE, related_name='received_requests')
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='collaboration_requests')
     
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
