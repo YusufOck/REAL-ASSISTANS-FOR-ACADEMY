@@ -1,42 +1,43 @@
-# core/permissions.py
-
 from rest_framework import permissions
-
-class IsAcademicianOrReadOnly(permissions.BasePermission):
-    """
-    Özel İzin:
-    - Herkes (Giriş yapmış veya yapmamış) okuma yapabilir (GET, HEAD, OPTIONS).
-    - Sadece 'academician' veya 'admin' rolüne sahip olanlar yazma yapabilir (POST, PUT, DELETE).
-    """
-
-    def has_permission(self, request, view):
-        # 1. Okuma isteklerine (GET) herkese izin ver
-        if request.method in permissions.SAFE_METHODS:
-            return True
-
-        # 2. Yazma isteği varsa (POST/DELETE), kullanıcının giriş yapmış olması şart
-        if not request.user or not request.user.is_authenticated:
-            return False
-
-        # 3. Kullanıcının bağlı olduğu Researcher profilini bul
-        # Eğer researcher profili yoksa veya rolü 'student' ise reddet.
-        try:
-            return request.user.researcher.role in ['academician', 'admin']
-        except:
-            return False  # Researcher kaydı yoksa yetki yok
-        
 
 class IsResearcherOwnerOrReadOnly(permissions.BasePermission):
     """
-    Sadece profilin sahibi olan kullanıcı düzenleme yapabilir.
-    Başkaları sadece okuyabilir.
+    Custom permission to only allow owners of an object to edit it.
+    But ADMINS (is_staff) can do anything.
     """
-
     def has_object_permission(self, request, view, obj):
-        # 1. Okuma isteklerine (GET, HEAD, OPTIONS) herkese izin ver
+        # 1. Okuma işlemleri (GET, HEAD, OPTIONS) herkese serbest
         if request.method in permissions.SAFE_METHODS:
             return True
+        
+        # 2. Eğer kullanıcı ADMIN ise (is_staff), her şeye izin ver
+        if request.user and request.user.is_staff:
+            return True
 
-        # 2. Yazma isteği varsa:
-        # Objenin (Researcher) 'user' alanı, isteği atan 'request.user' ile aynı mı?
-        return obj.user == request.user
+        # 3. Değilse, sadece profilin SAHİBİ ise izin ver
+        # (Researcher modelinde 'user' alanı varsa)
+        return hasattr(obj, 'user') and obj.user == request.user
+
+class IsAcademicianOrReadOnly(permissions.BasePermission):
+    """
+    Sadece Akademisyenler (veya Adminler) proje ekleyebilir/silebilir.
+    """
+    def has_permission(self, request, view):
+        # Okuma herkese serbest
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        
+        # Adminlere torpil geç
+        if request.user and request.user.is_staff:
+            return True
+
+        # Kullanıcı giriş yapmış mı ve Researcher profili var mı?
+        if not request.user.is_authenticated:
+            return False
+            
+        try:
+            # Kullanıcının Researcher profilini bul
+            researcher = request.user.researcher 
+            return researcher.role == 'academician'
+        except:
+            return False

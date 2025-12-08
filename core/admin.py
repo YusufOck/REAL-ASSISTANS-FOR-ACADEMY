@@ -59,3 +59,15 @@ class PublicationAdmin(admin.ModelAdmin):
 admin.site.register(FundingAgency)
 admin.site.register(FundingAgencyGrant)
 admin.site.register(EntityTag)
+
+
+
+# Gerekli importu ekle (En üstte)
+from .models import CollaborationRequest
+
+# En alta ekle
+@admin.register(CollaborationRequest)
+class CollaborationRequestAdmin(admin.ModelAdmin):
+    list_display = ('request_id', 'sender', 'receiver', 'project', 'status', 'created_at')
+    list_filter = ('status', 'request_type')
+    search_fields = ('sender__full_name', 'receiver__full_name', 'project__title')

@@ -79,10 +79,14 @@ class Project(models.Model):
 
 
 class ProjectResearcher(models.Model):
+    # Admin panelinde sorunsuz çalışması için ID'yi açıkça belirtiyoruz
+    id = models.AutoField(primary_key=True)
+
     project = models.ForeignKey(
         "Project",
         on_delete=models.CASCADE,
         db_column="project_id",
+        related_name='project_memberships' # Ters ilişki için gerekli
     )
     researcher = models.ForeignKey(
         "Researcher",
@@ -95,11 +99,22 @@ class ProjectResearcher(models.Model):
         blank=True,
         help_text="Projede üstlendiği rol (PI, co-author, researcher vs.)"
     )
+    
+    # --- EKSİK OLAN VE HATAYA SEBEP OLAN ALANLAR ---
+    contribution_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    joined_at = models.DateField(null=True, blank=True)
+    # -----------------------------------------------
 
     class Meta:
         db_table = "project_researcher"
         unique_together = ("project", "researcher")
-
+        # Eğer tabloyu Django oluşturacaksa managed=True (varsayılan),
+        # Supabase'de elle açtıysan managed=False yapmalısın.
+        # Şimdilik hata almamak için managed satırını silebilirsin veya False bırakabilirsin.
+    
+    # Admin panelinde "Object" yerine isim görünmesi için:
+    def __str__(self):
+        return f"{self.project.title} - {self.researcher.full_name}"
 
 
 
@@ -118,15 +133,7 @@ class Publication(models.Model):
         help_text="journal / conference / thesis gibi tür bilgisi"
     )
 
-    # 🔹 EKLEMEN GEREKEN ALAN 2
-    main_author = models.ForeignKey(
-        "Researcher",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="main_publications",
-        help_text="Bu yayının ana yazarı"
-    )
+   
 
     project = models.ForeignKey(
         Project,
@@ -281,3 +288,33 @@ class ResearcherSkill(models.Model):
     class Meta:
         db_table = "researcher_skill"
         unique_together = ("researcher", "skill")
+
+# core/models.py dosyasının en altına ekle:
+
+class CollaborationRequest(models.Model):
+    REQUEST_TYPES = (
+        ('invite', 'Davet (Gel Projeme Katıl)'),
+        ('join_request', 'Katılım İsteği (Projene Katılabilir miyim?)'),
+    )
+    STATUS_CHOICES = (
+        ('pending', 'Beklemede'),
+        ('accepted', 'Kabul Edildi'),
+        ('rejected', 'Reddedildi'),
+    )
+
+    request_id = models.AutoField(primary_key=True)
+    sender = models.ForeignKey(Researcher, on_delete=models.CASCADE, related_name='sent_requests')
+    receiver = models.ForeignKey(Researcher, on_delete=models.CASCADE, related_name='received_requests')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='collaboration_requests')
+    
+    request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    message = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'collaboration_request'
+        unique_together = ('sender', 'receiver', 'project')
+
+    def __str__(self):
+        return f"{self.sender} -> {self.receiver} ({self.status})"

@@ -1,43 +1,36 @@
 from django.db import connection, transaction
-from django.db.models import Count, Sum, Avg
+from django.utils import timezone
+from django.db.models import Count, Sum
 
-from rest_framework import viewsets, status, permissions
+# Rest Framework Importları
+from rest_framework import viewsets, status, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
-
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters
+from drf_spectacular.utils import extend_schema
 
-from .services import get_collaboration_suggestions
+# Servisler ve İzinler
+from .services import get_collaboration_suggestions, generate_embedding
 from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly
 
+# Modellerin Hepsi Tek Yerde
 from .models import (
-    Department,
-    Researcher,
-    Project,
-    Publication,
-    FundingAgency,
-    FundingAgencyGrant,
-    Tag,
-    EntityTag,
-    Skill,
-    ResearcherSkill,
-    ProjectResearcher,
-    AuthorPublication,
-)
-from .serializers import (
-    DepartmentSerializer,
-    ResearcherSerializer,
-    ProjectSerializer,
-    PublicationSerializer,
-    FundingAgencySerializer,
-    FundingAgencyGrantSerializer,
-    TagSerializer,
-    EntityTagSerializer,
-    SkillSerializer,
+    Department, Researcher, Project, Publication,
+    FundingAgency, FundingAgencyGrant, Tag, EntityTag,
+    Skill, ResearcherSkill, ProjectResearcher,
+    AuthorPublication, CollaborationRequest
 )
 
+# Serializerların Hepsi Tek Yerde
+from .serializers import (
+    DepartmentSerializer, ResearcherSerializer, ProjectSerializer,
+    PublicationSerializer, FundingAgencySerializer, FundingAgencyGrantSerializer,
+    TagSerializer, EntityTagSerializer, SkillSerializer,
+    # Özel İşlem Serializerları
+    ResearcherOnboardSerializer, AddResearcherToProjectSerializer,
+    SendCollaborationRequestSerializer, RespondCollaborationRequestSerializer
+)
 
 
 # -------------------------
@@ -49,81 +42,56 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
 
 
+
+
 class ResearcherViewSet(viewsets.ModelViewSet):
     queryset = Researcher.objects.all().order_by('researcher_id')
     serializer_class = ResearcherSerializer
-     # --- YENİ EKLENEN AYAR ---
+    
+    # --- GÜVENLİK VE İZİNLER ---
+    permission_classes = [IsResearcherOwnerOrReadOnly]
+
     def get_permissions(self):
         """
         Özel İzin Ayarları:
-        - onboard: Herkese açık (AllowAny) -> Çünkü adam kayıt olmaya gelmiş, token'ı yok.
-        - diğerleri: Varsayılan kural (IsResearcherOwnerOrReadOnly) -> Token gerekir.
+        - onboard: Herkese açık (AllowAny).
+        - respond_request: Giriş yapmış herkes (IsAuthenticated).
+        - diğerleri: Varsayılan (Sadece kendi profilini düzenleyebilir).
         """
         if self.action == 'onboard':
-            return [AllowAny()]  # <--- Kapıyı açıyoruz!
+            return [AllowAny()]
+        if self.action == 'respond_request':
+            return [IsAuthenticated()]
         return super().get_permissions()
-    # -------------------------
 
-
-    # --- GÜVENLİK DUVARI ---
-    # 1. IsAuthenticatedOrReadOnly: Giriş yapmayanlar sadece okur.
-    # 2. IsResearcherOwnerOrReadOnly: Giriş yapan sadece KENDİSİNİ düzenler.
-    permission_classes = [IsResearcherOwnerOrReadOnly]
-    # -----------------------
-
-   
-
-    # --- YENİ EKLENEN KISIM ---
-   # Filtreleme Motorlarını Aktif Et
+    # --- FİLTRELEME AYARLARI ---
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
-    # --- BURAYI DEĞİŞTİRİYORUZ (Eskisi listeydi, şimdi sözlük yaptık) ---
     filterset_fields = {
-        'department': ['exact'],        # ID olduğu için TAM eşleşme olsun (1 ise 1)
-        'title': ['icontains'],         # "Dr" yazınca "Prof. Dr." da gelsin (Partial Match)
-        'email': ['icontains'],         # "ali" yazınca "ali@univ..." gelsin
-        'full_name': ['icontains'],     # İsimde parça arama
+        'department': ['exact'],
+        'title': ['icontains'],
+        'email': ['icontains'],
+        'full_name': ['icontains'],
     }
-    # -------------------------------------------------------------------
     
     search_fields = ['full_name', 'email', 'bio']
     ordering_fields = ['full_name', 'created_at']
-    # --------------------------
-        @action(detail=False, methods=['post'], url_path='onboard')
+
+    # =========================================================================
+    # 1. ONBOARD (Kayıt + Opsiyonel Proje Oluşturma)
+    # =========================================================================
+    @extend_schema(
+        request=ResearcherOnboardSerializer,
+        responses={201: ResearcherSerializer},
+        summary="Kayıt + (Opsiyonel) Proje Oluşturma",
+        description="Kullanıcıyı oluşturur, skill/tag bağlar. 'create_project' verisi varsa projeyi kurup kullanıcıyı PI yapar."
+    )
+    @action(detail=False, methods=['post'], url_path='onboard')
     def onboard(self, request):
-        """
-        POST /api/researchers/onboard/
-        
-        Bu endpoint:
-        1. Yeni bir araştırmacı oluşturur (Rolüyle birlikte).
-        2. Gelen skill_ids ve tag_ids listelerine göre ilişkileri kurar.
-        3. İşlem biter bitmez AI algoritmasını çalıştırıp önerileri döner.
-        """
-        data = request.data
-
-        # 1) Zorunlu alanları kontrol et
-        required_fields = ['full_name', 'email', 'department_id']
-        for field in required_fields:
-            if field not in data:
-                return Response(
-                    {"detail": f"Eksik bilgi: {field} alanı zorunludur."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-        # 2) Rol Kontrolü (GÜVENLİK ADIMI) 🛡️
-        role = data.get('role', 'student')  # Gönderilmezse 'student' olsun
-
-        if role == 'admin':
-            return Response(
-                {"detail": "Üzgünüm, 'admin' rolünü kendiniz seçemezsiniz."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        if role not in ['student', 'academician']:
-            return Response(
-                {"detail": "Geçersiz rol. Sadece 'student' veya 'academician' seçilebilir."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Serializer ile validasyon (Input Serializer kullanıyoruz)
+        serializer = ResearcherOnboardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
         try:
             with transaction.atomic():
@@ -134,153 +102,242 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                     department_id=data['department_id'],
                     title=data.get('title', ''),
                     bio=data.get('bio', ''),
-                    role=role,  # Rolü ekliyoruz
+                    role=data.get('role', 'student'),
                 )
                 new_id = new_researcher.researcher_id
 
-                # B) Yetenekleri (Skills) ekle - ORM ile güvenli
+                # B) Yetenekleri (Skills) ekle
                 skill_ids = data.get('skill_ids', []) or []
                 for s_id in set(skill_ids):
-                    if not s_id:
-                        continue
                     ResearcherSkill.objects.get_or_create(
-                        researcher_id=new_id,
-                        skill_id=s_id,
-                        defaults={"level": 1},
+                        researcher_id=new_id, skill_id=s_id, defaults={"level": 1}
                     )
 
-                # C) İlgi alanlarını (Tags) ekle - ORM ile güvenli
+                # C) İlgi alanlarını (Tags) ekle
                 tag_ids = data.get('tag_ids', []) or []
                 for t_id in set(tag_ids):
-                    if not t_id:
-                        continue
                     EntityTag.objects.get_or_create(
-                        entity_type="researcher",
-                        entity_id=new_id,
-                        tag_id=t_id,
+                        entity_type="researcher", entity_id=new_id, tag_id=t_id
                     )
 
-            # Transaction başarıyla bitti, şimdi AI önerilerini alalım
+                # D) PROJE OLUŞTURMA (YENİ EKLENEN KISIM) 🏗️
+                created_project = None
+                project_data = data.get('create_project') # Serializer'dan gelen dict
+                
+                if project_data:
+                    created_project = Project.objects.create(
+                        title=project_data.get('title'),
+                        summary=project_data.get('summary', ''),
+                        status=project_data.get('status', 'active'),
+                        pi=new_researcher,  # Proje sahibi (PI)
+                        department_id=data['department_id']
+                    )
+                    # PI olduğu için projeye "Principal Investigator" olarak ekle
+                    ProjectResearcher.objects.create(
+                        project=created_project,
+                        researcher=new_researcher,
+                        role="Principal Investigator",
+                        joined_at=timezone.now()
+                    )
+            # =========================================================
+                # E) NLP VEKTÖR OLUŞTURMA (BURASI EKLENMELİ) 🧠
+                # =========================================================
+                
+                # 1. Metni hazırla: Title + Bio
+                semantic_text = f"{new_researcher.title or ''}. {new_researcher.bio or ''}"
+                
+                # 2. Metin çok kısaysa ismini kullanalım ki boş kalmasın
+                if len(semantic_text) < 5:
+                    semantic_text = f"{new_researcher.full_name} researcher"
+
+                # 3. Vektörü hesapla (services.py'dan gelir)
+                vector = generate_embedding(semantic_text)
+                
+                # 4. Veritabanına anında kaydet
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE researcher SET embedding = %s WHERE researcher_id = %s",
+                        [vector, new_id]
+                    )
+            # Transaction bitti, önerileri al
             suggestions = get_collaboration_suggestions(new_id, limit=5)
 
-            return Response(
-                {
-                    "message": f"Araştırmacı ({role}) başarıyla sisteme eklendi ve analiz edildi.",
-                    "new_researcher": {
-                        "id": new_id,
-                        "name": new_researcher.full_name,
-                        "email": new_researcher.email,
-                        "role": new_researcher.role,
-                        "department": str(new_researcher.department),
-                    },
-                    "collaboration_suggestions": suggestions,
+            return Response({
+                "message": "Kayıt başarılı.",
+                "new_researcher": {
+                    "id": new_id,
+                    "name": new_researcher.full_name,
+                    "role": new_researcher.role,
+                    "project_created": created_project.title if created_project else None
                 },
-                status=status.HTTP_201_CREATED,
-            )
+                "collaboration_suggestions": suggestions
+            }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            # Buraya düşen hata artık entity_tag / researcher_skill duplicate olmamalı
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # =========================================================================
+    # 2. İŞBİRLİĞİ İSTEĞİ GÖNDERME (Invite / Join Request)
+    # =========================================================================
+    # core/views.py içinde send_request fonksiyonunu bul ve değiştir:
+
+    @extend_schema(
+        request=SendCollaborationRequestSerializer,
+        summary="İşbirliği İsteği Gönder",
+        description="İstek gönderir ve oluşturulan isteğin ID'sini döner."
+    )
+    @action(detail=True, methods=['post'], url_path='send-request')
+    def send_request(self, request, pk=None):
+        sender_id = pk
+        serializer = SendCollaborationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        
+        try:
+            sender = Researcher.objects.get(pk=sender_id)
+            receiver = Researcher.objects.get(pk=data['receiver_id'])
+            project = Project.objects.get(pk=data['project_id'])
+
+            if CollaborationRequest.objects.filter(
+                sender=sender, receiver=receiver, project=project, status='pending'
+            ).exists():
+                return Response({"detail": "Zaten bekleyen bir istek var."}, status=400)
+
+            # İsteği oluştur ve değişkene ata
+            collab_req = CollaborationRequest.objects.create(
+                sender=sender,
+                receiver=receiver,
+                project=project,
+                request_type=data['request_type'],
+                message=data.get('message', '')
             )
+            
+            # CEVAPTA ID'Yİ DÖNÜYORUZ (ARTIK ADMİN PANELİNE GEREK YOK)
+            return Response({
+                "detail": "İşbirliği isteği başarıyla gönderildi.",
+                "request_id": collab_req.request_id,  # <-- İşte aradığın ID
+                "status": collab_req.status
+            }, status=status.HTTP_201_CREATED)
 
+        except Researcher.DoesNotExist:
+            return Response({"detail": "Araştırmacı bulunamadı."}, status=404)
+        except Project.DoesNotExist:
+            return Response({"detail": "Proje bulunamadı."}, status=404)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=400)
 
+    # =========================================================================
+    # 3. İSTEĞİ CEVAPLAMA (Accept / Reject)
+    # =========================================================================
+    @extend_schema(
+        request=RespondCollaborationRequestSerializer,
+        summary="İsteği Cevapla",
+        description="Gelen isteği kabul eder veya reddeder. Cevapta işlem ID'lerini döner."
+    )
+    @action(detail=False, methods=['post'], url_path='respond-request')
+    def respond_request(self, request):
+        serializer = RespondCollaborationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        
+        req_id = data['request_id']
+        response_status = data['response']
+        
+        try:
+            with transaction.atomic():
+                collab_req = CollaborationRequest.objects.select_related('project', 'sender', 'receiver').get(request_id=req_id)
+                
+                if collab_req.status != 'pending':
+                    return Response({
+                        "detail": "Bu istek daha önce cevaplanmış.",
+                        "request_id": req_id,
+                        "current_status": collab_req.status
+                    }, status=400)
+
+                # Durumu güncelle
+                collab_req.status = response_status
+                collab_req.save()
+
+                result_data = {
+                    "detail": f"İstek {response_status} olarak işaretlendi.",
+                    "request_id": req_id,
+                    "status": response_status
+                }
+
+                # KABUL EDİLDİYSE BAĞLANTIYI KUR
+                if response_status == 'accepted':
+                    role = "Collaborator" if collab_req.request_type == 'invite' else "Researcher"
+                    new_member = collab_req.receiver if collab_req.request_type == 'invite' else collab_req.sender
+
+                    # Zaten ekli değilse ekle
+                    pr_obj, created = ProjectResearcher.objects.get_or_create(
+                        project=collab_req.project,
+                        researcher=new_member,
+                        defaults={
+                            "role": role,
+                            "joined_at": timezone.now()
+                        }
+                    )
+                    
+                    result_data["detail"] = f"İstek kabul edildi. {new_member.full_name} projeye eklendi."
+                    # İŞTE BURASI: Yeni oluşan bağlantının ID'sini dönüyoruz
+                    result_data["project_membership_id"] = pr_obj.id 
+                    
+                return Response(result_data, status=200)
+            
+        except CollaborationRequest.DoesNotExist:
+            return Response({"detail": "İstek bulunamadı."}, status=404)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=500)
+
+    # =========================================================================
+    # MEVCUT GET METODLARI (Aynen korundu)
+    # =========================================================================
 
     @action(detail=True, methods=['get'], url_path='collaboration-suggestions')
     def collaboration_suggestions(self, request, pk=None):
-        """
-        /api/researchers/{id}/collaboration-suggestions/
-        Belirli bir araştırmacı için potansiyel işbirliği adaylarını döner.
-
-        Opsiyonel query param:
-          - limit: döndürülecek maksimum öneri sayısı (default: 10)
-        """
         try:
             base_researcher_id = int(pk)
         except (TypeError, ValueError):
             return Response({"detail": "Geçersiz researcher id."}, status=400)
 
-        limit_param = request.query_params.get('limit', '10')
-        try:
-            limit = int(limit_param)
-        except ValueError:
-            limit = 10
-
-        limit = max(1, min(limit, 50))  # 1 ile 50 arasında sınırla
+        limit = int(request.query_params.get('limit', 10))
+        limit = max(1, min(limit, 50))
 
         suggestions = get_collaboration_suggestions(base_researcher_id, limit=limit)
         return Response(suggestions)
     
     @action(detail=True, methods=['get'])
     def projects(self, request, pk=None):
-        """
-        /api/researchers/{id}/projects
-        Bu araştırmacının yer aldığı projeleri getirir.
-        project_researcher tablosuna RAW SQL ile join atıyoruz.
-        """
         researcher_id = pk
-
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT
-                    p.project_id,
-                    p.title,
-                    p.status,
-                    p.start_date,
-                    p.end_date
+                SELECT p.project_id, p.title, p.status, p.start_date, p.end_date
                 FROM project_researcher pr
-                JOIN project p
-                    ON p.project_id = pr.project_id
+                JOIN project p ON p.project_id = pr.project_id
                 WHERE pr.researcher_id = %s
                 ORDER BY p.project_id;
             """, [researcher_id])
             rows = cursor.fetchall()
 
-        data = [
-            {
-                "project_id": row[0],
-                "title": row[1],
-                "status": row[2],
-                "start_date": row[3],
-                "end_date": row[4],
-            }
-            for row in rows
-        ]
+        data = [{"project_id": r[0], "title": r[1], "status": r[2], "start_date": r[3], "end_date": r[4]} for r in rows]
         return Response(data)
 
     @action(detail=True, methods=['get'])
     def skills(self, request, pk=None):
-        """
-        /api/researchers/{id}/skills
-        Araştırmacının skill listesini getirir (researcher_skill join'i).
-        """
         researcher_id = pk
-
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT
-                    s.skill_id,
-                    s.name,
-                    rs.level
+                SELECT s.skill_id, s.name, rs.level
                 FROM researcher_skill rs
-                JOIN skill s
-                    ON s.skill_id = rs.skill_id
+                JOIN skill s ON s.skill_id = rs.skill_id
                 WHERE rs.researcher_id = %s
                 ORDER BY s.name;
             """, [researcher_id])
             rows = cursor.fetchall()
 
-        data = [
-            {
-                "skill_id": row[0],
-                "name": row[1],
-                "level": row[2],
-            }
-            for row in rows
-        ]
+        data = [{"skill_id": r[0], "name": r[1], "level": r[2]} for r in rows]
         return Response(data)
-
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all().order_by('project_id')
@@ -345,20 +402,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
         ]
         return Response(data)
 
+    # core/views.py içinde ProjectViewSet altında:
+
+    @extend_schema(
+        request=AddResearcherToProjectSerializer,  # <-- Swagger'a Input formatını gösterdik
+        responses={201: None},
+        summary="Projeye Araştırmacı Ekle",
+        description="Mevcut bir projeye, veritabanındaki bir araştırmacıyı atar."
+    )
     @researchers.mapping.post
     def add_researcher(self, request, pk=None):
         """
         POST /api/projects/{id}/researchers
-        Body:
-        {
-          "researcher_id": 3,
-          "role": "Researcher",
-          "contribution_pct": 30,
-          "joined_at": "2025-01-10"
-        }
-        project_researcher tablosuna INSERT atar.
         """
         project_id = pk
+        # ... (Kodun geri kalanı aynı, dokunmana gerek yok) ...
         researcher_id = request.data.get("researcher_id")
         role = request.data.get("role")
         contribution_pct = request.data.get("contribution_pct")
@@ -370,7 +428,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Basit validation (detaylandırılabilir)
         try:
             contribution_val = float(contribution_pct) if contribution_pct is not None else None
         except ValueError:

@@ -99,3 +99,44 @@ class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
         fields = ['skill_id', 'name']
+
+
+
+# core/serializers.py dosyasında:
+
+# Mevcut ResearcherOnboardSerializer'ı GÜNCELLE:
+class ResearcherOnboardSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    department_id = serializers.IntegerField()
+    role = serializers.ChoiceField(choices=['student', 'academician'], default='student')
+    title = serializers.CharField(required=False, allow_blank=True)
+    bio = serializers.CharField(required=False, allow_blank=True)
+    skill_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=[])
+    tag_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=[])
+    
+    # --- YENİ EKLENEN KISIM: PROJE OLUŞTURMA İSTEĞİ ---
+    create_project = serializers.DictField(
+        required=False, 
+        help_text='{"title": "X", "summary": "Y", "status": "active"}'
+    )
+
+# --- YENİ EKLENEN SERIALIZER: İSTEK GÖNDERME ---
+class SendCollaborationRequestSerializer(serializers.Serializer):
+    receiver_id = serializers.IntegerField(help_text="Kime gönderiliyor?")
+    project_id = serializers.IntegerField(help_text="Hangi proje için?")
+    request_type = serializers.ChoiceField(choices=['invite', 'join_request'])
+    message = serializers.CharField(required=False, allow_blank=True)
+
+# --- YENİ EKLENEN SERIALIZER: İSTEK CEVAPLAMA ---
+class RespondCollaborationRequestSerializer(serializers.Serializer):
+    request_id = serializers.IntegerField()
+    response = serializers.ChoiceField(choices=['accepted', 'rejected'])
+
+    # core/serializers.py (En alta ekle)
+
+class AddResearcherToProjectSerializer(serializers.Serializer):
+    researcher_id = serializers.IntegerField(help_text="Projeye eklenecek araştırmacının ID'si")
+    role = serializers.CharField(max_length=50, required=False, default="Researcher")
+    contribution_pct = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, help_text="Örn: 50.00")
+    joined_at = serializers.DateField(required=False, help_text="YYYY-MM-DD formatında tarih")
