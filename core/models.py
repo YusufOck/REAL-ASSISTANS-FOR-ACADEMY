@@ -332,3 +332,21 @@ class CollaborationRequest(models.Model):
 
     def __str__(self):
         return f"{self.sender} -> {self.receiver} ({self.status})"
+    
+
+# core/models.py (En alta)
+
+class Notification(models.Model):
+    notification_id = models.AutoField(primary_key=True)
+    recipient = models.ForeignKey(Researcher, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notification'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"To: {self.recipient.full_name} | {self.title}"

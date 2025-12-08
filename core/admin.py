@@ -8,7 +8,8 @@ from .models import (
     Tag, 
     EntityTag,
     FundingAgency, 
-    FundingAgencyGrant
+    FundingAgencyGrant,
+    Notification
 )
 
 # 1. ARAŞTIRMACI (RESEARCHER)
@@ -71,3 +72,15 @@ class CollaborationRequestAdmin(admin.ModelAdmin):
     list_display = ('request_id', 'sender', 'receiver', 'project', 'status', 'created_at')
     list_filter = ('status', 'request_type')
     search_fields = ('sender__full_name', 'receiver__full_name', 'project__title')
+
+
+from .models import Notification # Import listesine ekle
+
+
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('recipient', 'title', 'is_read', 'created_at')
+    list_filter = ('is_read',)
+    search_fields = ('recipient__full_name', 'title', 'message')

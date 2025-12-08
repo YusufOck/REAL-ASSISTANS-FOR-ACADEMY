@@ -133,6 +133,11 @@ class RespondCollaborationRequestSerializer(serializers.Serializer):
     request_id = serializers.IntegerField()
     response = serializers.ChoiceField(choices=['accepted', 'rejected'])
     message = serializers.CharField(required=False, allow_blank=True, help_text="Örn: Memnuniyetle katılırım.")
+    message = serializers.CharField(
+        required=False, 
+        allow_blank=True, 
+        help_text="İsteği kabul veya reddederken gönderilen not."
+    )
 
     # core/serializers.py (En alta ekle)
 
