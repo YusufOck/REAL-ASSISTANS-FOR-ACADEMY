@@ -5,4 +5,5 @@ class CoreConfig(AppConfig):
     name = 'core'
 
     def ready(self):
-        import core.signals  
+        # Sadece sinyalleri yükle, model yükleme yok!
+        import core.signals
