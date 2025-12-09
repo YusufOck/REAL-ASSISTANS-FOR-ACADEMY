@@ -157,3 +157,33 @@ class AddResearcherToProjectSerializer(serializers.Serializer):
     role = serializers.CharField(max_length=50, required=False, default="Researcher")
     contribution_pct = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, help_text="Örn: 50.00")
     joined_at = serializers.DateField(required=False, help_text="YYYY-MM-DD formatında tarih")
+
+
+# --- DASHBOARD & NETWORK İÇİN ÖZEL SERIALIZERLAR ---
+
+class DashboardStatsSerializer(serializers.Serializer):
+    """Dashboard istatistikleri için yanıt şeması"""
+    total_researchers = serializers.IntegerField(help_text="Toplam araştırmacı sayısı")
+    total_projects = serializers.IntegerField(help_text="Toplam proje sayısı")
+    # BURASI DEĞİŞTİ: Senin view fonksiyonuna uygun hale getirildi 👇
+    total_publications = serializers.IntegerField(help_text="Toplam yayın sayısı")
+
+class NetworkNodeSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    label = serializers.CharField()
+    group = serializers.CharField(required=False)
+    # EKLENDİ: View fonksiyonunda 'title' da gönderiyorsun 👇
+    title = serializers.CharField(required=False, allow_null=True)
+
+class NetworkEdgeSerializer(serializers.Serializer):
+    # Python'da 'from' yasaklı kelime olduğu için değişken adını farklı yapıp source ile eşleştiriyoruz.
+    from_id = serializers.IntegerField(source='from', help_text="Kaynak ID ('from' olarak döner)")
+    to = serializers.IntegerField()
+    # EKLENDİ: View fonksiyonunda bunları da gönderiyorsun 👇
+    value = serializers.IntegerField(help_text="Bağlantı ağırlığı")
+    type = serializers.CharField(help_text="Bağlantı türü (project/publication)")
+
+class NetworkGraphSerializer(serializers.Serializer):
+    """Network grafiği veri yapısı"""
+    nodes = NetworkNodeSerializer(many=True)
+    edges = NetworkEdgeSerializer(many=True)

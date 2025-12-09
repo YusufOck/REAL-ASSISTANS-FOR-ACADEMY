@@ -32,7 +32,7 @@ from .serializers import (
     SendCollaborationRequestSerializer, RespondCollaborationRequestSerializer
 )
 from django.contrib.auth.models import User
-
+from .serializers import DashboardStatsSerializer
 # -------------------------
 #  Basit CRUD ViewSet'ler
 # -------------------------
@@ -614,7 +614,11 @@ class NetworkViewSet(viewsets.ViewSet):
     Araştırmacılar arasındaki ilişkileri (Graph Data) döner.
     Frontend'de (React Flow, Cytoscape.js) çizim yapmak için kullanılır.
     """
-
+    @extend_schema(
+        summary="İşbirliği Ağı",
+        description="Araştırmacıları (Nodes) ve ortak proje/yayınları (Edges) getirir.",
+        responses={200: NetworkGraphSerializer}
+    )
     def list(self, request):
         """
         GET /api/network/
@@ -698,7 +702,11 @@ class DashboardViewSet(viewsets.ViewSet):
     - /api/dashboard/top-skills/
     """
     permission_classes = [permissions.AllowAny]
-
+    @extend_schema(
+        summary="Genel İstatistikler",
+        description="Sistemdeki toplam araştırmacı, proje ve yayın sayılarını getirir.",
+        responses={200: DashboardStatsSerializer} # <--- İŞTE SWAGGER'I DÜZELTEN KISIM 🛠️
+    )
     @action(detail=False, methods=["get"], url_path="general-stats")
     def general_stats(self, request):
         total_researchers = Researcher.objects.count()
