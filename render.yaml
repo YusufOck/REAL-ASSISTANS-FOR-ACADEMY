@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: research-backend
+    env: python
+    region: frankfurt # Türkiye'ye en yakın sunucu
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn research_backend.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.11
+      - key: SECRET_KEY
+        generateValue: true # Render otomatik güçlü bir şifre üretsin
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*" 
+      - key: DATABASE_URL
+        sync: false # Bunu güvenlik için Render panelinden elle gireceksin
+      - key: GEMINI_API_KEY
+        sync: false # Bunu da elle gireceksin
