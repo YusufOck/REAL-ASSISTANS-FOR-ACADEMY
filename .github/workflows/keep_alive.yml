@@ -1,0 +1,15 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Her 14 dakikada bir çalıştır (Render 15 dk'da uyur)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Elle tetiklemek istersen diye buton ekler
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Service
+        run: curl -I https://real-assistans-for-academy-cbun.onrender.com/api/docs/
+        # Buradaki URL'yi kendi Render linkinle değiştirmeyi unutma!
