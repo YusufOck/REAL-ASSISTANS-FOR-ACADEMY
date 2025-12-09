@@ -108,6 +108,17 @@ class SkillSerializer(serializers.ModelSerializer):
 class ResearcherOnboardSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
+    
+    # --- YENİ EKLENEN: ŞİFRE ALANI 🔑 ---
+    # write_only=True: Şifre sadece gönderilir, cevapta (response) ASLA geri dönmez (Güvenlik).
+    password = serializers.CharField(
+        write_only=True, 
+        required=True, 
+        style={'input_type': 'password'},
+        help_text="Kullanıcının sisteme girişte kullanacağı şifre."
+    )
+    # ------------------------------------
+
     department_id = serializers.IntegerField()
     role = serializers.ChoiceField(choices=['student', 'academician'], default='student')
     title = serializers.CharField(required=False, allow_blank=True)
@@ -115,7 +126,7 @@ class ResearcherOnboardSerializer(serializers.Serializer):
     skill_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=[])
     tag_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=[])
     
-    # --- YENİ EKLENEN KISIM: PROJE OLUŞTURMA İSTEĞİ ---
+    # PROJE OLUŞTURMA İSTEĞİ
     create_project = serializers.DictField(
         required=False, 
         help_text='{"title": "X", "summary": "Y", "status": "active"}'

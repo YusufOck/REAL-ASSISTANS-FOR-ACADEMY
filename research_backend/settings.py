@@ -225,4 +225,4 @@ SPECTACULAR_SETTINGS = {
 # settings.py dosyasının en altı
 
 # Google Gemini API Key
-GEMINI_API_KEY = "AIzaSyBVNkvUqJc_6rQvfYy12UdFtcO83c-EiKM"
+GEMINI_API_KEY = "AIzaSyBHyXfXs6fkbcFRyr7JU1JLLnKvQYua394"

@@ -1,7 +1,7 @@
 from django.db import connection, transaction
 from django.utils import timezone
 from django.db.models import Count, Sum
-
+from .models import Notification
 # Rest Framework Importları
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.decorators import action
@@ -31,7 +31,7 @@ from .serializers import (
     ResearcherOnboardSerializer, AddResearcherToProjectSerializer,
     SendCollaborationRequestSerializer, RespondCollaborationRequestSerializer
 )
-
+from django.contrib.auth.models import User
 
 # -------------------------
 #  Basit CRUD ViewSet'ler
@@ -83,20 +83,35 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     @extend_schema(
         request=ResearcherOnboardSerializer,
         responses={201: ResearcherSerializer},
-        summary="Kayıt + (Opsiyonel) Proje Oluşturma",
-        description="Kullanıcıyı oluşturur, skill/tag bağlar. 'create_project' verisi varsa projeyi kurup kullanıcıyı PI yapar."
+        summary="Kayıt + Login Hesabı + (Opsiyonel) Proje",
+        description="Django User ve Researcher profili oluşturur, projeyi kurar ve AI vektörlerini hesaplar."
     )
     @action(detail=False, methods=['post'], url_path='onboard')
     def onboard(self, request):
-        # Serializer ile validasyon (Input Serializer kullanıyoruz)
+        # Serializer Validasyonu (Password alanı olmalı!)
         serializer = ResearcherOnboardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
         try:
             with transaction.atomic():
-                # A) Araştırmacıyı oluştur
+                # ---------------------------------------------------------
+                # ADIM 1: Django User (Giriş Hesabı) Oluştur 🔑
+                # ---------------------------------------------------------
+                if User.objects.filter(username=data['email']).exists():
+                     return Response({"detail": "Bu email ile kayıtlı bir kullanıcı zaten var."}, status=400)
+
+                user = User.objects.create_user(
+                    username=data['email'], 
+                    email=data['email'], 
+                    password=data['password'] # Serializer'dan gelen şifre
+                )
+
+                # ---------------------------------------------------------
+                # ADIM 2: Araştırmacı Profilini Oluştur (User'a Bağlı) 🔗
+                # ---------------------------------------------------------
                 new_researcher = Researcher.objects.create(
+                    user=user,  # <--- İşte burası User ile Profili bağlar
                     full_name=data['full_name'],
                     email=data['email'],
                     department_id=data['department_id'],
@@ -106,64 +121,79 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                 )
                 new_id = new_researcher.researcher_id
 
-                # B) Yetenekleri (Skills) ekle
+                # ---------------------------------------------------------
+                # ADIM 3: Yetenek ve Etiketler
+                # ---------------------------------------------------------
                 skill_ids = data.get('skill_ids', []) or []
                 for s_id in set(skill_ids):
                     ResearcherSkill.objects.get_or_create(
                         researcher_id=new_id, skill_id=s_id, defaults={"level": 1}
                     )
 
-                # C) İlgi alanlarını (Tags) ekle
                 tag_ids = data.get('tag_ids', []) or []
                 for t_id in set(tag_ids):
                     EntityTag.objects.get_or_create(
                         entity_type="researcher", entity_id=new_id, tag_id=t_id
                     )
 
-                # D) PROJE OLUŞTURMA (YENİ EKLENEN KISIM) 🏗️
+                # ---------------------------------------------------------
+                # ADIM 4: PROJE OLUŞTURMA (Varsa) 🏗️
+                # ---------------------------------------------------------
                 created_project = None
-                project_data = data.get('create_project') # Serializer'dan gelen dict
+                project_data = data.get('create_project')
                 
                 if project_data:
                     created_project = Project.objects.create(
                         title=project_data.get('title'),
                         summary=project_data.get('summary', ''),
                         status=project_data.get('status', 'active'),
-                        pi=new_researcher,  # Proje sahibi (PI)
+                        pi=new_researcher,
                         department_id=data['department_id']
                     )
-                    # PI olduğu için projeye "Principal Investigator" olarak ekle
+                    
+                    # Projeye PI olarak ekle
                     ProjectResearcher.objects.create(
                         project=created_project,
                         researcher=new_researcher,
                         role="Principal Investigator",
                         joined_at=timezone.now()
                     )
-            # =========================================================
-                # E) NLP VEKTÖR OLUŞTURMA (BURASI EKLENMELİ) 🧠
-                # =========================================================
-                
-                # 1. Metni hazırla: Title + Bio
+
+                    # --- PROJE İÇİN DE EMBEDDING HESAPLA ---
+                    proj_text = f"{created_project.title} {created_project.summary}"
+                    proj_vector = generate_embedding(proj_text)
+                    if proj_vector:
+                         with connection.cursor() as cursor:
+                            cursor.execute(
+                                "UPDATE project SET embedding = %s WHERE project_id = %s",
+                                [proj_vector, created_project.project_id]
+                            )
+
+                # ---------------------------------------------------------
+                # ADIM 5: ARAŞTIRMACI İÇİN AI VEKTÖR OLUŞTURMA 🧠
+                # ---------------------------------------------------------
                 semantic_text = f"{new_researcher.title or ''}. {new_researcher.bio or ''}"
                 
-                # 2. Metin çok kısaysa ismini kullanalım ki boş kalmasın
                 if len(semantic_text) < 5:
                     semantic_text = f"{new_researcher.full_name} researcher"
 
-                # 3. Vektörü hesapla (services.py'dan gelir)
                 vector = generate_embedding(semantic_text)
                 
-                # 4. Veritabanına anında kaydet
+                # Veritabanına kaydet
                 with connection.cursor() as cursor:
                     cursor.execute(
                         "UPDATE researcher SET embedding = %s WHERE researcher_id = %s",
                         [vector, new_id]
                     )
-            # Transaction bitti, önerileri al
+
+            # ---------------------------------------------------------
+            # ADIM 6: İşlem Bitti, Önerileri Getir
+            # ---------------------------------------------------------
             suggestions = get_collaboration_suggestions(new_id, limit=5)
 
             return Response({
-                "message": "Kayıt başarılı.",
+                "message": "Kayıt ve Hesap oluşturma başarılı.",
+                "login_email": user.email, # Giriş için kullanılacak mail
                 "new_researcher": {
                     "id": new_id,
                     "name": new_researcher.full_name,
@@ -174,6 +204,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
+            # Hata olursa her şeyi geri al (Atomic Transaction)
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # =========================================================================
@@ -229,10 +260,11 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # =========================================================================
     # 3. İSTEĞİ CEVAPLAMA (Accept / Reject)
     # =========================================================================
+    
     @extend_schema(
         request=RespondCollaborationRequestSerializer,
-        summary="İsteği Cevapla (Mesajlı)",
-        description="İsteği kabul/red eder ve opsiyonel olarak bir cevap mesajı kaydeder."
+        summary="İsteği Cevapla",
+        description="Gelen isteği kabul/red eder ve ilgili bildirimi okundu olarak işaretler."
     )
     @action(detail=False, methods=['post'], url_path='respond-request')
     def respond_request(self, request):
@@ -242,31 +274,35 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         
         req_id = data['request_id']
         response_status = data['response']
-        response_msg = data.get('message', '')  # <-- Mesajı alıyoruz
+        response_msg = data.get('message', '')
         
         try:
             with transaction.atomic():
+                # İlgili isteği çek
                 collab_req = CollaborationRequest.objects.select_related('project', 'sender', 'receiver').get(request_id=req_id)
                 
                 if collab_req.status != 'pending':
                     return Response({"detail": "Bu istek daha önce cevaplanmış."}, status=400)
 
-                # Durumu ve Cevap Mesajını Güncelle
+                # 1. Durumu ve Cevap Mesajını Güncelle
                 collab_req.status = response_status
-                collab_req.response_message = response_msg  # <-- Kaydediyoruz
+                collab_req.response_message = response_msg
                 collab_req.save()
 
                 result_data = {
                     "detail": f"İstek {response_status} olarak işaretlendi.",
                     "request_id": req_id,
                     "status": response_status,
-                    "response_message": response_msg # Cevapta da gösterelim
+                    "response_message": response_msg
                 }
 
+                # 2. Eğer KABUL edildiyse, projeye ekle
                 if response_status == 'accepted':
                     role = "Collaborator" if collab_req.request_type == 'invite' else "Researcher"
+                    # İsteğin yönüne göre projeye eklenecek kişiyi seç
                     new_member = collab_req.receiver if collab_req.request_type == 'invite' else collab_req.sender
 
+                    # Çift kayıt olmaması için kontrol et
                     if not ProjectResearcher.objects.filter(project=collab_req.project, researcher=new_member).exists():
                         pr_obj = ProjectResearcher.objects.create(
                             project=collab_req.project,
@@ -277,7 +313,26 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                         result_data["project_membership_id"] = pr_obj.id
                     
                     result_data["detail"] = f"İstek kabul edildi. {new_member.full_name} projeye eklendi."
-            
+
+                # 3. BİLDİRİMİ OKUNDU YAP (PROFESYONEL DÜZELTME) 🧹
+                # Hata Çözümü 1: 'request.user' yerine 'collab_req.receiver' (Researcher profili) kullanıldı.
+                # Hata Çözümü 2: '.id' yerine '.pk' kullanıldı (Notification modelindeki ID isminden bağımsız çalışır).
+                
+                notification_owner = collab_req.receiver 
+                
+                if notification_owner:
+                    unread_notif = Notification.objects.filter(
+                        recipient=notification_owner,
+                        is_read=False
+                    ).order_by('-created_at').first()
+
+                    if unread_notif:
+                        unread_notif.is_read = True
+                        unread_notif.save()
+                        
+                        # BURASI DEĞİŞTİ: .id YERİNE .pk KULLANILDI 👇
+                        result_data["notification_updated"] = f"Bildirim (ID: {unread_notif.pk}) okundu yapıldı."
+
             return Response(result_data, status=200)
 
         except CollaborationRequest.DoesNotExist:
