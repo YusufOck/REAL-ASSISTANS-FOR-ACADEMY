@@ -1,6 +1,6 @@
 import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom" // useNavigate eklendi
-import { toast } from "sonner" // Bildirim paketi eklendi
+import { Link, useNavigate } from "react-router-dom" 
+import { toast } from "sonner" 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,28 +19,35 @@ export default function Login() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   
-  // Sayfa değiştirmek için kullandığımız React Router kancası
   const navigate = useNavigate()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     
-    // Simüle edilmiş giriş isteği
-    console.log("Login attempt:", email)
-    
-    // 1.5 saniye bekle (Sanki Backend'e soruyormuşuz gibi)
+    // Simüle edilmiş giriş isteği (1.5 saniye bekle)
     setTimeout(() => {
       setIsLoading(false)
 
-      // 1. ADIM: Ekrana havalı bir yeşil kutucuk çıkar
-      toast.success("Giriş Başarılı!", {
-        description: "ResearchOS paneline yönlendiriliyorsunuz...",
-        duration: 2000, // 2 saniye ekranda kalsın
-      })
+      // 1. ADIM: Tarayıcı hafızasındaki kayıtlı bilgileri al
+      const storedEmail = localStorage.getItem("userEmail")
+      const storedPassword = localStorage.getItem("userPassword")
 
-      // 2. ADIM: Kullanıcıyı Dashboard sayfasına fırlat
-      navigate("/dashboard")
+      // 2. ADIM: Karşılaştırma Yap (Güvenlik Kontrolü)
+      if (email === storedEmail && password === storedPassword) {
+        // ✅ Eşleşme Var: Başarılı
+        toast.success("Giriş Başarılı!", {
+          description: "ResearchOS paneline yönlendiriliyorsunuz...",
+          duration: 2000, 
+        })
+        navigate("/dashboard")
+      } else {
+        // ❌ Eşleşme Yok: Hata
+        toast.error("Giriş Başarısız!", {
+          description: "Email veya şifre yanlış. Lütfen bilgilerinizi kontrol edin.",
+          duration: 3000,
+        })
+      }
     }, 1500)
   }
 

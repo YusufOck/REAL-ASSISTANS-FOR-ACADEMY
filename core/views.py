@@ -29,7 +29,8 @@ from .serializers import (
     TagSerializer, EntityTagSerializer, SkillSerializer,
     # Özel İşlem Serializerları
     ResearcherOnboardSerializer, AddResearcherToProjectSerializer,
-    SendCollaborationRequestSerializer, RespondCollaborationRequestSerializer
+    SendCollaborationRequestSerializer, RespondCollaborationRequestSerializer,
+    NetworkGraphSerializer
 )
 from django.contrib.auth.models import User
 from .serializers import DashboardStatsSerializer
