@@ -1,46 +1,47 @@
 from django.db import connection, transaction
 from django.utils import timezone
 from django.db.models import Count, Sum
-from .models import Notification
-# Rest Framework Importları
-from rest_framework import viewsets, status, filters, permissions
+from django.contrib.auth.models import User # <-- User modelini unutma
+
+# --- REST FRAMEWORK IMPORTLARI (DÜZELTİLEN KISIM) ---
+from rest_framework import viewsets, status, filters, permissions, generics # <-- 'generics' EKLENDİ!
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
+from .models import *
+from .serializers import *
 
 # Servisler ve İzinler
 from .services import get_collaboration_suggestions, generate_embedding
 from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly
 
-# Modellerin Hepsi Tek Yerde
+# Modeller
 from .models import (
     Department, Researcher, Project, Publication,
     FundingAgency, FundingAgencyGrant, Tag, EntityTag,
     Skill, ResearcherSkill, ProjectResearcher,
-    AuthorPublication, CollaborationRequest
+    AuthorPublication, CollaborationRequest, Notification
 )
 
-# Serializerların Hepsi Tek Yerde
+# Serializerlar
 from .serializers import (
     DepartmentSerializer, ResearcherSerializer, ProjectSerializer,
     PublicationSerializer, FundingAgencySerializer, FundingAgencyGrantSerializer,
     TagSerializer, EntityTagSerializer, SkillSerializer,
-    # Özel İşlem Serializerları
     ResearcherOnboardSerializer, AddResearcherToProjectSerializer,
     SendCollaborationRequestSerializer, RespondCollaborationRequestSerializer,
-    NetworkGraphSerializer
+    NetworkGraphSerializer, DashboardStatsSerializer, RegisterSerializer # <-- RegisterSerializer burada olmalı
 )
-from django.contrib.auth.models import User
-from .serializers import DashboardStatsSerializer
 # -------------------------
 #  Basit CRUD ViewSet'ler
 # -------------------------
 
 class DepartmentViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all().order_by('department_id')
+    queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
 
 
@@ -773,3 +774,9 @@ class DashboardViewSet(viewsets.ViewSet):
             for row in qs
         ]
         return Response(data)
+
+
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    permission_classes = (AllowAny,) # <-- ÖNEMLİ: Giriş yapmayanlar da erişebilsin
+    serializer_class = RegisterSerializer
