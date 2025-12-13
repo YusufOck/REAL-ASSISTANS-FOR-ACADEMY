@@ -1,23 +1,30 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
-import { Toaster } from "@/components/ui/sonner" // <-- Bildirim kutusu
-import Login from "@/pages/Login"
-import Register from "@/pages/Register"
-import Dashboard from "@/pages/Dashboard" // <-- Yeni sayfa
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
+
+// 👇 DÜZELTİLEN IMPORT BURASI:
+// Ham "sonner" yerine, senin projenin içindeki süslü bileşeni çağırıyoruz.
+import { Toaster } from "@/components/ui/sonner" 
+
+import Login from "./pages/Login"
+import Register from "./pages/Register"
 
 function App() {
   return (
-    <BrowserRouter>
-      {/* Sayfalar */}
+    <Router>
+      {/* Bu Toaster artık Shadcn stilleriyle çalışacak */}
+      <Toaster 
+         position="top-right" 
+         richColors 
+         theme="light" 
+         closeButton
+      />
+
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} /> {/* <-- Yeni Rota */}
+        <Route path="/dashboard" element={<div>Dashboard Sayfası</div>} />
+        <Route path="/" element={<Login />} />
       </Routes>
-      
-      {/* Bildirimlerin Görüneceği Yer (Görünmez ama gereklidir) */}
-      <Toaster position="top-right" richColors />
-    </BrowserRouter>
+    </Router>
   )
 }
 

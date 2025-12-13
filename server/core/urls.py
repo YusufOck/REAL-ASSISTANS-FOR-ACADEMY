@@ -1,7 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+# 1. View'ları Çağırıyoruz
 from .views import (
+    RegisterView,  # <-- Kayıt işlemi için BU ŞART
     DepartmentViewSet,
     ResearcherViewSet,
     ProjectViewSet,
@@ -11,10 +13,12 @@ from .views import (
     TagViewSet,
     EntityTagViewSet,
     SkillViewSet,
-    DashboardViewSet,
-    NetworkViewSet,
+    # 👇 HATA VERENLERİ KAPATTIK (Server düzelince açacağız)
+    # DashboardStatsViewSet, 
+    # NetworkGraphViewSet
 )
 
+# 2. Router Ayarları
 router = DefaultRouter()
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'researchers', ResearcherViewSet, basename='researcher')
@@ -25,10 +29,20 @@ router.register(r'funding-grants', FundingAgencyGrantViewSet, basename='funding-
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'entity-tags', EntityTagViewSet, basename='entity-tag')
 router.register(r'skills', SkillViewSet, basename='skill')
-# --- YENİ EKLENEN SATIR ---
-# Basename zorunludur çünkü queryset'i olmayan özel bir ViewSet bu.
-router.register(r'dashboard', DashboardViewSet, basename='dashboard')
-router.register(r'network', NetworkViewSet, basename='network')
+
+# 👇 BUNLARI DA KAPATTIK
+# router.register(r'dashboard', DashboardViewSet, basename='dashboard')
+# router.register(r'network', NetworkViewSet, basename='network')
+
+# 3. URL Yolları
 urlpatterns = [
+    # 👇 KAYIT İŞLEMİ (BU ÇALIŞACAK)
+    path('register/', RegisterView.as_view(), name='register'),
+
+    # 👇 HATA VEREN SATIRLARI KAPATTIK (NameError Sebebi Bunlardı)
+    # path('dashboard/stats/', DashboardStatsViewSet.as_view({'get': 'list'}), name='dashboard-stats'),
+    # path('network-graph/', NetworkGraphViewSet.as_view({'get': 'list'}), name='network-graph'),
+
+    # Router Linkleri
     path('', include(router.urls)),
 ]

@@ -52,6 +52,10 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
     'core',
     'django_filters',
+    
+    'rest_framework_simplejwt',  # Token üretici
+                   
+    
 ]
 
 # research_backend/settings.py
@@ -85,6 +89,8 @@ REST_FRAMEWORK = {
 }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', # <-- EN ÜSTE BU!
+    
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -235,3 +241,22 @@ SPECTACULAR_SETTINGS = {
 
 # Google Gemini API Key
 GEMINI_API_KEY = "AIzaSyBHyXfXs6fkbcFRyr7JU1JLLnKvQYua394"
+
+# --- REST FRAMEWORK & JWT AYARLARI ---
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Oturum 60 dk açık kalır
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # 1 gün boyunca yenilenebilir
+}
+
+# --- CORS AYARLARI (React İzni) ---
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",      # Senin bilgisayarın (React)
+    "http://127.0.0.1:5173",      # Bazen IP olarak gelir, garanti olsun
+]
