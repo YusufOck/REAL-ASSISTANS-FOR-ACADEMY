@@ -90,7 +90,7 @@ REST_FRAMEWORK = {
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', # <-- EN ÜSTE BU!
-    
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -256,7 +256,9 @@ SIMPLE_JWT = {
 }
 
 # --- CORS AYARLARI (React İzni) ---
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",      # Senin bilgisayarın (React)
-    "http://127.0.0.1:5173",      # Bazen IP olarak gelir, garanti olsun
-]
+CORS_ALLOWED_ORIGINS = ['*']
+
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# 👇 Bu ayar Whitenoise'un dosyaları sıkıştırıp sunmasını sağlar
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
