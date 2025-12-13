@@ -63,6 +63,9 @@ INSTALLED_APPS = [
 REST_FRAMEWORK = {
     # 1. Dokümantasyon (Swagger) için Gerekli Ayar (EKSİK OLAN BU)
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
 
     # 2. Filtreleme, Arama ve Sıralama Ayarları
     'DEFAULT_FILTER_BACKENDS': [
@@ -242,12 +245,7 @@ SPECTACULAR_SETTINGS = {
 # Google Gemini API Key
 GEMINI_API_KEY = "AIzaSyBHyXfXs6fkbcFRyr7JU1JLLnKvQYua394"
 
-# --- REST FRAMEWORK & JWT AYARLARI ---
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
-}
+
 
 from datetime import timedelta
 SIMPLE_JWT = {
@@ -256,7 +254,4 @@ SIMPLE_JWT = {
 }
 
 # --- CORS AYARLARI (React İzni) ---
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",      # Senin bilgisayarın (React)
-    "http://127.0.0.1:5173",      # Bazen IP olarak gelir, garanti olsun
-]
+CORS_ALLOWED_ORIGINS = ['*']   # Bazen IP olarak gelir, garanti olsun]
