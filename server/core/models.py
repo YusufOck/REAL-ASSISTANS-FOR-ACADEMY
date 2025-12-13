@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
+from django.contrib.postgres.search import SearchVectorField
+
 
 class Department(models.Model):
     department_id = models.AutoField(primary_key=True)
@@ -69,6 +71,7 @@ class Project(models.Model):
     )
 
     created_at = models.DateTimeField(default=timezone.now)
+    search_vector = SearchVectorField(null=True, blank=True)
 
     class Meta:
         db_table = 'project'
