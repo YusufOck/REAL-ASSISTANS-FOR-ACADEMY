@@ -254,4 +254,7 @@ SIMPLE_JWT = {
 }
 
 # --- CORS AYARLARI (React İzni) ---
-CORS_ALLOWED_ORIGINS = ['*']   # Bazen IP olarak gelir, garanti olsun]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",      # Senin bilgisayarın (React)
+    "http://127.0.0.1:5173",      # Bazen IP olarak gelir, garanti olsun
+]
