@@ -1,16 +1,14 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
-
-// 👇 DÜZELTİLEN IMPORT BURASI:
-// Ham "sonner" yerine, senin projenin içindeki süslü bileşeni çağırıyoruz.
 import { Toaster } from "@/components/ui/sonner" 
 
+// 👇 EKLENEN IMPORT: Dashboard dosyanı sahneye çağırıyoruz
+import Dashboard from "./pages/Dashboard"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
 
 function App() {
   return (
     <Router>
-      {/* Bu Toaster artık Shadcn stilleriyle çalışacak */}
       <Toaster 
          position="top-right" 
          richColors 
@@ -21,7 +19,10 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<div>Dashboard Sayfası</div>} />
+        
+        {/* 👇 DÜZELTİLEN SATIR: Artık o saçma div yok, gerçek Dashboard var */}
+        <Route path="/dashboard" element={<Dashboard />} />
+        
         <Route path="/" element={<Login />} />
       </Routes>
     </Router>

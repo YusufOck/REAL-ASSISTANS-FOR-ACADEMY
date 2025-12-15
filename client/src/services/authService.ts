@@ -34,7 +34,7 @@ export const authService = {
   getProfile: async () => {
     // Backend'deki yeni endpoint'e istek atıyoruz
     // NOT: Token, api.ts içindeki interceptor sayesinde otomatik eklenecek.
-    const response = await api.get('/researchers/me/');
+    const response = await api.get('/api/researchers/me/');
     return response.data;
   },
 
