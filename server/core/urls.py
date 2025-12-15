@@ -1,9 +1,15 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-# 1. View'ları Çağırıyoruz
+# 1. JWT Token View'larını Çağırıyoruz (Giriş işlemleri için ŞART)
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
+# 2. Kendi View'larımızı Çağırıyoruz
 from .views import (
-    RegisterView,  # <-- Kayıt işlemi için BU ŞART
+    RegisterView,
     DepartmentViewSet,
     ResearcherViewSet,
     ProjectViewSet,
@@ -13,12 +19,12 @@ from .views import (
     TagViewSet,
     EntityTagViewSet,
     SkillViewSet,
-    # 👇 HATA VERENLERİ KAPATTIK (Server düzelince açacağız)
+    # Hata verenleri şimdilik kapalı tutuyoruz
     # DashboardStatsViewSet, 
     # NetworkGraphViewSet
 )
 
-# 2. Router Ayarları
+# 3. Router Ayarları
 router = DefaultRouter()
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'researchers', ResearcherViewSet, basename='researcher')
@@ -30,19 +36,16 @@ router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'entity-tags', EntityTagViewSet, basename='entity-tag')
 router.register(r'skills', SkillViewSet, basename='skill')
 
-# 👇 BUNLARI DA KAPATTIK
-# router.register(r'dashboard', DashboardViewSet, basename='dashboard')
-# router.register(r'network', NetworkViewSet, basename='network')
-
-# 3. URL Yolları
+# 4. URL Yolları
 urlpatterns = [
-    # 👇 KAYIT İŞLEMİ (BU ÇALIŞACAK)
+    # --- AUTH (KİMLİK DOĞRULAMA) ---
+    # Kayıt Ol
     path('register/', RegisterView.as_view(), name='register'),
+    
+    # Giriş Yap (Token Al) - Bunu ana dosyadan buraya taşıdık
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # 👇 HATA VEREN SATIRLARI KAPATTIK (NameError Sebebi Bunlardı)
-    # path('dashboard/stats/', DashboardStatsViewSet.as_view({'get': 'list'}), name='dashboard-stats'),
-    # path('network-graph/', NetworkGraphViewSet.as_view({'get': 'list'}), name='network-graph'),
-
-    # Router Linkleri
+    # --- ROUTER (DİĞER API UÇLARI) ---
     path('', include(router.urls)),
 ]
