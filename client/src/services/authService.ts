@@ -1,6 +1,7 @@
 import { api } from '@/lib/api';
 import type { AuthResponse, LoginCredentials, RegisterCredentials } from '@/types';
 
+
 export const authService = {
   // Giriş Yapma Fonksiyonu
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
@@ -26,5 +27,16 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-  }
+  },
+  // authService objesinin içine şu fonksiyonu ekle:
+
+  // Profil Getir (Token ile)
+  getProfile: async () => {
+    // Backend'deki yeni endpoint'e istek atıyoruz
+    // NOT: Token, api.ts içindeki interceptor sayesinde otomatik eklenecek.
+    const response = await api.get('/researchers/me/');
+    return response.data;
+  },
+
+  
 };

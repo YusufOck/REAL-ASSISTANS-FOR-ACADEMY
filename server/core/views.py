@@ -53,6 +53,31 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # --- GÜVENLİK VE İZİNLER ---
     permission_classes = [IsResearcherOwnerOrReadOnly]
 
+    # =========================================================================
+    # 0. ME (Kendi Profilim) - EKLENEN KISIM
+    # =========================================================================
+    @extend_schema(
+        summary="Giriş Yapan Kullanıcının Profili",
+        description="Token sahibinin Researcher profilini döner.",
+        responses={200: ResearcherSerializer}
+    )
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated], url_path='me')
+    def me(self, request):
+        """
+        GET /api/researchers/me/
+        Token header'da varsa, o kullanıcıya bağlı researcher profilini döner.
+        """
+        try:
+            # Token'dan gelen user'a bağlı researcher'ı bul
+            researcher = Researcher.objects.get(user=request.user)
+            serializer = self.get_serializer(researcher)
+            return Response(serializer.data)
+        except Researcher.DoesNotExist:
+            return Response(
+                {"detail": "Bu kullanıcıya bağlı bir araştırmacı profili bulunamadı."}, 
+                status=404
+            )
+
     def get_permissions(self):
         """
         Özel İzin Ayarları:
