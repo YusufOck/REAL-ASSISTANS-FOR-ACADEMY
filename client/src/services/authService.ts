@@ -1,29 +1,28 @@
 import { api } from '@/lib/api';
-// 👇 RegisterCredentials'ı buraya ekledik
 import type { AuthResponse, LoginCredentials, RegisterCredentials } from '@/types';
 
 export const authService = {
   // Giriş Yapma Fonksiyonu
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    // Backend'e POST isteği atıyoruz
-    const response = await api.post<AuthResponse>('/token/', credentials);
+    // DÜZELTİLDİ: /token/ -> /api/token/
+    const response = await api.post<AuthResponse>('/api/token/', credentials);
     return response.data;
   },
 
-  // 👇 YENİ EKLENEN KISIM: Kayıt Olma Fonksiyonu
+  // Kayıt Olma Fonksiyonu
   register: async (data: RegisterCredentials) => {
-    // Backend'deki /api/register/ adresine verileri gönderir
-    const response = await api.post('/register/', data);
+    // DÜZELTİLDİ: /register/ -> /api/register/
+    const response = await api.post('/api/register/', data);
     return response.data;
   },
 
-  // Token Yenileme (İleride kullanacağız)
+  // Token Yenileme
   refreshToken: async (refresh: string) => {
-    const response = await api.post('/token/refresh/', { refresh });
+    // DÜZELTİLDİ: /token/refresh/ -> /api/token/refresh/
+    const response = await api.post('/api/token/refresh/', { refresh });
     return response.data;
   },
 
-  // Çıkış Yapma (Sadece tarayıcıdan siler)
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
