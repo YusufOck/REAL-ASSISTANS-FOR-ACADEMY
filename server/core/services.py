@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Set, Tuple
 from django.db import connection
 from django.conf import settings
 from .models import Department, Researcher
+import re
 
 
 # ---------------------------------------------------------
@@ -26,42 +27,40 @@ def debug_list_models():
 
 
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
-    """
-    Kullanıcının biyografisini bulunduğu branşa ({department_name}) göre analiz eder.
-    """
     if not bio_text or len(str(bio_text)) < 15:
         return {}
 
     api_key = getattr(settings, 'GEMINI_API_KEY', None)
-    if not api_key:
-        return {}
-
     try:
-        # REST transport kullanımı Render'daki 404 hatalarını engellemek için kritiktir
+        # REST transport Render için şart, gRPC engellenebiliyor.
         genai.configure(api_key=api_key, transport='rest')
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
         
-        # PROMPT ARTIK GENEL: Bölüm ismini dinamik olarak kullanıyor
+        # DEBUG: Tahmin etmeyi bırak, API'nin neye izni var gör!
+        # Render loglarında bu listeyi kontrol et.
+        print("--- ERİŞİLEBİLİR MODELLER ---")
+        for m in genai.list_models():
+            print(f"Model: {m.name} | Methods: {m.supported_generation_methods}")
+        
+        # Standart isim genelde 'models/gemini-1.5-flash' şeklindedir.
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
         prompt = f"""
-        Analyze the following biography from the perspective of an expert in the field of {department_name}.
-        1. Identify key professional and technical skills mentioned or implied.
-        2. Assign a proficiency score (0-100) for each skill based on the context of the biography.
-        3. Return ONLY a valid JSON object. Example: {{"SkillName": 85, "AnotherSkill": 70}}
-        
-        Biography: {bio_text}
+        Analyze the following bio from the perspective of an expert in {department_name}.
+        Extract technical/professional skills and assign scores (0-100).
+        Return ONLY a JSON object. Example: {{"Skill": 90}}
+        Bio: {bio_text}
         """
         
         response = model.generate_content(prompt)
         
-        # Regex ile sadece JSON kısmını ayıklıyoruz (daha güvenli)
-        import re
+        # Regex ile sadece JSON kısmını cımbızla çekiyoruz.
         json_match = re.search(r'\{.*\}', response.text.strip(), re.DOTALL)
         if json_match:
             return json.loads(json_match.group())
         return {}
 
     except Exception as e:
-        print(f"⚠️ Gemini Analiz Hatası: {e}")
+        print(f"⚠️ Gemini Analiz Hatası (Final Try): {e}") # Hata mesajını net görelim
         return {}
 
 
