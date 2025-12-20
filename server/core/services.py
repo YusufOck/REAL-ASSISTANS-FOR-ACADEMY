@@ -6,15 +6,14 @@ from django.db import connection
 from django.conf import settings
 from .models import Department, Researcher
 import re
-
+import numpy as np
+import math
 
 # ---------------------------------------------------------
 # 0. YAPAY ZEKA MODELİ (GOOGLE GEMINI API) 🚀
 # ---------------------------------------------------------
 
 
-
-# core/services.py
 
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
     if not bio_text or len(str(bio_text)) < 15:
@@ -209,82 +208,91 @@ def _get_ai_scores_from_db(base_researcher_id: int) -> Dict[int, float]:
 # 3. ANA ALGORİTMA (HYBRID: GRAPH + FAST SEMANTIC AI)
 # ---------------------------------------------------------
 
-def get_collaboration_suggestions(
-    base_researcher_id: int,
-    limit: int = 10,
-) -> List[Dict[str, Any]]:
+def calculate_cosine_similarity(vec1, vec2):
+    """
+    Saf Python/Math ile kosinüs benzerliği. 
+    Numpy gerektirmez, Render RAM dostudur.
+    """
+    if not vec1 or not vec2 or len(vec1) != len(vec2):
+        return 0.0
     
+    dot_product = sum(a * b for a, b in zip(vec1, vec2))
+    norm_a = math.sqrt(sum(a * a for a in vec1))
+    norm_b = math.sqrt(sum(b * b for b in vec2))
+    
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot_product / (norm_a * norm_b)
+
+
+def _get_all_researcher_skills_json():
+    """
+    Tüm araştırmacıların yeteneklerini {id: skills_dict} şeklinde döner.
+    Döngü içinde her seferinde DB'ye gitmemek için bu veri tek seferde çekilir.
+    """
+    from .models import Researcher # Circular import'u önlemek için içeride import ediyoruz
+    return {r.researcher_id: (r.skills or {}) for r in Researcher.objects.all()}
+
+
+def get_collaboration_suggestions(base_researcher_id: int, limit: int = 10):
+    # Senin eski yardımcı fonksiyonlarınla veriyi çekiyoruz
     researchers = _load_researcher_basic_data()
     if base_researcher_id not in researchers:
         return []
 
     department_names = _load_department_names()
     base_info = researchers[base_researcher_id]
-    base_dept_id = base_info["department_id"]
-
-    researcher_tags, tag_names = _load_researcher_tags()
-    researcher_skills, skill_names = _load_researcher_skills()
-    network_graph = _load_collaboration_network()
-
-    # AI Skorlarını Veritabanından Çek
-    ai_scores_map = _get_ai_scores_from_db(base_researcher_id)
-
-    base_tags = researcher_tags.get(base_researcher_id, set())
-    base_skills = researcher_skills.get(base_researcher_id, set())
-    base_partners = network_graph.get(base_researcher_id, set())
-
-    base_tag_count = len(base_tags) or 1
-    base_skill_count = len(base_skills) or 1
-
+    
+    # Gemini'den gelen 0-100 puanlı yetenekleri çek
+    # NOT: _get_ai_scores_from_db fonksiyonunun tüm kullanıcıların skills'lerini 
+    # {id: {"Python": 90, ...}} şeklinde döndüğünden emin ol.
+    all_ai_skills = _get_all_researcher_skills_json() 
+    base_skills = all_ai_skills.get(base_researcher_id, {})
+    
     suggestions = []
 
     for candidate_id, info in researchers.items():
         if candidate_id == base_researcher_id:
             continue
 
-        # 1. İçerik Skoru (Tag & Skill)
-        cand_tags = researcher_tags.get(candidate_id, set())
-        cand_skills = researcher_skills.get(candidate_id, set())
+        cand_skills = all_ai_skills.get(candidate_id, {})
         
-        common_tag_ids = base_tags.intersection(cand_tags)
-        common_skill_ids = base_skills.intersection(cand_skills)
-        
-        tag_score = len(common_tag_ids) / base_tag_count
-        skill_score = len(common_skill_ids) / base_skill_count
-        
-        # 2. Departman Bonusu
-        dept_score = 1.0 if base_dept_id == info["department_id"] else 0.0
+        # --- 1. TAMAMLAYICILIK ANALİZİ (Gelişmiş Mantık) ---
+        # Senin radar grafiğinde düşük (puan < 45) olan yetenekleri bul
+        missing_skills = [s for s, p in base_skills.items() if p < 45]
+        comp_score = 0.0
+        found_reasons = []
 
-        # 3. Network Skoru
-        cand_partners = network_graph.get(candidate_id, set())
-        common_partners = base_partners.intersection(cand_partners)
-        network_score = min(len(common_partners) / 3.0, 1.0)
+        for skill in missing_skills:
+            cand_puan = cand_skills.get(skill, 0)
+            if cand_puan > 75: # O bu konuda "Senior" ise bonus ver
+                comp_score += (cand_puan / 100.0)
+                found_reasons.append(f"{skill} uzmanı (Puan: {cand_puan})")
 
-        # 4. AI Semantic Skor (Gemini'den gelen)
-        semantic_score = ai_scores_map.get(candidate_id, 0.0)
+        # --- 2. VEKTÖREL (SEMANTİK) BENZERLİK ---
+        # Biyografilerin genel anlam uyumu
+        semantic_score = calculate_cosine_similarity(
+            base_info.get("embedding"), 
+            info.get("embedding")
+        )
 
-        # 5. Ağırlıklı Final Skor
-        total_score = (0.3 * tag_score) + \
-                      (0.2 * skill_score) + \
-                      (0.1 * dept_score) + \
-                      (0.2 * network_score) + \
-                      (0.2 * semantic_score)
+        # --- 3. DİSİPLİNLERARASI BONUS ---
+        # Farklı departman ama ortak teknoloji alanı (Örn: Havacılık + Bilgisayar)
+        dept_bonus = 0.2 if base_info["department_id"] != info["department_id"] else 0.0
 
-        if total_score <= 0.0:
-            continue
+        # --- 4. HİBRİT SKORLAMA ---
+        # Tamamlayıcılığa (Ekip ruhuna) en yüksek ağırlığı veriyoruz.
+        total_score = (0.5 * comp_score) + (0.3 * semantic_score) + (0.2 * dept_bonus)
 
-        suggestions.append({
-            "researcher_id": candidate_id,
-            "full_name": info["full_name"],
-            "department_name": department_names.get(info["department_id"], "Unknown"),
-            "score": round(float(total_score), 4),
-            "reasons": {
-                "common_tags": [tag_names[t] for t in common_tag_ids],
-                "common_skills": [skill_names[s] for s in common_skill_ids],
-                "common_connections": len(common_partners),
-                "semantic_match": f"%{int(semantic_score * 100)}"
-            }
-        })
+        if total_score > 0.1:
+            suggestions.append({
+                "researcher_id": candidate_id,
+                "full_name": info["full_name"],
+                "department_name": department_names.get(info["department_id"], "Unknown"),
+                "score": round(float(total_score), 4),
+                "match_reasons": found_reasons[:3], # Dashboard'da göstermek için
+                "is_complementary": comp_score > 0.4
+            })
 
     suggestions.sort(key=lambda x: x["score"], reverse=True)
     return suggestions[:limit]
