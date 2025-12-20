@@ -1,4 +1,5 @@
 import google.generativeai as genai
+import json
 from collections import defaultdict
 from typing import List, Dict, Any, Set, Tuple 
 from django.db import connection
@@ -8,6 +9,48 @@ from .models import Department, Researcher
 # ---------------------------------------------------------
 # 0. YAPAY ZEKA MODELİ (GOOGLE GEMINI API) 🚀
 # ---------------------------------------------------------
+
+def analyze_skills_with_gemini(bio_text):
+    """
+    Kullanıcının biyografisini Gemini 1.5 Flash ile analiz eder,
+    teknik yetenekleri ayıklar ve 0-100 arası uzmanlık puanı verir.
+    """
+    if not bio_text or len(str(bio_text)) < 15:
+        return {}
+
+    api_key = getattr(settings, 'GEMINI_API_KEY', None)
+    if not api_key:
+        return {}
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Mühendislik notu: Prompt'u çok kesin tutuyoruz ki tırt veri gelmesin.
+        prompt = f"""
+        Aşağıdaki biyografiyi bir bilgisayar mühendisi gözüyle analiz et.
+        İçindeki teknik yetenekleri (programlama dilleri, frameworkler, araçlar, domain bilgisi) ayıkla.
+        Her yetenek için biyografideki vurguya göre 0-100 arası bir uzmanlık puanı ata.
+        Sadece geçerli bir JSON objesi döndür. Örn: {{"Python": 90, "ROS2": 85}}
+        
+        Biyografi: {bio_text}
+        """
+        
+        response = model.generate_content(prompt)
+        
+        # Markdown kod bloklarını (```json ... ```) temizle
+        clean_text = response.text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:-3]
+        elif clean_text.startswith("```"):
+            clean_text = clean_text[3:-3]
+            
+        return json.loads(clean_text)
+
+    except Exception as e:
+        print(f"⚠️ Gemini Skill Analysis Hatası: {e}")
+        return {}
+
 
 def generate_embedding(text):
     """

@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.db.models import Count, Sum
 from django.contrib.auth.models import User # <-- User modelini unutma
 
+
 # --- REST FRAMEWORK IMPORTLARI (DÜZELTİLEN KISIM) ---
 from rest_framework import viewsets, status, filters, permissions, generics # <-- 'generics' EKLENDİ!
 from rest_framework.decorators import action
@@ -14,7 +15,7 @@ from .models import *
 from .serializers import *
 
 # Servisler ve İzinler
-from .services import get_collaboration_suggestions, generate_embedding
+from .services import get_collaboration_suggestions, generate_embedding, analyze_skills_with_gemini
 from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly
 
 # Modeller
@@ -78,6 +79,32 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                 status=404
             )
 
+    # views.py - ResearcherViewSet içine ekle
+    def perform_update(self, serializer):
+        """
+        Profil güncellendiğinde (PATCH/PUT) otomatik çalışır.
+        """
+        # 1. Önce normal kayıt işlemini yap (bio, title vb. kaydedilsin)
+        instance = serializer.save()
+
+        # 2. AI GÜNCELLEMESİ (Embedding + Skill Extraction)
+        # Biyografi değişmişse veya skills alanı boşsa tetikle
+        if instance.bio:
+            try:
+                # Kendi yazdığın Gemini fonksiyonlarını burada çağırıyoruz
+                # Adım A: Yetenekleri ayıkla ve JSONField'a kaydet
+                instance.skills = analyze_skills_with_gemini(instance.bio)
+                
+                # Adım B: Semantic Search için vektörleri güncelle
+                semantic_text = f"{instance.title or ''} {instance.bio}"
+                instance.embedding = generate_embedding(semantic_text)
+                
+                # Değişiklikleri veritabanına mühürle
+                instance.save()
+            except Exception as e:
+                print(f"AI İşleme Hatası: {str(e)}")
+
+
     def get_permissions(self):
         """
         Özel İzin Ayarları:
@@ -110,12 +137,11 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     @extend_schema(
         request=ResearcherOnboardSerializer,
         responses={201: ResearcherSerializer},
-        summary="Kayıt + Login Hesabı + (Opsiyonel) Proje",
-        description="Django User ve Researcher profili oluşturur, projeyi kurar ve AI vektörlerini hesaplar."
+        summary="Kayıt + Login Hesabı + AI Analizi",
+        description="User ve Researcher profili oluşturur, Gemini ile yetenekleri ayıklar ve vektörleri hesaplar."
     )
     @action(detail=False, methods=['post'], url_path='onboard')
     def onboard(self, request):
-        # Serializer Validasyonu (Password alanı olmalı!)
         serializer = ResearcherOnboardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -123,22 +149,22 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 # ---------------------------------------------------------
-                # ADIM 1: Django User (Giriş Hesabı) Oluştur 🔑
+                # ADIM 1: Django User Oluştur 🔑
                 # ---------------------------------------------------------
                 if User.objects.filter(username=data['email']).exists():
-                     return Response({"detail": "Bu email ile kayıtlı bir kullanıcı zaten var."}, status=400)
+                    return Response({"detail": "Bu email ile kayıtlı bir kullanıcı zaten var."}, status=400)
 
                 user = User.objects.create_user(
                     username=data['email'], 
                     email=data['email'], 
-                    password=data['password'] # Serializer'dan gelen şifre
+                    password=data['password']
                 )
 
                 # ---------------------------------------------------------
-                # ADIM 2: Araştırmacı Profilini Oluştur (User'a Bağlı) 🔗
+                # ADIM 2: Araştırmacı Profilini Oluştur 🔗
                 # ---------------------------------------------------------
                 new_researcher = Researcher.objects.create(
-                    user=user,  # <--- İşte burası User ile Profili bağlar
+                    user=user,
                     full_name=data['full_name'],
                     email=data['email'],
                     department_id=data['department_id'],
@@ -146,25 +172,9 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                     bio=data.get('bio', ''),
                     role=data.get('role', 'student'),
                 )
-                new_id = new_researcher.researcher_id
 
                 # ---------------------------------------------------------
-                # ADIM 3: Yetenek ve Etiketler
-                # ---------------------------------------------------------
-                skill_ids = data.get('skill_ids', []) or []
-                for s_id in set(skill_ids):
-                    ResearcherSkill.objects.get_or_create(
-                        researcher_id=new_id, skill_id=s_id, defaults={"level": 1}
-                    )
-
-                tag_ids = data.get('tag_ids', []) or []
-                for t_id in set(tag_ids):
-                    EntityTag.objects.get_or_create(
-                        entity_type="researcher", entity_id=new_id, tag_id=t_id
-                    )
-
-                # ---------------------------------------------------------
-                # ADIM 4: PROJE OLUŞTURMA (Varsa) 🏗️
+                # ADIM 3: Proje Oluşturma (Varsa) 🏗️
                 # ---------------------------------------------------------
                 created_project = None
                 project_data = data.get('create_project')
@@ -186,52 +196,49 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                         joined_at=timezone.now()
                     )
 
-                    # --- PROJE İÇİN DE EMBEDDING HESAPLA ---
+                    # PROJE EMBEDDING (ORM ile - RAW SQL DEĞİL!)
                     proj_text = f"{created_project.title} {created_project.summary}"
-                    proj_vector = generate_embedding(proj_text)
-                    if proj_vector:
-                         with connection.cursor() as cursor:
-                            cursor.execute(
-                                "UPDATE project SET embedding = %s WHERE project_id = %s",
-                                [proj_vector, created_project.project_id]
-                            )
+                    created_project.embedding = generate_embedding(proj_text)
+                    created_project.save()
 
                 # ---------------------------------------------------------
-                # ADIM 5: ARAŞTIRMACI İÇİN AI VEKTÖR OLUŞTURMA 🧠
+                # ADIM 4: AI ANALİZİ VE SKILLS AYIKLAMA 🧠 (KRİTİK GÜNCELLEME)
                 # ---------------------------------------------------------
+                # A: Gemini ile bio içindeki yetenekleri skorla ve JSONField'a yaz
+                if new_researcher.bio:
+                    try:
+                        new_researcher.skills = analyze_skills_with_gemini(new_researcher.bio)
+                    except Exception as ai_err:
+                        print(f"Gemini Skill Extraction Hatası: {ai_err}")
+                        new_researcher.skills = {}
+
+                # B: Semantic Search için Embedding hesapla (ORM ile!)
                 semantic_text = f"{new_researcher.title or ''}. {new_researcher.bio or ''}"
-                
                 if len(semantic_text) < 5:
                     semantic_text = f"{new_researcher.full_name} researcher"
-
-                vector = generate_embedding(semantic_text)
                 
-                # Veritabanına kaydet
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        "UPDATE researcher SET embedding = %s WHERE researcher_id = %s",
-                        [vector, new_id]
-                    )
+                new_researcher.embedding = generate_embedding(semantic_text)
+                
+                # Tüm AI güncellemelerini tek seferde kaydet
+                new_researcher.save()
 
             # ---------------------------------------------------------
-            # ADIM 6: İşlem Bitti, Önerileri Getir
+            # ADIM 5: İşlem Bitti, Önerileri Getir
             # ---------------------------------------------------------
-            suggestions = get_collaboration_suggestions(new_id, limit=5)
+            suggestions = get_collaboration_suggestions(new_researcher.researcher_id, limit=5)
 
             return Response({
-                "message": "Kayıt ve Hesap oluşturma başarılı.",
-                "login_email": user.email, # Giriş için kullanılacak mail
+                "message": "Kayıt ve AI analizi başarıyla tamamlandı.",
+                "login_email": user.email,
                 "new_researcher": {
-                    "id": new_id,
+                    "id": new_researcher.researcher_id,
                     "name": new_researcher.full_name,
-                    "role": new_researcher.role,
-                    "project_created": created_project.title if created_project else None
+                    "skills_count": len(new_researcher.skills) if new_researcher.skills else 0
                 },
                 "collaboration_suggestions": suggestions
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            # Hata olursa her şeyi geri al (Atomic Transaction)
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # =========================================================================
