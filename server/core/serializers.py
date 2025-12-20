@@ -23,7 +23,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class ResearcherSerializer(serializers.ModelSerializer):
     
     department_name = serializers.CharField(source='department.name', read_only=True)
-
+    suggestions = serializers.SerializerMethodField()
     class Meta:
         model = Researcher
         fields = [
@@ -38,7 +38,10 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'skills',
             
         ]
-
+    def get_suggestions(self, obj):
+        # Sadece mevcut kullanıcı için önerileri getiriyoruz
+        from .services import get_collaboration_suggestions
+        return get_collaboration_suggestions(obj.researcher_id, limit=5)
 
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:

@@ -234,65 +234,60 @@ def _get_all_researcher_skills_json():
     return {r.researcher_id: (r.skills or {}) for r in Researcher.objects.all()}
 
 
-def get_collaboration_suggestions(base_researcher_id: int, limit: int = 10):
-    # Senin eski yardımcı fonksiyonlarınla veriyi çekiyoruz
-    researchers = _load_researcher_basic_data()
-    if base_researcher_id not in researchers:
-        return []
-
-    department_names = _load_department_names()
-    base_info = researchers[base_researcher_id]
-    
-    # Gemini'den gelen 0-100 puanlı yetenekleri çek
-    # NOT: _get_ai_scores_from_db fonksiyonunun tüm kullanıcıların skills'lerini 
-    # {id: {"Python": 90, ...}} şeklinde döndüğünden emin ol.
-    all_ai_skills = _get_all_researcher_skills_json() 
-    base_skills = all_ai_skills.get(base_researcher_id, {})
-    
-    suggestions = []
-
-    for candidate_id, info in researchers.items():
-        if candidate_id == base_researcher_id:
-            continue
-
-        cand_skills = all_ai_skills.get(candidate_id, {})
+def get_collaboration_suggestions(base_researcher_id: int, limit: int = 5):
+    """
+    Dinamik Hibrit Eşleştirme. 
+    Sorgu sayısını azaltmak için 'all_skills' haritasını kullanır.
+    """
+    try:
+        # 1. Ana Kullanıcıyı Çek
+        base_user = Researcher.objects.get(pk=base_researcher_id)
         
-        # --- 1. TAMAMLAYICILIK ANALİZİ (Gelişmiş Mantık) ---
-        # Senin radar grafiğinde düşük (puan < 45) olan yetenekleri bul
+        # 2. Tüm yetenekleri TEK SEFERDE çek (N+1 probleminden kaçış)
+        all_skills = _get_all_researcher_skills_json()
+        base_skills = all_skills.get(base_researcher_id, {})
+        
+        # 3. Adayları Çek
+        candidates = Researcher.objects.exclude(pk=base_researcher_id)
+        
+        suggestions = []
         missing_skills = [s for s, p in base_skills.items() if p < 45]
-        comp_score = 0.0
-        found_reasons = []
 
-        for skill in missing_skills:
-            cand_puan = cand_skills.get(skill, 0)
-            if cand_puan > 75: # O bu konuda "Senior" ise bonus ver
-                comp_score += (cand_puan / 100.0)
-                found_reasons.append(f"{skill} uzmanı (Puan: {cand_puan})")
+        for cand in candidates:
+            # ÖNEMLİ: cand.skills yerine önceden çektiğimiz all_skills haritasını kullanıyoruz!
+            cand_skills = all_skills.get(cand.researcher_id, {})
+            
+            # --- TAMAMLAYICILIK %50 ---
+            comp_score = 0.0
+            found_reasons = []
+            for skill in missing_skills:
+                puan = cand_skills.get(skill, 0)
+                if puan > 75: 
+                    comp_score += (puan / 100.0)
+                    found_reasons.append(f"{skill} Uzmanı ({puan} Puan)")
 
-        # --- 2. VEKTÖREL (SEMANTİK) BENZERLİK ---
-        # Biyografilerin genel anlam uyumu
-        semantic_score = calculate_cosine_similarity(
-            base_info.get("embedding"), 
-            info.get("embedding")
-        )
+            # --- SEMANTİK UYUM %30 ---
+            semantic_score = calculate_cosine_similarity(base_user.embedding, cand.embedding)
 
-        # --- 3. DİSİPLİNLERARASI BONUS ---
-        # Farklı departman ama ortak teknoloji alanı (Örn: Havacılık + Bilgisayar)
-        dept_bonus = 0.2 if base_info["department_id"] != info["department_id"] else 0.0
+            # --- DİSİPLİNLERARASI %20 ---
+            dept_bonus = 0.2 if base_user.department_id != cand.department_id else 0.0
 
-        # --- 4. HİBRİT SKORLAMA ---
-        # Tamamlayıcılığa (Ekip ruhuna) en yüksek ağırlığı veriyoruz.
-        total_score = (0.5 * comp_score) + (0.3 * semantic_score) + (0.2 * dept_bonus)
+            # --- HİBRİT HESAPLAMA ---
+            # Tamamlayıcılığı normalize ediyoruz
+            norm_comp = (comp_score / (len(missing_skills) or 1))
+            total_score = (0.5 * norm_comp) + (0.3 * semantic_score) + (0.2 * dept_bonus)
 
-        if total_score > 0.1:
-            suggestions.append({
-                "researcher_id": candidate_id,
-                "full_name": info["full_name"],
-                "department_name": department_names.get(info["department_id"], "Unknown"),
-                "score": round(float(total_score), 4),
-                "match_reasons": found_reasons[:3], # Dashboard'da göstermek için
-                "is_complementary": comp_score > 0.4
-            })
+            if total_score > 0.1:
+                suggestions.append({
+                    "researcher_id": cand.researcher_id,
+                    "full_name": cand.full_name,
+                    "department_name": cand.department.name if cand.department else "Unknown",
+                    "score": round(float(total_score), 4),
+                    "match_reasons": found_reasons[:2],
+                    "is_complementary": norm_comp > 0.4
+                })
 
-    suggestions.sort(key=lambda x: x["score"], reverse=True)
-    return suggestions[:limit]
+        return sorted(suggestions, key=lambda x: x["score"], reverse=True)[:limit]
+    except Exception as e:
+        print(f"❌ Eşleştirme Hatası: {e}")
+        return []
