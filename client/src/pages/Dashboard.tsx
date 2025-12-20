@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
-import { useNavigate, Link } from "react-router-dom" // Link eklendi
+import { useNavigate, Link } from "react-router-dom"
 import { authService } from "@/services/authService"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { LogOut, User, Briefcase, Building2, Loader2, Settings } from "lucide-react" // Settings eklendi
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { LogOut, User, Briefcase, Building2, Loader2, Settings, BrainCircuit } from "lucide-react"
 import { toast } from "sonner"
-
+// 1. Recharts bileşenlerini ekliyoruz
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 
 interface UserProfile {
   researcher_id: number;
@@ -15,6 +16,8 @@ interface UserProfile {
   role: string;
   department: number | null;
   department_name: string | null; 
+  // 2. Skils alanını obje (key-value) destekleyecek şekilde esnetiyoruz
+  skills: Record<string, number> | string[] | null;
 }
 
 export default function Dashboard() {
@@ -31,20 +34,37 @@ export default function Dashboard() {
       const data = await authService.getProfile()
       setProfile(data)
     } catch (error: any) {
-      console.error("Profil çekilemedi:", error)
-      
-      // 401 Hatası: Token bitmiş demektir. "Tırt" mesajlar yerine direkt login'e şutla.
       if (error.response?.status === 401) {
         authService.logout()
         navigate("/login")
-        return // Aşağıdaki toast'un çalışmasını engelleriz
+        return
       }
-      
       toast.error("Profil bilgileri yüklenemedi.")
     } finally {
       setLoading(false)
     }
   }
+
+  // 3. Veriyi grafik formatına dönüştüren yardımcı fonksiyon
+  const prepareChartData = () => {
+    if (!profile?.skills) return [];
+    
+    // Eğer skills bir obje geliyorsa (Örn: {Python: 90})
+    if (!Array.isArray(profile.skills)) {
+      return Object.entries(profile.skills).map(([key, value]) => ({
+        subject: key,
+        A: value,
+        fullMark: 100,
+      }));
+    }
+    
+    // Eğer skills sadece string array geliyorsa (Örn: ["Python", "AI"])
+    return profile.skills.map(skill => ({
+      subject: skill,
+      A: 80, // Varsayılan puan (Gemini skor üretmiyorsa)
+      fullMark: 100,
+    }));
+  };
 
   const handleLogout = () => {
     authService.logout()
@@ -60,6 +80,8 @@ export default function Dashboard() {
     )
   }
 
+  const chartData = prepareChartData();
+
   return (
     <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
       {/* Üst Bar */}
@@ -71,7 +93,6 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* PROFİLE GİTME BUTONU: Burası kritik, kullanıcı bilgilerini doldurmalı! */}
           <Button variant="outline" asChild>
             <Link to="/profile">
               <Settings className="mr-2 h-4 w-4" /> Profili Düzenle
@@ -108,6 +129,41 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* 4. YENİ KART: Yetenek Analizi (Radar Chart) */}
+        <Card className="col-span-full lg:col-span-2 shadow-sm border-none ring-1 ring-gray-200">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div className="space-y-1">
+              <CardTitle className="text-sm font-medium">Yetenek Dağılımı</CardTitle>
+              <CardDescription>Biyografinizden AI ile analiz edildi</CardDescription>
+            </div>
+            <BrainCircuit className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent className="h-[300px] pt-4">
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
+                  <PolarGrid stroke="#e2e8f0" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <Radar
+                    name="Uzmanlık"
+                    dataKey="A"
+                    stroke="#2563eb"
+                    fill="#3b82f6"
+                    fillOpacity={0.6}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm space-y-2">
+                <p>Henüz yetenek analizi yapılmamış.</p>
+                <Button variant="link" asChild className="text-blue-600">
+                  <Link to="/profile">Profilini güncelle</Link>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 

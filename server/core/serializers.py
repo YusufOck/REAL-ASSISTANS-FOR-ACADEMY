@@ -35,6 +35,8 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'department_name',  # Bu isim (Bilgisayar Müh. gibi) gönderir
             'bio',
             'created_at',
+            'skills',
+            
         ]
 
 

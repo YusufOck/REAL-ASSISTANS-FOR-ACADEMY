@@ -1,4 +1,5 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react" // 'type' kelimesi eklendi
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react" // 'type' eklendi
+import { useNavigate } from "react-router-dom" // Navigate için bu şart!
 import { authService } from "@/services/authService"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -7,15 +8,16 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "sonner"
-import { Loader2, User, Save, Building2, Briefcase } from "lucide-react" // Kullanılmayan 'FileText' çıkarıldı
+import { Loader2, User, Save, Building2, Briefcase, ArrowLeft } from "lucide-react"
 
-// Tip tanımlamaları
+// Arayüz isimlerini JSON yanıtınla tam uyumlu hale getirdik
 interface ResearcherProfile {
   researcher_id: number
   full_name: string
+  email: string
   title: string | null
   bio: string | null
-  department_id: number | string
+  department: number | null // Burası 'department' olmalı!
   role: string
 }
 
@@ -25,6 +27,7 @@ interface Department {
 }
 
 export default function Profile() {
+  const navigate = useNavigate() // Navigate hatasını bu satır çözer
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [departments, setDepartments] = useState<Department[]>([])
@@ -36,29 +39,26 @@ export default function Profile() {
 
   const fetchData = async () => {
     try {
-      const [profileData, deptData] = await Promise.all([
+      const [profileData, deptResponse] = await Promise.all([
         authService.getProfile(),
         api.get("/api/departments/")
       ])
       setProfile(profileData)
-      
-      // 'map is not a function' hatasını engellemek için kontrol
-      const rawDepts = deptData.data
-      const deptList = Array.isArray(rawDepts) ? rawDepts : rawDepts?.results || []
-      setDepartments(deptList)
+      const rawDepts = deptResponse.data
+      setDepartments(Array.isArray(rawDepts) ? rawDepts : rawDepts?.results || [])
     } catch (error) {
-      console.error("Veri çekme hatası:", error)
-      toast.error("Profil bilgileri alınamadı.")
+      toast.error("Veriler yüklenemedi.")
     } finally {
       setLoading(false)
     }
   }
 
-  // TypeScript 'e' parametresi için tip tanımlaması
   const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (!profile) return
     const { id, value } = e.target
-    setProfile({ ...profile, [id]: value })
+    // Seçim kutusu ise sayıya çevir, değilse olduğu gibi bırak
+    const finalValue = id === 'department' ? (value ? parseInt(value) : null) : value
+    setProfile({ ...profile, [id]: finalValue })
   }
 
   const handleSave = async (e: FormEvent) => {
@@ -67,13 +67,16 @@ export default function Profile() {
     setSaving(true)
     try {
       await authService.updateProfile(profile.researcher_id, {
-        full_name: profile.full_name,
         title: profile.title,
         bio: profile.bio,
-        department_id: profile.department_id,
-        role: profile.role
+        department: profile.department, // Artık hata vermez
       })
       toast.success("Profil başarıyla güncellendi!")
+      
+      // Mesajı okuması için kısa bir bekleme ve yönlendirme
+      setTimeout(() => {
+        navigate("/dashboard")
+      }, 1500)
     } catch (error) {
       toast.error("Güncelleme başarısız.")
     } finally {
@@ -82,44 +85,45 @@ export default function Profile() {
   }
 
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-blue-500" /></div>
-  if (!profile) return <div className="p-10 text-center">Profil yüklenemedi. Lütfen tekrar giriş yapın.</div>
+  if (!profile) return <div className="p-8 text-center">Profil yüklenemedi.</div>
 
   return (
     <div className="container mx-auto py-10 max-w-2xl px-4">
-      <Card className="shadow-lg">
+      <Button variant="ghost" className="mb-4 pl-0" onClick={() => navigate("/dashboard")}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Dashboard'a Dön
+      </Button>
+      <Card>
         <CardHeader>
-          <CardTitle className="text-2xl flex items-center gap-2">
-            <User className="h-6 w-6 text-blue-500" /> Profil Bilgileri
-          </CardTitle>
-          <CardDescription>Akademik bilgilerinizi buradan güncelleyebilirsiniz.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><User className="h-6 w-6" /> Profil Düzenle</CardTitle>
+          <CardDescription>Bilgilerinizi güncelleyin.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="full_name">Ad Soyad</Label>
-              <Input id="full_name" value={profile.full_name} onChange={handleInputChange} />
+              <Input id="full_name" value={profile.full_name} disabled className="bg-muted" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="title">Unvan</Label>
               <div className="relative">
-                <Briefcase className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input id="title" className="pl-9" value={profile.title || ""} placeholder="Örn: Junior Researcher" onChange={handleInputChange} />
+                <Briefcase className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input id="title" className="pl-9" value={profile.title || ""} onChange={handleInputChange} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="department_id">Bölüm</Label>
+              <Label htmlFor="department">Bölüm</Label>
               <div className="relative">
-                <Building2 className="absolute left-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                <Building2 className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                 <select 
-                  id="department_id"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-9 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={profile.department_id || ""}
+                  id="department"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-9 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                  value={profile.department || ""}
                   onChange={handleInputChange}
                 >
                   <option value="">Bölüm Seçiniz...</option>
-                  {departments.map((d) => ( // Artık burada patlamayacak
+                  {departments.map((d) => (
                     <option key={d.department_id} value={d.department_id}>{d.name}</option>
                   ))}
                 </select>
@@ -131,9 +135,9 @@ export default function Profile() {
               <Textarea id="bio" value={profile.bio || ""} className="min-h-[120px]" onChange={handleInputChange} />
             </div>
 
-            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={saving}>
+            <Button type="submit" className="w-full" disabled={saving}>
               {saving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
-              Değişiklikleri Kaydet
+              Kaydet
             </Button>
           </form>
         </CardContent>
