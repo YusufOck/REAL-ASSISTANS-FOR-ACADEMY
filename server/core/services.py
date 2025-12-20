@@ -6,7 +6,7 @@ from django.db import connection
 from django.conf import settings
 from .models import Department, Researcher
 import re
-import numpy as np
+
 import math
 
 # ---------------------------------------------------------
