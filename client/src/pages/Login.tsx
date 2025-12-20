@@ -13,10 +13,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Atom, Lock, Loader2 } from "lucide-react"
+import { Atom, Lock, Loader2, Mail } from "lucide-react"
 
 export default function Login() {
-  const [username, setUsername] = useState("") 
+  const [email, setEmail] = useState("") 
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   
@@ -27,15 +27,15 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      // 1. Backend'e Giriş İsteği
-      const response = await authService.login({ username, password })
+      // 1. Backend'e Giriş İsteği (Email ve Password gönderiyoruz)
+      const response = await authService.login({ email, password })
 
       // 2. Tokenları Kaydet
       localStorage.setItem("accessToken", response.access)
       localStorage.setItem("refreshToken", response.refresh)
 
       toast.success("Giriş Başarılı!", {
-        description: "Panele yönlendiriliyorsunuz...",
+        description: "Hoş geldiniz! Dashboard'a aktarılıyorsunuz.",
         duration: 2000,
       })
       
@@ -47,18 +47,14 @@ export default function Login() {
     } catch (error: any) {
       console.error("Login Hatası:", error)
       
-      // Hata Mesajını Belirle
-      let description = "Bir hata oluştu."
+      let description = "E-posta veya şifre hatalı."
       
       if (error.response?.status === 401) {
-        description = "Kullanıcı adı veya şifre hatalı. Lütfen kontrol edin."
+        description = "Girdiğiniz bilgiler sistemle eşleşmedi."
       } else if (error.code === "ERR_NETWORK") {
-        description = "Sunucuya ulaşılamıyor. İnternet bağlantınızı kontrol edin."
-      } else if (error.response?.status === 500) {
-        description = "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
+        description = "Sunucuya bağlanılamadı. Lütfen internetinizi kontrol edin."
       }
 
-      // Kırmızı Hatayı Göster
       toast.error("Giriş Başarısız", {
         description: description,
         duration: 4000,
@@ -70,7 +66,7 @@ export default function Login() {
 
   return (
     <div className="w-full h-screen lg:grid lg:grid-cols-2">
-      {/* SOL TARAFI (Marka Alanı) */}
+      {/* SOL TARAF */}
       <div className="hidden bg-zinc-900 lg:flex flex-col justify-between p-10 text-white">
         <div className="flex items-center gap-2 font-bold text-2xl">
           <Atom className="h-8 w-8 text-blue-400" />
@@ -86,49 +82,54 @@ export default function Login() {
         <div className="text-sm text-zinc-500">© 2025 Research Platform.</div>
       </div>
 
-      {/* SAĞ TARAF (Giriş Formu) */}
-      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-background">
+      {/* SAĞ TARAF */}
+      <div className="flex items-center justify-center py-12 px-4 bg-background">
         <Card className="w-full max-w-md border-none shadow-none sm:border sm:shadow-lg">
           <CardHeader>
-            <CardTitle>Giriş Yap</CardTitle>
-            <CardDescription>Kurumsal hesabınızla devam edin</CardDescription>
+            <CardTitle className="text-2xl">Giriş Yap</CardTitle>
+            <CardDescription>Kayıtlı e-posta adresinizle giriş yapın.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username">Kullanıcı Adı</Label>
-                <Input 
-                  id="username" 
-                  type="text" 
-                  placeholder="Kullanıcı adınız"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required 
-                  autoFocus
-                />
+                <Label htmlFor="email">E-posta Adresi</Label>
+                <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="ornek@mail.com"
+                      className="pl-9"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required 
+                      autoFocus
+                    />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Şifre</Label>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  placeholder="******"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required 
-                />
+                <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="******"
+                      className="pl-9"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required 
+                    />
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Giriş yapılıyor...
+                    Doğrulanıyor...
                   </>
                 ) : (
-                  <>
-                    <Lock className="mr-2 h-4 w-4" /> 
-                    Giriş Yap
-                  </>
+                  "Giriş Yap"
                 )}
               </Button>
             </form>
