@@ -2,6 +2,8 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.contrib.postgres.search import SearchVectorField
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class Department(models.Model):
@@ -369,3 +371,16 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"To: {self.recipient.full_name} | {self.title}"
+    
+
+
+@receiver(post_save, sender=Researcher)
+def update_researcher_embedding(sender, instance, created, **kwargs):
+    """Biyografi değiştiğinde embedding'i otomatik günceller."""
+    # Sonsuz döngüye girmemek için sadece embedding boşsa veya bio güncellendiyse çalışmalı
+    # Şimdilik basit tutalım:
+    if instance.bio and not instance.embedding:
+        vector = generate_embedding(instance.bio)
+        if vector:
+            # save() metodunu tekrar tetiklememek için update kullanıyoruz
+            Researcher.objects.filter(pk=instance.pk).update(embedding=vector)    

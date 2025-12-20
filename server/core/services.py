@@ -15,6 +15,29 @@ import math
 
 
 
+ 
+
+def generate_embedding(text):
+    """Metni Gemini API kullanarak vektöre (embedding) çevirir."""
+    if not text:
+        return None
+    
+    try:
+        # Settings'deki API anahtarını kullanıyoruz
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        result = genai.embed_content(
+            model="models/text-embedding-004",
+            content=text,
+            task_type="retrieval_document"
+        )
+        return result['embedding']
+    except Exception as e:
+        print(f"❌ Embedding Üretme Hatası: {e}")
+        return None
+
+# Diğer fonksiyonların (calculate_cosine_similarity vb.) burada devam etsin...
+
+
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
     if not bio_text or len(str(bio_text)) < 15:
         return {}
@@ -88,121 +111,6 @@ def generate_embedding(text):
         # Hata olursa sistem çökmesin, boş vektör dönsün
         return [0.0] * 768
 
-# ---------------------------------------------------------
-# 1. VERİ YÜKLEME YARDIMCILARI (MEVCUT KODLARIN)
-# ---------------------------------------------------------
-
-def _load_researcher_basic_data():
-    """ ID, İsim ve Bölüm verilerini çeker """
-    sql = "SELECT researcher_id, full_name, email, department_id, bio FROM researcher"
-    with connection.cursor() as cursor:
-        cursor.execute(sql)
-        rows = cursor.fetchall()
-
-    researchers = {}
-    for row in rows:
-        researchers[row[0]] = {
-            "researcher_id": row[0],
-            "full_name": row[1],
-            "email": row[2],
-            "department_id": row[3],
-            "bio": row[4] or ""
-        }
-    return researchers
-
-def _load_department_names() -> Dict[int, str]:
-    data = {}
-    for dept in Department.objects.all():
-        data[dept.department_id] = dept.name
-    return data
-
-def _load_researcher_tags() -> Tuple[Dict[int, Set[int]], Dict[int, str]]:
-    researcher_tags = defaultdict(set)
-    tag_names = {}
-    sql = """
-        SELECT et.entity_id, t.tag_id, t.name
-        FROM entity_tag et
-        JOIN tag t ON t.tag_id = et.tag_id
-        WHERE et.entity_type = 'researcher'
-    """
-    with connection.cursor() as cursor:
-        cursor.execute(sql)
-        rows = cursor.fetchall()
-    
-    for r_id, t_id, t_name in rows:
-        researcher_tags[r_id].add(t_id)
-        tag_names[t_id] = t_name
-    return researcher_tags, tag_names
-
-def _load_researcher_skills() -> Tuple[Dict[int, Set[int]], Dict[int, str]]:
-    researcher_skills = defaultdict(set)
-    skill_names = {}
-    sql = """
-        SELECT rs.researcher_id, s.skill_id, s.name
-        FROM researcher_skill rs
-        JOIN skill s ON s.skill_id = rs.skill_id
-    """
-    with connection.cursor() as cursor:
-        cursor.execute(sql)
-        rows = cursor.fetchall()
-
-    for r_id, s_id, s_name in rows:
-        researcher_skills[r_id].add(s_id)
-        skill_names[s_id] = s_name
-    return researcher_skills, skill_names
-
-def _load_collaboration_network() -> Dict[int, Set[int]]:
-    network = defaultdict(set)
-    sql = """
-        SELECT pr1.researcher_id, pr2.researcher_id
-        FROM project_researcher pr1
-        JOIN project_researcher pr2 ON pr1.project_id = pr2.project_id
-        WHERE pr1.researcher_id != pr2.researcher_id
-        UNION
-        SELECT ap1.researcher_id, ap2.researcher_id
-        FROM author_publication ap1
-        JOIN author_publication ap2 ON ap1.publication_id = ap2.publication_id
-        WHERE ap1.researcher_id != ap2.researcher_id
-    """
-    with connection.cursor() as cursor:
-        cursor.execute(sql)
-        for r1, r2 in cursor.fetchall():
-            network[r1].add(r2)
-    return network
-
-# ---------------------------------------------------------
-# 2. HIZLI AI PUANLAYICI (VERİTABANINDAN ÇEKER)
-# ---------------------------------------------------------
-
-def _get_ai_scores_from_db(base_researcher_id: int) -> Dict[int, float]:
-    """
-    DİKKAT: Veritabanı artık 768 boyutlu vektör kullanıyor.
-    Logic değişmedi, sadece veriler değişti.
-    """
-    ai_scores = {}
-    
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT embedding FROM researcher WHERE researcher_id = %s", [base_researcher_id])
-        row = cursor.fetchone()
-        
-        if not row or row[0] is None:
-            return {}
-        
-        target_vector = row[0]
-
-        sql = """
-            SELECT researcher_id, 1 - (embedding <=> %s) as match_score
-            FROM researcher
-            WHERE researcher_id != %s
-            AND embedding IS NOT NULL
-        """
-        cursor.execute(sql, [target_vector, base_researcher_id])
-        rows = cursor.fetchall()
-        
-        for r_id, score in rows:
-            ai_scores[r_id] = max(0.0, float(score))
-            
-    return ai_scores
 
 # ---------------------------------------------------------
 # 3. ANA ALGORİTMA (HYBRID: GRAPH + FAST SEMANTIC AI)
