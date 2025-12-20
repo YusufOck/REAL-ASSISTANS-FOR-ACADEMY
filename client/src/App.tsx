@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner"
 import Dashboard from "./pages/Dashboard"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
+import Profile from "./pages/Profile"
 
 function App() {
   return (
@@ -22,7 +23,8 @@ function App() {
         
         {/* 👇 DÜZELTİLEN SATIR: Artık o saçma div yok, gerçek Dashboard var */}
         <Route path="/dashboard" element={<Dashboard />} />
-        
+        <Route path="/profile" element={<Profile />} />
+
         <Route path="/" element={<Login />} />
       </Routes>
     </Router>

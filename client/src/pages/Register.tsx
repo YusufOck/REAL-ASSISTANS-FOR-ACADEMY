@@ -25,28 +25,23 @@ export default function Register() {
   // Sayfa açıldığında departman listesini getir
   // Sayfa açıldığında departman listesini getir
   useEffect(() => {
-    const fetchDepartments = async () => {
-      try {
-        const response = await api.get('/api/departments/')
-        
-        // Verinin tipini kontrol ediyoruz
-        if (Array.isArray(response.data)) {
-          // Eğer veri direkt listeyse (sayfalama yoksa)
-          setDepartments(response.data)
-        } else if (response.data && Array.isArray(response.data.results)) {
-          // Eğer veri sayfalı gelmişse, listeyi 'results' içinden al
-          setDepartments(response.data.results)
-        } else {
-          // Hiçbiri değilse boş liste ata ki hata vermesin
-          setDepartments([])
-        }
-      } catch (error) {
-        console.error("Departmanlar yüklenemedi", error)
-        setDepartments([]) // Hata durumunda da boş liste ata
-      }
+  const fetchDepartments = async () => {
+    try {
+      const response = await api.get('/api/departments/')
+      
+      // 'map is not a function' hatasını engellemek için daha kısa ve sağlam bir kontrol:
+      const rawData = response.data
+      const list = Array.isArray(rawData) ? rawData : (rawData?.results || [])
+      
+      setDepartments(list)
+    } catch (error) {
+      console.error("Departmanlar yüklenemedi:", error)
+      setDepartments([]) 
+      toast.error("Bölüm listesi alınamadı.")
     }
-    fetchDepartments()
-  }, [])
+  }
+  fetchDepartments()
+}, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value })

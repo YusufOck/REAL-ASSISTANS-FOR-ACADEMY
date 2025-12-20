@@ -19,7 +19,11 @@ class DepartmentSerializer(serializers.ModelSerializer):
         fields = ['department_id', 'name', 'code', 'faculty']
 
 
+
 class ResearcherSerializer(serializers.ModelSerializer):
+    
+    department_name = serializers.CharField(source='department.name', read_only=True)
+
     class Meta:
         model = Researcher
         fields = [
@@ -27,7 +31,8 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'full_name',
             'email',
             'title',
-            'department',
+            'department',       # Bu ID (1, 2, 3 gibi) gönderir
+            'department_name',  # Bu isim (Bilgisayar Müh. gibi) gönderir
             'bio',
             'created_at',
         ]

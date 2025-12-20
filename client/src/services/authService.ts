@@ -42,4 +42,11 @@ export const authService = {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
   },
+  // client/src/services/authService.ts içine ekle:
+
+  updateProfile: async (id: number, data: any) => {
+      // PATCH kullanarak sadece değişen alanları gönderiyoruz
+      const response = await api.patch(`/api/researchers/${id}/`, data);
+      return response.data;
+  },
 };

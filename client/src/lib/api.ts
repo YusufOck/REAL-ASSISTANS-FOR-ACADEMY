@@ -3,7 +3,7 @@ import axios from 'axios';
 // .env dosyasından URL'i alıyoruz
 const baseURL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
-export const api = axios.create({
+export const api = axios.create({ 
   baseURL,
   headers: {
     'Content-Type': 'application/json',
