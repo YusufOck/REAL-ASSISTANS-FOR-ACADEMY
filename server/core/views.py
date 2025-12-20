@@ -84,25 +84,29 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         """
         Profil güncellendiğinde (PATCH/PUT) otomatik çalışır.
         """
-        # 1. Önce normal kayıt işlemini yap (bio, title vb. kaydedilsin)
+        # 1. Önce normal kayıt işlemini yap (bio, title vb. veritabanına yazılsın)
         instance = serializer.save()
 
         # 2. AI GÜNCELLEMESİ (Embedding + Skill Extraction)
-        # Biyografi değişmişse veya skills alanı boşsa tetikle
         if instance.bio:
             try:
-                # Kendi yazdığın Gemini fonksiyonlarını burada çağırıyoruz
-                # Adım A: Yetenekleri ayıkla ve JSONField'a kaydet
-                instance.skills = analyze_skills_with_gemini(instance.bio)
+                # KRİTİK DÜZELTME: Bölüm ismini modelden çekiyoruz
+                # Eğer bölüm atanmamışsa "General Academic" varsayılanını kullanıyoruz.
+                dept_name = instance.department.name if instance.department else "General Academic"
                 
-                # Adım B: Semantic Search için vektörleri güncelle
+                # Fonksiyonu artık iki parametreyle çağırıyoruz: (metin, branş)
+                instance.skills = analyze_skills_with_gemini(instance.bio, dept_name)
+                
+                # Semantic Search vektörünü de güncel tutalım
                 semantic_text = f"{instance.title or ''} {instance.bio}"
                 instance.embedding = generate_embedding(semantic_text)
                 
-                # Değişiklikleri veritabanına mühürle
+                # AI sonuçlarını veritabanına mühürle
                 instance.save()
+                
             except Exception as e:
-                print(f"AI İşleme Hatası: {str(e)}")
+                # Render loglarında bu hatayı net görebilmek için:
+                print(f"⚠️ AI İşleme Hatası (Update): {str(e)}")
 
 
     def get_permissions(self):
@@ -137,10 +141,10 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     @extend_schema(
         request=ResearcherOnboardSerializer,
         responses={201: ResearcherSerializer},
-        summary="Kayıt + Login Hesabı + AI Analizi",
-        description="User ve Researcher profili oluşturur, Gemini ile yetenekleri ayıklar ve vektörleri hesaplar."
+        summary="Kayıt + Login Hesabı + Branş Odaklı AI Analizi",
+        description="User ve Researcher profili oluşturur, branşa göre yetenekleri ayıklar."
     )
-    @action(detail=False, methods=['post'], url_path='onboard')
+    @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
     def onboard(self, request):
         serializer = ResearcherOnboardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -149,7 +153,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 # ---------------------------------------------------------
-                # ADIM 1: Django User Oluştur 🔑
+                # ADIM 1: Django User Oluştur (Güvenlik Kapısı) 🔑
                 # ---------------------------------------------------------
                 if User.objects.filter(username=data['email']).exists():
                     return Response({"detail": "Bu email ile kayıtlı bir kullanıcı zaten var."}, status=400)
@@ -174,7 +178,28 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                 )
 
                 # ---------------------------------------------------------
-                # ADIM 3: Proje Oluşturma (Varsa) 🏗️
+                # ADIM 3: AI ANALİZİ (Branşa Göre Yetenek Ayıklama) 🧠
+                # ---------------------------------------------------------
+                # Branş ismini çekiyoruz (Genel vizyon için kritik!)
+                dept_name = new_researcher.department.name if new_researcher.department else "General Academic"
+                
+                if new_researcher.bio:
+                    try:
+                        # Artık AI'ya "Hangi gözle bakması gerektiğini" söylüyoruz
+                        new_researcher.skills = analyze_skills_with_gemini(new_researcher.bio, dept_name)
+                    except Exception as ai_err:
+                        print(f"⚠️ Gemini Skill Extraction Hatası: {ai_err}")
+                        new_researcher.skills = {}
+
+                # Semantic Search için Vektör Oluşturma (ORM Kullanımı - RAW SQL DEĞİL!)
+                semantic_text = f"{new_researcher.title or ''}. {new_researcher.bio or ''}"
+                new_researcher.embedding = generate_embedding(semantic_text or new_researcher.full_name)
+                
+                # Tüm AI verilerini veritabanına mühürle
+                new_researcher.save()
+
+                # ---------------------------------------------------------
+                # ADIM 4: Opsiyonel Proje Oluşturma 🏗️
                 # ---------------------------------------------------------
                 created_project = None
                 project_data = data.get('create_project')
@@ -188,7 +213,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                         department_id=data['department_id']
                     )
                     
-                    # Projeye PI olarak ekle
+                    # Projeye PI (Baş Araştırmacı) olarak ekle
                     ProjectResearcher.objects.create(
                         project=created_project,
                         researcher=new_researcher,
@@ -196,34 +221,13 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                         joined_at=timezone.now()
                     )
 
-                    # PROJE EMBEDDING (ORM ile - RAW SQL DEĞİL!)
+                    # Proje vektörünü de hesapla
                     proj_text = f"{created_project.title} {created_project.summary}"
                     created_project.embedding = generate_embedding(proj_text)
                     created_project.save()
 
-                # ---------------------------------------------------------
-                # ADIM 4: AI ANALİZİ VE SKILLS AYIKLAMA 🧠 (KRİTİK GÜNCELLEME)
-                # ---------------------------------------------------------
-                # A: Gemini ile bio içindeki yetenekleri skorla ve JSONField'a yaz
-                if new_researcher.bio:
-                    try:
-                        new_researcher.skills = analyze_skills_with_gemini(new_researcher.bio)
-                    except Exception as ai_err:
-                        print(f"Gemini Skill Extraction Hatası: {ai_err}")
-                        new_researcher.skills = {}
-
-                # B: Semantic Search için Embedding hesapla (ORM ile!)
-                semantic_text = f"{new_researcher.title or ''}. {new_researcher.bio or ''}"
-                if len(semantic_text) < 5:
-                    semantic_text = f"{new_researcher.full_name} researcher"
-                
-                new_researcher.embedding = generate_embedding(semantic_text)
-                
-                # Tüm AI güncellemelerini tek seferde kaydet
-                new_researcher.save()
-
             # ---------------------------------------------------------
-            # ADIM 5: İşlem Bitti, Önerileri Getir
+            # ADIM 5: Başarılı Yanıt ve Öneriler
             # ---------------------------------------------------------
             suggestions = get_collaboration_suggestions(new_researcher.researcher_id, limit=5)
 
@@ -233,12 +237,14 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                 "new_researcher": {
                     "id": new_researcher.researcher_id,
                     "name": new_researcher.full_name,
-                    "skills_count": len(new_researcher.skills) if new_researcher.skills else 0
+                    "skills_count": len(new_researcher.skills) if new_researcher.skills else 0,
+                    "department": dept_name
                 },
                 "collaboration_suggestions": suggestions
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
+            # Hata durumunda transaction.atomic sayesinde her şey geri alınır
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # =========================================================================

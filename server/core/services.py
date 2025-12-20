@@ -6,14 +6,16 @@ from django.db import connection
 from django.conf import settings
 from .models import Department, Researcher
 
+
 # ---------------------------------------------------------
 # 0. YAPAY ZEKA MODELİ (GOOGLE GEMINI API) 🚀
 # ---------------------------------------------------------
 
-def analyze_skills_with_gemini(bio_text):
+# core/services.py
+
+def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
     """
-    Kullanıcının biyografisini Gemini 1.5 Flash ile analiz eder,
-    teknik yetenekleri ayıklar ve 0-100 arası uzmanlık puanı verir.
+    Kullanıcının biyografisini bulunduğu branşa ({department_name}) göre analiz eder.
     """
     if not bio_text or len(str(bio_text)) < 15:
         return {}
@@ -23,32 +25,31 @@ def analyze_skills_with_gemini(bio_text):
         return {}
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        # REST transport kullanımı Render'daki 404 hatalarını engellemek için kritiktir
+        genai.configure(api_key=api_key, transport='rest')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Mühendislik notu: Prompt'u çok kesin tutuyoruz ki tırt veri gelmesin.
+        # PROMPT ARTIK GENEL: Bölüm ismini dinamik olarak kullanıyor
         prompt = f"""
-        Aşağıdaki biyografiyi bir bilgisayar mühendisi gözüyle analiz et.
-        İçindeki teknik yetenekleri (programlama dilleri, frameworkler, araçlar, domain bilgisi) ayıkla.
-        Her yetenek için biyografideki vurguya göre 0-100 arası bir uzmanlık puanı ata.
-        Sadece geçerli bir JSON objesi döndür. Örn: {{"Python": 90, "ROS2": 85}}
+        Analyze the following biography from the perspective of an expert in the field of {department_name}.
+        1. Identify key professional and technical skills mentioned or implied.
+        2. Assign a proficiency score (0-100) for each skill based on the context of the biography.
+        3. Return ONLY a valid JSON object. Example: {{"SkillName": 85, "AnotherSkill": 70}}
         
-        Biyografi: {bio_text}
+        Biography: {bio_text}
         """
         
         response = model.generate_content(prompt)
         
-        # Markdown kod bloklarını (```json ... ```) temizle
-        clean_text = response.text.strip()
-        if clean_text.startswith("```json"):
-            clean_text = clean_text[7:-3]
-        elif clean_text.startswith("```"):
-            clean_text = clean_text[3:-3]
-            
-        return json.loads(clean_text)
+        # Regex ile sadece JSON kısmını ayıklıyoruz (daha güvenli)
+        import re
+        json_match = re.search(r'\{.*\}', response.text.strip(), re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        return {}
 
     except Exception as e:
-        print(f"⚠️ Gemini Skill Analysis Hatası: {e}")
+        print(f"⚠️ Gemini Analiz Hatası: {e}")
         return {}
 
 
