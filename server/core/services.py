@@ -12,6 +12,18 @@ from .models import Department, Researcher
 # ---------------------------------------------------------
 
 # core/services.py
+def debug_list_models():
+    """API'nin tanıdığı modelleri loglara basar."""
+    try:
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        print("--- ERİŞİLEBİLİR MODELLER LİSTESİ ---")
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                print(f"Model Adı: {m.name}, Versiyon: {m.name.split('/')[1]}")
+        print("-------------------------------------")
+    except Exception as e:
+        print(f"Liste Hatası: {e}")
+
 
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
     """
@@ -27,7 +39,7 @@ def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
     try:
         # REST transport kullanımı Render'daki 404 hatalarını engellemek için kritiktir
         genai.configure(api_key=api_key, transport='rest')
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         
         # PROMPT ARTIK GENEL: Bölüm ismini dinamik olarak kullanıyor
         prompt = f"""
