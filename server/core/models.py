@@ -24,6 +24,7 @@ class Researcher(models.Model):
     full_name = models.CharField(max_length=150)
     email = models.CharField(max_length=150, unique=True)
     title = models.CharField(max_length=100, null=True, blank=True)
+    skills = models.JSONField(default=dict, blank=True, null=True)
     # --- YENİ EKLENENLER ---
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, db_column='user_id')
     role = models.CharField(max_length=20, default='student')
