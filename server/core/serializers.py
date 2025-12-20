@@ -12,6 +12,7 @@ from .models import (
 )
 from django.contrib.auth.models import User
 from rest_framework import serializers
+from .services import get_collaboration_suggestions
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -36,11 +37,12 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'bio',
             'created_at',
             'skills',
+            'suggestions',
             
         ]
     def get_suggestions(self, obj):
         # Sadece mevcut kullanıcı için önerileri getiriyoruz
-        from .services import get_collaboration_suggestions
+        
         return get_collaboration_suggestions(obj.researcher_id, limit=5)
 
 class ProjectSerializer(serializers.ModelSerializer):
