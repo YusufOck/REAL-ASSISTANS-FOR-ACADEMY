@@ -22,34 +22,33 @@ def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
 
     api_key = getattr(settings, 'GEMINI_API_KEY', None)
     try:
-        # REST transport Render üzerinde gRPC çakışmalarını önlemek için şart.
         genai.configure(api_key=api_key, transport='rest')
         
-        # ARTIK HAYALET MODELLERLE DEĞİL, LİSTEDEKİ GERÇEK MODELLE KONUŞUYORUZ
-        # 'gemini-1.5-flash' 404 veriyordu, 'gemini-2.0-flash' senin listende aktif!
-        model = genai.GenerativeModel('gemini-2.0-flash') 
+        # Listenin en güvenli ismi: gemini-flash-latest
+        # Bu isim genellikle en stabil flash modeline (şu an 2.0 veya 2.5) yönlendirir.
+        model = genai.GenerativeModel('gemini-flash-latest') 
         
         prompt = f"""
-        Analyze the following biography from the perspective of an expert in {department_name}.
-        Identify technical/professional skills and assign proficiency scores (0-100).
-        Return ONLY a valid JSON object. Example: {{"Skill": 85}}
-        
-        Biography: {bio_text}
+        Analyze the following bio from the perspective of an expert in {department_name}.
+        Extract technical/professional skills and assign scores (0-100).
+        Return ONLY a JSON object. Example: {{"Skill": 85}}
+        Bio: {bio_text}
         """
         
         response = model.generate_content(prompt)
         
-        # Regex kullanarak sadece JSON kısmını ayıklıyoruz (AI bazen gereksiz metin ekleyebilir)
-        import re
         json_match = re.search(r'\{.*\}', response.text.strip(), re.DOTALL)
         if json_match:
             return json.loads(json_match.group())
         return {}
 
     except Exception as e:
-        # Hata mesajını Render loglarında net görelim
-        print(f"⚠️ Gemini Analiz Hatası (v2.0): {e}") 
-        return {}
+        # KOTA HATASI (429) YAKALAMA
+        if "429" in str(e):
+            print("⚠️ BİLGİ: Gemini API kotası doldu. İşlem AI analizi olmadan tamamlanıyor.")
+        else:
+            print(f"⚠️ Gemini Analiz Hatası: {e}")
+        return {} # Hata alsa bile boş sözlük dön ki views.py tarafı patlamasın.
 
 
 def generate_embedding(text):
