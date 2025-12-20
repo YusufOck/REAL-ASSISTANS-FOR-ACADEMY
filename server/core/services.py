@@ -12,19 +12,9 @@ import re
 # 0. YAPAY ZEKA MODELİ (GOOGLE GEMINI API) 🚀
 # ---------------------------------------------------------
 
-# core/services.py
-def debug_list_models():
-    """API'nin tanıdığı modelleri loglara basar."""
-    try:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        print("--- ERİŞİLEBİLİR MODELLER LİSTESİ ---")
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                print(f"Model Adı: {m.name}, Versiyon: {m.name.split('/')[1]}")
-        print("-------------------------------------")
-    except Exception as e:
-        print(f"Liste Hatası: {e}")
 
+
+# core/services.py
 
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
     if not bio_text or len(str(bio_text)) < 15:
@@ -32,35 +22,33 @@ def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
 
     api_key = getattr(settings, 'GEMINI_API_KEY', None)
     try:
-        # REST transport Render için şart, gRPC engellenebiliyor.
+        # REST transport Render üzerinde gRPC çakışmalarını önlemek için şart.
         genai.configure(api_key=api_key, transport='rest')
         
-        # DEBUG: Tahmin etmeyi bırak, API'nin neye izni var gör!
-        # Render loglarında bu listeyi kontrol et.
-        print("--- ERİŞİLEBİLİR MODELLER ---")
-        for m in genai.list_models():
-            print(f"Model: {m.name} | Methods: {m.supported_generation_methods}")
-        
-        # Standart isim genelde 'models/gemini-1.5-flash' şeklindedir.
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # ARTIK HAYALET MODELLERLE DEĞİL, LİSTEDEKİ GERÇEK MODELLE KONUŞUYORUZ
+        # 'gemini-1.5-flash' 404 veriyordu, 'gemini-2.0-flash' senin listende aktif!
+        model = genai.GenerativeModel('gemini-2.0-flash') 
         
         prompt = f"""
-        Analyze the following bio from the perspective of an expert in {department_name}.
-        Extract technical/professional skills and assign scores (0-100).
-        Return ONLY a JSON object. Example: {{"Skill": 90}}
-        Bio: {bio_text}
+        Analyze the following biography from the perspective of an expert in {department_name}.
+        Identify technical/professional skills and assign proficiency scores (0-100).
+        Return ONLY a valid JSON object. Example: {{"Skill": 85}}
+        
+        Biography: {bio_text}
         """
         
         response = model.generate_content(prompt)
         
-        # Regex ile sadece JSON kısmını cımbızla çekiyoruz.
+        # Regex kullanarak sadece JSON kısmını ayıklıyoruz (AI bazen gereksiz metin ekleyebilir)
+        import re
         json_match = re.search(r'\{.*\}', response.text.strip(), re.DOTALL)
         if json_match:
             return json.loads(json_match.group())
         return {}
 
     except Exception as e:
-        print(f"⚠️ Gemini Analiz Hatası (Final Try): {e}") # Hata mesajını net görelim
+        # Hata mesajını Render loglarında net görelim
+        print(f"⚠️ Gemini Analiz Hatası (v2.0): {e}") 
         return {}
 
 
