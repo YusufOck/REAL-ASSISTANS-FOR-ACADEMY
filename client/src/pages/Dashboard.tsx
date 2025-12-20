@@ -5,8 +5,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { LogOut, User, Briefcase, Building2, Loader2, Settings, BrainCircuit } from "lucide-react"
 import { toast } from "sonner"
-// 1. Recharts bileşenlerini ekliyoruz
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
+
+// --- YENİ: Bileşeni içe aktar ---
+import SuggestedPartners from "@/components/ui/SuggestedPartners";
+
+// --- GÜNCELLEME: Interface'e suggestions alanını ekle ---
+interface Suggestion {
+  researcher_id: number;
+  full_name: string;
+  department_name: string;
+  score: number;
+  match_reasons: string[];
+  is_complementary: boolean;
+}
 
 interface UserProfile {
   researcher_id: number;
@@ -16,8 +28,9 @@ interface UserProfile {
   role: string;
   department: number | null;
   department_name: string | null; 
-  // 2. Skils alanını obje (key-value) destekleyecek şekilde esnetiyoruz
   skills: Record<string, number> | string[] | null;
+  // Backend'den gelen partner önerileri
+  suggestions?: Suggestion[]; 
 }
 
 export default function Dashboard() {
@@ -45,11 +58,8 @@ export default function Dashboard() {
     }
   }
 
-  // 3. Veriyi grafik formatına dönüştüren yardımcı fonksiyon
   const prepareChartData = () => {
     if (!profile?.skills) return [];
-    
-    // Eğer skills bir obje geliyorsa (Örn: {Python: 90})
     if (!Array.isArray(profile.skills)) {
       return Object.entries(profile.skills).map(([key, value]) => ({
         subject: key,
@@ -57,11 +67,9 @@ export default function Dashboard() {
         fullMark: 100,
       }));
     }
-    
-    // Eğer skills sadece string array geliyorsa (Örn: ["Python", "AI"])
     return profile.skills.map(skill => ({
       subject: skill,
-      A: 80, // Varsayılan puan (Gemini skor üretmiyorsa)
+      A: 80,
       fullMark: 100,
     }));
   };
@@ -132,7 +140,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* 4. YENİ KART: Yetenek Analizi (Radar Chart) */}
+        {/* Yetenek Analizi (Radar Chart) */}
         <Card className="col-span-full lg:col-span-2 shadow-sm border-none ring-1 ring-gray-200">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div className="space-y-1">
@@ -167,18 +175,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Rol Kartı */}
-        <Card className="shadow-sm border-none ring-1 ring-blue-100 bg-blue-50/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-blue-600">Erişim Seviyesi</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-900 capitalize">{profile?.role}</div>
-            <div className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-              Hesap Doğrulandı
-            </div>
-          </CardContent>
-        </Card>
+        {/* --- YENİ: Partner Önerileri Bölümü --- */}
+        <div className="col-span-full">
+          <SuggestedPartners suggestions={profile?.suggestions || []} />
+        </div>
       </div>
     </div>
   )
