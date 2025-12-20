@@ -13,6 +13,7 @@ from .models import (
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .services import get_collaboration_suggestions
+from drf_spectacular.utils import extend_schema_field
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,6 +41,7 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'suggestions',
             
         ]
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):
         # Sadece mevcut kullanıcı için önerileri getiriyoruz
         

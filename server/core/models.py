@@ -20,28 +20,43 @@ class Department(models.Model):
 
 
 class Researcher(models.Model):
+    # Temel Kimlik Bilgileri
     researcher_id = models.AutoField(primary_key=True)
+    user = models.OneToOneField(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        db_column='user_id'
+    )
     full_name = models.CharField(max_length=150)
     email = models.CharField(max_length=150, unique=True)
     title = models.CharField(max_length=100, null=True, blank=True)
-    skills = models.JSONField(default=dict, blank=True, null=True)
-    # --- YENİ EKLENENLER ---
-    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, db_column='user_id')
+    
+    # Rol ve Departman
     role = models.CharField(max_length=20, default='student')
     department = models.ForeignKey(
         Department,
-        models.SET_NULL,
+        on_delete=models.SET_NULL,
         db_column='department_id',
         null=True,
         blank=True,
         related_name='researchers',
     )
+    
+    # İçerik ve AI Verileri
     bio = models.TextField(null=True, blank=True)
+    skills = models.JSONField(default=dict, blank=True, null=True)
+    
+    # --- KRİTİK EKSİK: AI VECTOR EMBEDDING ---
+    # Gemini'den gelen 768 veya 1536 boyutlu vektörleri burada saklayacağız.
+    #
+    embedding = models.JSONField(null=True, blank=True)
+    
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         db_table = 'researcher'
-        
 
     def __str__(self):
         return self.full_name
