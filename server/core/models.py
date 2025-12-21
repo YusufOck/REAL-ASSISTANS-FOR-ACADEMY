@@ -374,19 +374,18 @@ class Notification(models.Model):
     
 
 
+# core/models.py
+
 @receiver(post_save, sender=Researcher)
 def update_researcher_embedding(sender, instance, created, **kwargs):
-    """Biyografi değiştiğinde embedding'i otomatik günceller."""
-    
-    # KRİTİK ÇÖZÜM: Importu fonksiyon içine alıyoruz
-    # Böylece Pylance'daki "not defined" hatası yok olur!
+    # Dairesel bağımlılığı önlemek için import fonksiyon içinde!
     from .services import generate_embedding 
     
     if instance.bio and not instance.embedding:
         try:
             vector = generate_embedding(instance.bio)
             if vector:
-                # save() metodunu tekrar tetiklememek için update kullanıyoruz
+                # Sonsuz döngüyü önlemek için .update() kullanıyoruz
                 sender.objects.filter(pk=instance.pk).update(embedding=vector)
         except Exception as e:
-            print(f"❌ Sinyal Hatası: {e}")
+            print(f"❌ Backend Hatası: {e}")
