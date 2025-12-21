@@ -24,13 +24,19 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 # serializers.py
 
+# core/serializers.py
+
+
+
+
 class ResearcherSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
-    suggestions = serializers.SerializerMethodField()
-    # YENİ EKLEDİĞİMİZ ALAN: Gelen talepleri otonom olarak yakalar
-    received_requests = serializers.SerializerMethodField()
-    projects = serializers.SerializerMethodField()
     
+    # BU ALANLARIN BURADA TANIMLANMASI ŞART! (Class Meta dışında)
+    suggestions = serializers.SerializerMethodField()
+    received_requests = serializers.SerializerMethodField()
+    projects = serializers.SerializerMethodField() 
+
     class Meta:
         model = Researcher
         fields = [
@@ -45,34 +51,36 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'skills',
             'suggestions',
             'received_requests',
-            'projects' # BU ALAN EKSİK OLDUĞU İÇİN GÖREMİYORDUN!
+            'projects' # Artık yukarıda tanımlandığı için hata vermeyecek
         ]
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
         from .models import Project
-        # RELATED_NAME hatası riskini sıfıra indirmek için filtreleme yapıyoruz
+        # RELATED_NAME hatası riskini sıfıra indirmek için doğrudan filtreleme
         my_projects = Project.objects.filter(pi=obj) 
         return [{
             'project_id': p.project_id,
             'title': p.title,
             'status': p.status
-        } for p in my_projects]    
+        } for p in my_projects]
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):
-        # Mevcut öneri mantığın aynen kalıyor
+        
         return get_collaboration_suggestions(obj.researcher_id, limit=5)
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
-    # serializers.py
     def get_received_requests(self, obj):
         from .models import CollaborationRequest
+        # Sadece bekleyen talepleri çekiyoruz
         requests = CollaborationRequest.objects.filter(receiver=obj, status='pending')
         return [{
             'request_id': r.request_id,
             'sender_name': r.sender.full_name,
             'project_name': r.project.title,
             'message': r.message,
-            'status': r.status, # KRİTİK: Bu alan olmazsa UI'da görünmez!
+            'status': r.status, # KRİTİK: Dashboard paneli için şart!
             'request_type': r.request_type
         } for r in requests]
 
