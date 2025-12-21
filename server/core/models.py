@@ -374,18 +374,31 @@ class Notification(models.Model):
     
 
 
-# core/models.py
+
+# core/models.py içindeki ilgili kısmı şu şekilde mühürle:
 
 @receiver(post_save, sender=Researcher)
 def update_researcher_embedding(sender, instance, created, **kwargs):
-    # Dairesel bağımlılığı önlemek için import fonksiyon içinde!
-    from .services import generate_embedding 
+    from .services import generate_embedding
     
-    if instance.bio and not instance.embedding:
+    # 1. Slider verilerini metne çeviriyoruz (AI'nın anlaması için)
+    skills_text = ""
+    if instance.skills and isinstance(instance.skills, dict):
+        skills_text = " Yeteneklerim: " + ", ".join([f"{k} %{v}" for k, v in instance.skills.items()])
+    
+    # 2. Biyografi ve slider verilerini birleştiriyoruz
+    combined_text = f"{instance.bio or ''} {skills_text}".strip()
+    
+    if combined_text:
         try:
-            vector = generate_embedding(instance.bio)
+            vector = generate_embedding(combined_text)
             if vector:
-                # Sonsuz döngüyü önlemek için .update() kullanıyoruz
+                # 3. Veriyi mühürlüyoruz
                 sender.objects.filter(pk=instance.pk).update(embedding=vector)
+                
+                # --- İŞTE DİNAMİK LOG SATIRI ---
+                # Artık kimin profilini güncelliyorsan (Senanur, Yusuf vb.) onun ismi yazar
+                print(f"✅ [AI MOTORU] {instance.full_name} için öneriler otonom olarak güncellendi.")
+                
         except Exception as e:
-            print(f"❌ Backend Hatası: {e}")
+            print(f"❌ {instance.full_name} için AI vektör hatası: {e}")
