@@ -29,7 +29,8 @@ class ResearcherSerializer(serializers.ModelSerializer):
     suggestions = serializers.SerializerMethodField()
     # YENİ EKLEDİĞİMİZ ALAN: Gelen talepleri otonom olarak yakalar
     received_requests = serializers.SerializerMethodField()
-
+    projects = serializers.SerializerMethodField()
+    
     class Meta:
         model = Researcher
         fields = [
@@ -47,13 +48,14 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'projects' # BU ALAN EKSİK OLDUĞU İÇİN GÖREMİYORDUN!
         ]
     def get_projects(self, obj):
-        # Araştırmacının (Senanur, ID 94) sahibi olduğu tüm projeleri getirir
+        from .models import Project
+        # RELATED_NAME hatası riskini sıfıra indirmek için filtreleme yapıyoruz
+        my_projects = Project.objects.filter(pi=obj) 
         return [{
             'project_id': p.project_id,
             'title': p.title,
-            'summary': p.summary,
             'status': p.status
-        } for p in obj.projects_as_pi.all()]    
+        } for p in my_projects]    
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):
