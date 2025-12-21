@@ -67,10 +67,12 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'received_requests', 'projects'
         ]
 
+    # server/core/serializers.py içindeki ResearcherSerializer.get_projects metodu
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
-        # 500 Hatasını bitiren ID bazlı otonom toplama
         from .models import Project, ProjectResearcher
+        
+        # Hatayı bitiren doğru ID toplama:
         pi_ids = list(Project.objects.filter(pi=obj).values_list('project_id', flat=True))
         member_ids = list(ProjectResearcher.objects.filter(researcher=obj).values_list('project_id', flat=True))
         
@@ -79,6 +81,7 @@ class ResearcherSerializer(serializers.ModelSerializer):
         
         result = []
         for p in all_projects:
+            # Proje ekibini otonom olarak çek
             members = ProjectResearcher.objects.filter(project=p).select_related('researcher')
             group_members = [{
                 'id': m.researcher.researcher_id,
@@ -91,7 +94,7 @@ class ResearcherSerializer(serializers.ModelSerializer):
                 'title': p.title,
                 'status': p.status,
                 'my_role': 'PI (Lider)' if p.pi == obj else 'Member (Mürettebat)',
-                'group_members': group_members
+                'group_members': group_members # ARTIK MUSTAFA BURADA!
             })
         return result
 

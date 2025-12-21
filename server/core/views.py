@@ -82,15 +82,27 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             return Response(self.get_serializer(researcher).data)
         except Researcher.DoesNotExist: return Response({"detail": "Profil bulunamadı."}, status=404)
 
+    # core/views.py -> ResearcherViewSet
+
     def perform_update(self, serializer):
+        # 1. Slider değerini (veya bio'yu) veritabanına yaz
         instance = serializer.save()
-        if instance.bio:
-            try:
-                dept_name = instance.department.name if instance.department else "General"
-                instance.skills = analyze_skills_with_gemini(instance.bio, dept_name)
-                instance.embedding = generate_embedding(f"{instance.title} {instance.bio}")
-                instance.save()
-            except Exception as e: print(f"⚠️ AI Hatası: {str(e)}")
+
+        # 2. Yetenekleri 'ağırlıklı' bir metne dönüştür 🛰️
+        # Örn: "Senior Python Expert (Level: 95)"
+        skill_weights = ", ".join([
+            f"{s.skill.name} Expert (Level: {s.level})" 
+            for s in instance.researcher_skills.select_related('skill').all()
+            if s.level > 80  # Sadece uzman olduğu alanları vektöre baskın yap
+        ])
+
+        # 3. Vektörü (Embedding) bu ağırlıklı veriyle mühürle
+        # Artık slider değiştikçe AI seni farklı bir 'uzmanlık seviyesinde' görecek!
+        semantic_text = f"{instance.title}. {instance.bio}. Uzmanlıklar: {skill_weights}"
+        instance.embedding = generate_embedding(semantic_text)
+        instance.save()
+        
+        print(f"✅ Otonom Radar: {instance.full_name} için slider-bazlı yeni vektör üretildi.")
 
     @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
     def onboard(self, request):
