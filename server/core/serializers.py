@@ -192,17 +192,21 @@ class SendCollaborationRequestSerializer(serializers.Serializer):
     message = serializers.CharField(required=False, allow_blank=True)
 
 # --- YENİ EKLENEN SERIALIZER: İSTEK CEVAPLAMA ---
+# core/serializers.py
+
 class RespondCollaborationRequestSerializer(serializers.Serializer):
+    # Frontend (React) ile milimetrik uyumlu anahtarlar:
     request_id = serializers.IntegerField()
-    response = serializers.ChoiceField(choices=['accepted', 'rejected'])
-    message = serializers.CharField(required=False, allow_blank=True, help_text="Örn: Memnuniyetle katılırım.")
-    message = serializers.CharField(
+    
+    # 'response' yerine 'status' yapıyoruz çünkü React bunu gönderiyor
+    status = serializers.ChoiceField(choices=['accepted', 'rejected']) 
+    
+    # İki tane 'message' yerine tek ve doğru isimli alan:
+    response_message = serializers.CharField(
         required=False, 
         allow_blank=True, 
         help_text="İsteği kabul veya reddederken gönderilen not."
     )
-
-    # core/serializers.py (En alta ekle)
 
 class AddResearcherToProjectSerializer(serializers.Serializer):
     researcher_id = serializers.IntegerField(help_text="Projeye eklenecek araştırmacının ID'si")

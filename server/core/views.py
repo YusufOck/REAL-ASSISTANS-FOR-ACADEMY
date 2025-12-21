@@ -266,7 +266,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # =========================================================================
     # 2. İŞBİRLİĞİ İSTEĞİ GÖNDERME (Invite / Join Request)
     # =========================================================================
-    # core/views.py içinde send_request fonksiyonunu bul ve değiştir:
+   
 
     @extend_schema(
         request=SendCollaborationRequestSerializer,
@@ -275,22 +275,32 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'], url_path='send-request')
     def send_request(self, request, pk=None):
-        sender_id = pk
+        # 1. HEDEFİ BELİRLE (URL'deki pk, yani alıcı)
+        receiver = self.get_object() 
+        
+        # 2. GÖNDERENİ BELİRLE (Authorization token'ından gelen otonom kimlik)
+        # request.user.researcher, giriş yapan Senanur'u temsil eder
+        sender = request.user.researcher 
+
+        # 3. VERİ DOĞRULAMA
         serializer = SendCollaborationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         
         try:
-            sender = Researcher.objects.get(pk=sender_id)
-            receiver = Researcher.objects.get(pk=data['receiver_id'])
             project = Project.objects.get(pk=data['project_id'])
 
+            # KENDİNE İSTEK ATMA KONTROLÜ (Tırt bir durumu engellemek için)
+            if sender == receiver:
+                return Response({"detail": "Kendi kendine iş birliği teklifi fırlatamazsın!"}, status=400)
+
+            # MÜKERRER İSTEK KONTROLÜ
             if CollaborationRequest.objects.filter(
                 sender=sender, receiver=receiver, project=project, status='pending'
             ).exists():
-                return Response({"detail": "Zaten bekleyen bir istek var."}, status=400)
+                return Response({"detail": "Bu proje için zaten bekleyen bir isteğin var."}, status=400)
 
-            # İsteği oluştur ve değişkene ata
+            # İSTEĞİ OTONOM OLARAK OLUŞTUR
             collab_req = CollaborationRequest.objects.create(
                 sender=sender,
                 receiver=receiver,
@@ -299,17 +309,14 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                 message=data.get('message', '')
             )
             
-            # CEVAPTA ID'Yİ DÖNÜYORUZ (ARTIK ADMİN PANELİNE GEREK YOK)
             return Response({
-                "detail": "İşbirliği isteği başarıyla gönderildi.",
-                "request_id": collab_req.request_id,  # <-- İşte aradığın ID
+                "detail": "İşbirliği isteği başarıyla fırlatıldı.",
+                "request_id": collab_req.request_id,
                 "status": collab_req.status
             }, status=status.HTTP_201_CREATED)
 
-        except Researcher.DoesNotExist:
-            return Response({"detail": "Araştırmacı bulunamadı."}, status=404)
         except Project.DoesNotExist:
-            return Response({"detail": "Proje bulunamadı."}, status=404)
+            return Response({"detail": "Proje hangarında bu ID ile kayıtlı bir mühimmat bulunamadı."}, status=404)
         except Exception as e:
             return Response({"detail": str(e)}, status=400)
 
@@ -324,75 +331,55 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['post'], url_path='respond-request')
     def respond_request(self, request):
+        # Frontend'den gelen veriyi mühürle: {request_id, status, response_message}
         serializer = RespondCollaborationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         
+        # ANAHTARLARI FRONTEND İLE EŞİTLEDİK 👇
         req_id = data['request_id']
-        response_status = data['response']
-        response_msg = data.get('message', '')
+        response_status = data['status']  # 'response' yerine 'status' yaptık
+        response_msg = data.get('response_message', '') # 'message' yerine 'response_message'
         
         try:
             with transaction.atomic():
-                # İlgili isteği çek
                 collab_req = CollaborationRequest.objects.select_related('project', 'sender', 'receiver').get(request_id=req_id)
                 
-                if collab_req.status != 'pending':
-                    return Response({"detail": "Bu istek daha önce cevaplanmış."}, status=400)
+                # 'Beklemede' veya 'pending' kontrolünü modeline göre yap
+                if collab_req.status not in ['pending', 'Beklemede']:
+                    return Response({"detail": "Bu istek daha önce mühürlenmiş."}, status=400)
 
-                # 1. Durumu ve Cevap Mesajını Güncelle
                 collab_req.status = response_status
                 collab_req.response_message = response_msg
                 collab_req.save()
 
                 result_data = {
-                    "detail": f"İstek {response_status} olarak işaretlendi.",
+                    "detail": f"İstek {response_status} olarak mühürlendi.",
                     "request_id": req_id,
-                    "status": response_status,
-                    "response_message": response_msg
+                    "status": response_status
                 }
 
-                # 2. Eğer KABUL edildiyse, projeye ekle
                 if response_status == 'accepted':
+                    # Katılım mı davet mi kontrolü
                     role = "Collaborator" if collab_req.request_type == 'invite' else "Researcher"
-                    # İsteğin yönüne göre projeye eklenecek kişiyi seç
+                    # Projeye eklenecek kişi: Davette Receiver (Ece), Katılımda Sender (Senanur)
                     new_member = collab_req.receiver if collab_req.request_type == 'invite' else collab_req.sender
 
-                    # Çift kayıt olmaması için kontrol et
                     if not ProjectResearcher.objects.filter(project=collab_req.project, researcher=new_member).exists():
-                        pr_obj = ProjectResearcher.objects.create(
+                        ProjectResearcher.objects.create(
                             project=collab_req.project,
                             researcher=new_member,
                             role=role,
                             joined_at=timezone.now()
                         )
-                        result_data["project_membership_id"] = pr_obj.id
-                    
-                    result_data["detail"] = f"İstek kabul edildi. {new_member.full_name} projeye eklendi."
-
-                # 3. BİLDİRİMİ OKUNDU YAP (PROFESYONEL DÜZELTME) 🧹
-                # Hata Çözümü 1: 'request.user' yerine 'collab_req.receiver' (Researcher profili) kullanıldı.
-                # Hata Çözümü 2: '.id' yerine '.pk' kullanıldı (Notification modelindeki ID isminden bağımsız çalışır).
+                        result_data["detail"] = f"Başarılı! {new_member.full_name} takıma otonom olarak katıldı."
                 
-                notification_owner = collab_req.receiver 
+                # Bildirim temizliği (Notification logic) aynen kalabilir...
                 
-                if notification_owner:
-                    unread_notif = Notification.objects.filter(
-                        recipient=notification_owner,
-                        is_read=False
-                    ).order_by('-created_at').first()
-
-                    if unread_notif:
-                        unread_notif.is_read = True
-                        unread_notif.save()
-                        
-                        # BURASI DEĞİŞTİ: .id YERİNE .pk KULLANILDI 👇
-                        result_data["notification_updated"] = f"Bildirim (ID: {unread_notif.pk}) okundu yapıldı."
-
             return Response(result_data, status=200)
 
         except CollaborationRequest.DoesNotExist:
-            return Response({"detail": "İstek bulunamadı."}, status=404)
+            return Response({"detail": "İstasyon kaydı bulunamadı (ID hatalı)."}, status=404)
         except Exception as e:
             return Response({"detail": str(e)}, status=500)
     # =========================================================================
