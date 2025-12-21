@@ -52,25 +52,17 @@ class ResearcherSerializer(serializers.ModelSerializer):
         return get_collaboration_suggestions(obj.researcher_id, limit=5)
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    # serializers.py
     def get_received_requests(self, obj):
-        # Senin daha önce paylaştığın CollaborationRequest modelini kullanıyoruz
         from .models import CollaborationRequest
-        
-        # Alıcısı (receiver) bu araştırmacı olan ve beklemede olan istekleri çekiyoruz
-        requests = CollaborationRequest.objects.filter(
-            receiver=obj, 
-            status='pending'
-        ).select_related('sender', 'project') # Performans için mühürledik
-        
+        requests = CollaborationRequest.objects.filter(receiver=obj, status='pending')
         return [{
             'request_id': r.request_id,
-            'sender_id': r.sender.researcher_id,
             'sender_name': r.sender.full_name,
-            'project_id': r.project.project_id,
             'project_name': r.project.title,
             'message': r.message,
-            'request_type': r.request_type,
-            'created_at': r.created_at.strftime("%d.%m.%Y %H:%M")
+            'status': r.status, # KRİTİK: Bu alan olmazsa UI'da görünmez!
+            'request_type': r.request_type
         } for r in requests]
 
 class ProjectSerializer(serializers.ModelSerializer):
