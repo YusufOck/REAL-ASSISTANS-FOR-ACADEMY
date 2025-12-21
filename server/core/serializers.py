@@ -56,21 +56,23 @@ class ResearcherSerializer(serializers.ModelSerializer):
 
     
 
+    # core/serializers.py içindeki ResearcherSerializer metodunu güncelle
+
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
+        # Kara kutuyu (importları) metodun içine mühürlüyoruz ki hata payı kalmasın
         from .models import Project, ProjectResearcher
-        
-        # 1. HEM PI (Lider) olduğun HEM ÜYE olduğun projeleri otonom olarak çekiyoruz
-        pi_projects = Project.objects.filter(pi=obj)
-        member_projects = Project.objects.filter(memberships__researcher=obj)
-        
-        # 2. Tüm projeleri birleştir ve çift kayıtları mühürle
-        all_projects = (pi_projects | member_projects).distinct()
+        from django.db.models import Q
+
+        # 1. HEM PI olduğun HEM ÜYE olduğun projeleri hatasız çekmek için Q kullanıyoruz
+        # Bu yöntem related_name bağımlılığını %100 bitirir
+        all_projects = Project.objects.filter(
+            Q(pi=obj) | Q(memberships__researcher=obj)
+        ).distinct()
         
         result = []
         for p in all_projects:
-            # 3. Bu projedeki diğer mürettebatı (Grubu) bulalım
-            # Senin dışındaki aktif üyeleri listeliyoruz
+            # 2. Bu projedeki tüm mürettebatı otonom olarak çek
             members = ProjectResearcher.objects.filter(project=p).select_related('researcher')
             
             group_members = [{
@@ -79,13 +81,12 @@ class ResearcherSerializer(serializers.ModelSerializer):
                 'role': m.role
             } for m in members]
             
-            # 4. Proje kartını bir "Grup Hücresi" olarak mühürle
             result.append({
                 'project_id': p.project_id,
                 'title': p.title,
                 'status': p.status,
                 'my_role': 'PI (Lider)' if p.pi == obj else 'Member (Mürettebat)',
-                'group_members': group_members # İşte aradığın "ayrı grup" verisi
+                'group_members': group_members
             })
             
         return result
