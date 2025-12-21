@@ -1,86 +1,69 @@
 from django.contrib import admin
 from .models import (
-    Researcher, 
-    Department, 
-    Project, 
-    Publication, 
-    Skill, 
-    Tag, 
-    EntityTag,
-    FundingAgency, 
-    FundingAgencyGrant,
-    Notification
+    Researcher, Department, Project, Publication, 
+    Skill, Tag, EntityTag, FundingAgency, 
+    FundingAgencyGrant, Notification, CollaborationRequest,
+    ProjectResearcher  # <-- KRİTİK: Eksik olan parça mühürlendi!
 )
 
+# ---------------------------------------------------------
+# 0. INLINE: PROJE İÇİNDE MÜRETTEBAT LİSTESİ 🛰️
+# ---------------------------------------------------------
+class ProjectResearcherInline(admin.TabularInline):
+    """
+    Bu parça sayesinde 'Projects' sayfasına girdiğinde 
+    alt tarafta mürettebat listesini otonom olarak görebileceksin.
+    """
+    model = ProjectResearcher
+    extra = 1  # Yeni üye eklemek için boş satır sayısı
+
+# ---------------------------------------------------------
 # 1. ARAŞTIRMACI (RESEARCHER)
+# ---------------------------------------------------------
 @admin.register(Researcher)
 class ResearcherAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'role', 'department', 'email', 'title') 
+    list_display = ('researcher_id', 'full_name', 'role', 'department', 'email')
     list_display_links = ('full_name',)
-    list_filter = ('role', 'department', 'title')
-    search_fields = ('full_name', 'email', 'bio')
-    list_per_page = 20
+    list_filter = ('role', 'department')
+    search_fields = ('full_name', 'email')
 
-# 2. BÖLÜMLER (DEPARTMENTS)
-# Hata veren 'description' alanını kaldırdık
-@admin.register(Department)
-class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('department_id', 'name')
-    search_fields = ('name',)
-
-# 3. PROJELER (PROJECTS)
-# Hata veren 'budget' alanını kaldırdık
+# ---------------------------------------------------------
+# 2. PROJELER (PROJECTS) - GÜNCELLENDİ 🏗️
+# ---------------------------------------------------------
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('title', 'status', 'start_date', 'end_date')
-    list_filter = ('status',)
+    list_display = ('project_id', 'title', 'status', 'pi', 'created_at')
+    list_filter = ('status', 'department')
     search_fields = ('title', 'summary')
+    # Mustafa Arslan'ı burada görmek için inline ekledik:
+    inlines = [ProjectResearcherInline]
 
-# 4. YETENEKLER (SKILLS)
-@admin.register(Skill)
-class SkillAdmin(admin.ModelAdmin):
-    list_display = ('skill_id', 'name')
-    search_fields = ('name',)
-
-# 5. ETİKETLER (TAGS)
-@admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
-    list_display = ('tag_id', 'name')
-    search_fields = ('name',)
-
-# 6. YAYINLAR (PUBLICATIONS)
-# Hata veren 'publication_type' ve 'publisher' alanlarını kaldırdık
-@admin.register(Publication)
-class PublicationAdmin(admin.ModelAdmin):
-    list_display = ('title', 'year', 'doi')  # DOI varsa ekleyelim, yoksa silebilirsin
-    list_filter = ('year',)
-    search_fields = ('title',)
-
-# Diğerlerini basit şekilde kaydedelim
-admin.site.register(FundingAgency)
-admin.site.register(FundingAgencyGrant)
-admin.site.register(EntityTag)
-
-
-
-# Gerekli importu ekle (En üstte)
-from .models import CollaborationRequest
-
-# En alta ekle
+# ---------------------------------------------------------
+# 3. İŞBİRLİĞİ TALEPLERİ (COLLABORATION REQUESTS)
+# ---------------------------------------------------------
 @admin.register(CollaborationRequest)
 class CollaborationRequestAdmin(admin.ModelAdmin):
     list_display = ('request_id', 'sender', 'receiver', 'project', 'status', 'created_at')
     list_filter = ('status', 'request_type')
-    search_fields = ('sender__full_name', 'receiver__full_name', 'project__title')
+    # Admin'den 'Kabul Edildi' yaptığında Signal'i tetikleyen yer burası
 
+# ---------------------------------------------------------
+# 4. DİĞERLERİ (BASİT KAYIT)
+# ---------------------------------------------------------
+@admin.register(ProjectResearcher)
+class ProjectResearcherAdmin(admin.ModelAdmin):
+    """Mürettebatı bağımsız bir tablo olarak da yönetebilmen için."""
+    list_display = ('project', 'researcher', 'role', 'joined_at')
+    list_filter = ('role', 'project')
 
-from .models import Notification # Import listesine ekle
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('department_id', 'name')
 
-
-
-
-@admin.register(Notification)
-class NotificationAdmin(admin.ModelAdmin):
-    list_display = ('recipient', 'title', 'is_read', 'created_at')
-    list_filter = ('is_read',)
-    search_fields = ('recipient__full_name', 'title', 'message')
+admin.site.register(Skill)
+admin.site.register(Tag)
+admin.site.register(Publication)
+admin.site.register(FundingAgency)
+admin.site.register(FundingAgencyGrant)
+admin.site.register(EntityTag)
+admin.site.register(Notification)
