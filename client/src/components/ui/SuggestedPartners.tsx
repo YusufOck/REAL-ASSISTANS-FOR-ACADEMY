@@ -1,5 +1,6 @@
 import React from 'react';
 import { UserPlus, Star, Award, BrainCircuit } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // 1. Adım: Navigasyon kancasını import ettik.
 
 interface Suggestion {
   researcher_id: number;
@@ -15,11 +16,14 @@ interface SuggestedPartnersProps {
 }
 
 const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) => {
+  // 2. Adım: useNavigate kancasını bileşen gövdesinin İÇİNE aldık (Mühendislik kuralı!)
+  const navigate = useNavigate();
+
   if (!suggestions || suggestions.length === 0) return null;
 
   return (
     <div className="mt-12 space-y-6">
-      {/* BAŞLIK BÖLÜMÜ: Burayı netleştirdik */}
+      {/* BAŞLIK BÖLÜMÜ */}
       <div className="flex items-center gap-3 border-b border-gray-200 pb-4">
         <div className="p-2 bg-blue-100 rounded-lg">
           <BrainCircuit className="text-blue-600 w-6 h-6" />
@@ -86,7 +90,11 @@ const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) =>
               )}
             </div>
 
-            <button className="w-full py-2.5 bg-slate-900 hover:bg-blue-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm">
+            {/* 3. Adım: Butona onClick olayını ve dinamik rotayı mühürledik. */}
+            <button 
+              onClick={() => navigate(`/researcher/${partner.researcher_id}`)}
+              className="w-full py-2.5 bg-slate-900 hover:bg-blue-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95"
+            >
               <UserPlus size={18} /> Profili İncele
             </button>
           </div>

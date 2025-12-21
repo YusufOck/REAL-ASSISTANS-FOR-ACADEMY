@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
 import Profile from "./pages/Profile"
+import ResearcherDetail from "./pages/ResearcherDetail";
 
 function App() {
   return (
@@ -24,7 +25,7 @@ function App() {
         {/* 👇 DÜZELTİLEN SATIR: Artık o saçma div yok, gerçek Dashboard var */}
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
-
+        <Route path="/researcher/:id" element={<ResearcherDetail />} />
         <Route path="/" element={<Login />} />
       </Routes>
     </Router>

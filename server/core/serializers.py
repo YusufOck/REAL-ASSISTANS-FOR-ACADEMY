@@ -22,10 +22,14 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 
 
+# serializers.py
+
 class ResearcherSerializer(serializers.ModelSerializer):
-    
     department_name = serializers.CharField(source='department.name', read_only=True)
     suggestions = serializers.SerializerMethodField()
+    # YENİ EKLEDİĞİMİZ ALAN: Gelen talepleri otonom olarak yakalar
+    received_requests = serializers.SerializerMethodField()
+
     class Meta:
         model = Researcher
         fields = [
@@ -33,19 +37,41 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'full_name',
             'email',
             'title',
-            'department',       # Bu ID (1, 2, 3 gibi) gönderir
-            'department_name',  # Bu isim (Bilgisayar Müh. gibi) gönderir
+            'department',
+            'department_name',
             'bio',
             'created_at',
             'skills',
             'suggestions',
-            
+            'received_requests', # BU ALAN EKSİK OLDUĞU İÇİN GÖREMİYORDUN!
         ]
+
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):
-        # Sadece mevcut kullanıcı için önerileri getiriyoruz
-        
+        # Mevcut öneri mantığın aynen kalıyor
         return get_collaboration_suggestions(obj.researcher_id, limit=5)
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_received_requests(self, obj):
+        # Senin daha önce paylaştığın CollaborationRequest modelini kullanıyoruz
+        from .models import CollaborationRequest
+        
+        # Alıcısı (receiver) bu araştırmacı olan ve beklemede olan istekleri çekiyoruz
+        requests = CollaborationRequest.objects.filter(
+            receiver=obj, 
+            status='pending'
+        ).select_related('sender', 'project') # Performans için mühürledik
+        
+        return [{
+            'request_id': r.request_id,
+            'sender_id': r.sender.researcher_id,
+            'sender_name': r.sender.full_name,
+            'project_id': r.project.project_id,
+            'project_name': r.project.title,
+            'message': r.message,
+            'request_type': r.request_type,
+            'created_at': r.created_at.strftime("%d.%m.%Y %H:%M")
+        } for r in requests]
 
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:

@@ -1,17 +1,18 @@
-// Dashboard.tsx - Temizlenmiş Importlar
+// Dashboard.tsx - Gelen Talepler Entegrasyonu
 import { useEffect, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { authService } from "@/services/authService"
 import { Button } from "@/components/ui/button"
-// CardDescription'ı sildik çünkü image_96f309'da kullanılmadığı uyarısını aldık
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" 
 import { LogOut, User, Briefcase, Building2, Loader2, Settings, BrainCircuit } from "lucide-react"
 import { toast } from "sonner"
-// DÜZELTME: Radar'ı sadece bir kez ve doğru isimle alıyoruz (image_96efa4 hatası)
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 
 import SuggestedPartners from "@/components/ui/SuggestedPartners";
 import SkillUpdateForm from "@/components/ui/SkillUpdateForm";
+// YENİ: Gelen talepleri yöneteceğimiz bileşeni çağırıyoruz
+import IncomingRequests from "@/components/ui/IncomingRequests";
+
 
 interface Suggestion {
   researcher_id: number;
@@ -22,6 +23,7 @@ interface Suggestion {
   is_complementary: boolean;
 }
 
+// PROFESYONEL GÜNCELLEME: received_requests alanını otonom hale getirdik
 interface UserProfile {
   researcher_id: number;
   full_name: string;
@@ -32,6 +34,7 @@ interface UserProfile {
   department_name: string | null; 
   skills: Record<string, number> | string[] | null;
   suggestions?: Suggestion[]; 
+  received_requests?: any[]; // image_a2b204'teki beklentiye uygun
 }
 
 export default function Dashboard() {
@@ -43,7 +46,10 @@ export default function Dashboard() {
 
   const fetchProfile = async () => {
     try {
+      // Backend /api/researchers/me/ üzerinden gelen tüm veriyi çeker
       const data = await authService.getProfile()
+      console.log("🚀 Profil Verisi:", data);
+      console.log("📩 Gelen Talepler:", data.received_requests);
       setProfile(data)
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -94,9 +100,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* IZGARA DÜZENİ */}
+      {/* KRİTİK KATMAN: Gelen Talepler Paneli */}
+      {/* Eğer birisi (Yusuf gibi) sana istek atarsa, en tepede otonom olarak görünecek */}
+      <IncomingRequests 
+        requests={profile?.received_requests || []} 
+        onRefresh={fetchProfile} 
+      />
+
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
-        {/* SOL KOLON */}
+        {/* SOL KOLON: Kimlik ve Erişim */}
         <div className="space-y-6">
           <Card className="shadow-sm border-none ring-1 ring-gray-200">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -148,7 +160,6 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* FORM MONTAJI */}
             {profile?.skills && !Array.isArray(profile.skills) && (
               <SkillUpdateForm 
                 initialSkills={profile.skills as Record<string, number>} 
@@ -158,7 +169,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* KRİTİK DÜZELTME: Partner Önerileri Artık En Soldan Başlıyor! */}
+        {/* ALT BÖLÜM: Partner Önerileri */}
         <div className="col-span-full pt-8 mt-4 border-t border-gray-200">
           <SuggestedPartners suggestions={profile?.suggestions || []} />
         </div>

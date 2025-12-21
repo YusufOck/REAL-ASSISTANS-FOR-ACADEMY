@@ -402,3 +402,5 @@ def update_researcher_embedding(sender, instance, created, **kwargs):
                 
         except Exception as e:
             print(f"❌ {instance.full_name} için AI vektör hatası: {e}")
+
+            
