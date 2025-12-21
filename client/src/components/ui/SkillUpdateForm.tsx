@@ -16,30 +16,42 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({ initialSkills, onUpda
   };
 
   const handleSubmit = async () => {
-    setIsUpdating(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://real-assistans-for-academy-cbun.onrender.com/api/researchers/me/', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ skills })
-      });
+  setIsUpdating(true);
+  
+  // MÜHENDİSLİK DENETİMİ: image_97c5a2.png'deki gerçek anahtar ismini kullanıyoruz!
+  const token = localStorage.getItem('accessToken'); 
+  
+  if (!token) {
+    console.error("❌ HATA: 'accessToken' Local Storage'da bulunamadı!");
+    toast.error("Oturum anahtarı bulunamadı. Lütfen tekrar giriş yapın.");
+    setIsUpdating(false);
+    return;
+  }
 
-      if (response.ok) {
-        toast.success("Yeteneklerin güncellendi! AI önerileri yeniden hesaplanıyor...");
-        onUpdateSuccess(); // Dashboard verisini tazelemek için kritik!
-      } else {
-        toast.error("Güncelleme başarısız oldu.");
-      }
-    } catch (error) {
-      toast.error("Bağlantı hatası.");
-    } finally {
-      setIsUpdating(false);
+  try {
+    const response = await fetch('https://real-assistans-for-academy-cbun.onrender.com/api/researchers/me/', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ skills })
+    });
+
+    if (response.ok) {
+      toast.success("Yeteneklerin güncellendi! AI önerileri yenileniyor...");
+      onUpdateSuccess();
+    } else {
+      const data = await response.json();
+      console.error("❌ BACKEND HATASI:", data);
+      toast.error(`Hata: ${data.detail || "Güncelleme başarısız"}`);
     }
-  };
+  } catch (error) {
+    toast.error("Bağlantı hatası.");
+  } finally {
+    setIsUpdating(false);
+  }
+};
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm ring-1 ring-gray-100 h-full">

@@ -1,11 +1,13 @@
+// Dashboard.tsx - Temizlenmiş Importlar
 import { useEffect, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { authService } from "@/services/authService"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" // CardDescription'ı sildik çünkü kullanmıyorsun
+// CardDescription'ı sildik çünkü image_96f309'da kullanılmadığı uyarısını aldık
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" 
 import { LogOut, User, Briefcase, Building2, Loader2, Settings, BrainCircuit } from "lucide-react"
 import { toast } from "sonner"
-// DÜZELTME: Radar'ı sadece bir kez çağırıyoruz (image_96efa4 hatası çözüldü)
+// DÜZELTME: Radar'ı sadece bir kez ve doğru isimle alıyoruz (image_96efa4 hatası)
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 
 import SuggestedPartners from "@/components/ui/SuggestedPartners";
