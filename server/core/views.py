@@ -8,11 +8,12 @@ from django.contrib.auth.models import User # <-- User modelini unutma
 from rest_framework import viewsets, status, filters, permissions, generics # <-- 'generics' EKLENDİ!
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from .models import *
 from .serializers import *
+
 
 # Servisler ve İzinler
 from .services import get_collaboration_suggestions, generate_embedding, analyze_skills_with_gemini
@@ -52,7 +53,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     serializer_class = ResearcherSerializer
     
     # --- GÜVENLİK VE İZİNLER ---
-    permission_classes = [IsResearcherOwnerOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
     # =========================================================================
     # 0. ME (Kendi Profilim) - EKLENEN KISIM
@@ -273,7 +274,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         summary="İşbirliği İsteği Gönder",
         description="İstek gönderir ve oluşturulan isteğin ID'sini döner."
     )
-    @action(detail=True, methods=['post'], url_path='send-request')
+    @action(detail=True, methods=['post'], url_path='send-request', permission_classes=[IsAuthenticated])
     def send_request(self, request, pk=None):
         # 1. HEDEFİ BELİRLE (URL'deki pk, yani alıcı)
         receiver = self.get_object() 
@@ -329,7 +330,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         summary="İsteği Cevapla",
         description="Gelen isteği kabul/red eder ve ilgili bildirimi okundu olarak işaretler."
     )
-    @action(detail=False, methods=['post'], url_path='respond-request')
+    @action(detail=False, methods=['post'], url_path='respond-request', permission_classes=[IsAuthenticated])
     def respond_request(self, request):
         # Frontend'den gelen veriyi mühürle: {request_id, status, response_message}
         serializer = RespondCollaborationRequestSerializer(data=request.data)
