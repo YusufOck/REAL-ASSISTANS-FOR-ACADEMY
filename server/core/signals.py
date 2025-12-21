@@ -4,7 +4,8 @@ from django.dispatch import receiver
 from django.utils import timezone
 from .models import Researcher, Tag, EntityTag, CollaborationRequest, Notification, ProjectResearcher
 import re
-
+from .models import ResearcherSkill
+from .services import generate_embedding
 # ---------------------------------------------------------
 # 1. MEVCUT: OTOMATİK ETİKETLEME (AUTO TAGGING)
 # ---------------------------------------------------------
@@ -62,3 +63,31 @@ def auto_add_to_project_on_acceptance(sender, instance, created, **kwargs):
             defaults={'role': role, 'joined_at': timezone.now()}
         )
         print(f"✅ OTONOM SİSTEM: {new_member.full_name}, '{instance.project.title}' ekibine katıldı.")
+
+# server/core/signals.py
+
+
+
+@receiver(post_save, sender=ResearcherSkill)
+def update_researcher_embedding_on_skill_change(sender, instance, **kwargs):
+    """
+    Slider (level) her değiştiğinde araştırmacının AI radarını (embedding) günceller.
+    """
+    researcher = instance.researcher
+    
+    # Tüm yetenekleri ve seviyelerini otonom olarak metne dök
+    user_skills = researcher.researcher_skills.select_related('skill').all()
+    skills_context = ", ".join([
+        f"{s.skill.name} level {s.level}" for s in user_skills if s.level > 0
+    ])
+
+    # Yeni anlamsal metni mühürle
+    semantic_text = f"{researcher.title}. {researcher.bio}. Skills: {skills_context}"
+    
+    # Radar (Embedding) güncellemesi
+    researcher.embedding = generate_embedding(semantic_text)
+    
+    # Save metodu burada signals.py'daki diğer Researcher sinyallerini 
+    # sonsuz döngüye sokmamalı (update_fields kullanıyoruz)
+    researcher.save(update_fields=['embedding'])
+    print(f"🛰️ Otonom Güncelleme: {researcher.full_name} için slider bazlı yeni vektör üretildi.")        
