@@ -54,16 +54,41 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'projects' # Artık yukarıda tanımlandığı için hata vermeyecek
         ]
 
+    
+
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
-        from .models import Project
-        # RELATED_NAME hatası riskini sıfıra indirmek için doğrudan filtreleme
-        my_projects = Project.objects.filter(pi=obj) 
-        return [{
-            'project_id': p.project_id,
-            'title': p.title,
-            'status': p.status
-        } for p in my_projects]
+        from .models import Project, ProjectResearcher
+        
+        # 1. HEM PI (Lider) olduğun HEM ÜYE olduğun projeleri otonom olarak çekiyoruz
+        pi_projects = Project.objects.filter(pi=obj)
+        member_projects = Project.objects.filter(memberships__researcher=obj)
+        
+        # 2. Tüm projeleri birleştir ve çift kayıtları mühürle
+        all_projects = (pi_projects | member_projects).distinct()
+        
+        result = []
+        for p in all_projects:
+            # 3. Bu projedeki diğer mürettebatı (Grubu) bulalım
+            # Senin dışındaki aktif üyeleri listeliyoruz
+            members = ProjectResearcher.objects.filter(project=p).select_related('researcher')
+            
+            group_members = [{
+                'id': m.researcher.researcher_id,
+                'name': m.researcher.full_name,
+                'role': m.role
+            } for m in members]
+            
+            # 4. Proje kartını bir "Grup Hücresi" olarak mühürle
+            result.append({
+                'project_id': p.project_id,
+                'title': p.title,
+                'status': p.status,
+                'my_role': 'PI (Lider)' if p.pi == obj else 'Member (Mürettebat)',
+                'group_members': group_members # İşte aradığın "ayrı grup" verisi
+            })
+            
+        return result
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):

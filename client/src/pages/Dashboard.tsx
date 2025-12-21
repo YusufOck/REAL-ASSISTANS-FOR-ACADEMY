@@ -1,4 +1,4 @@
-// Dashboard.tsx - Gelen Talepler Entegrasyonu
+// src/pages/Dashboard.tsx - Eksiksiz ve Mühürlenmiş Versiyon
 import { useEffect, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { authService } from "@/services/authService"
@@ -8,11 +8,13 @@ import { LogOut, User, Briefcase, Building2, Loader2, Settings, BrainCircuit } f
 import { toast } from "sonner"
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 
+// Otonom Bileşenler
 import SuggestedPartners from "@/components/ui/SuggestedPartners";
 import SkillUpdateForm from "@/components/ui/SkillUpdateForm";
-// YENİ: Gelen talepleri yöneteceğimiz bileşeni çağırıyoruz
 import IncomingRequests from "@/components/ui/IncomingRequests";
+import ProjectTeamList from "@/components/ui/ProjectTeamList";
 
+// --- Arayüz Tanımlamaları (Interfaces) ---
 
 interface Suggestion {
   researcher_id: number;
@@ -23,7 +25,20 @@ interface Suggestion {
   is_complementary: boolean;
 }
 
-// PROFESYONEL GÜNCELLEME: received_requests alanını otonom hale getirdik
+interface ProjectMember {
+  id: number;
+  name: string;
+  role: string;
+}
+
+interface UserProject {
+  project_id: number;
+  title: string;
+  status: string;
+  my_role: string;
+  group_members: ProjectMember[];
+}
+
 interface UserProfile {
   researcher_id: number;
   full_name: string;
@@ -34,7 +49,8 @@ interface UserProfile {
   department_name: string | null; 
   skills: Record<string, number> | string[] | null;
   suggestions?: Suggestion[]; 
-  received_requests?: any[]; // image_a2b204'teki beklentiye uygun
+  received_requests?: any[];
+  projects?: UserProject[];
 }
 
 export default function Dashboard() {
@@ -46,10 +62,9 @@ export default function Dashboard() {
 
   const fetchProfile = async () => {
     try {
-      // Backend /api/researchers/me/ üzerinden gelen tüm veriyi çeker
+      // Backend /api/researchers/me/ üzerinden tüm otonom veriyi çeker
       const data = await authService.getProfile()
-      console.log("🚀 Profil Verisi:", data);
-      console.log("📩 Gelen Talepler:", data.received_requests);
+      console.log("🚀 Otonom Sistem Verisi:", data);
       setProfile(data)
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -68,7 +83,11 @@ export default function Dashboard() {
     }));
   };
 
-  const handleLogout = () => { authService.logout(); navigate("/login"); toast.info("Oturum kapatıldı.") }
+  const handleLogout = () => { 
+    authService.logout(); 
+    navigate("/login"); 
+    toast.info("Oturum kapatıldı.") 
+  }
 
   if (loading) {
     return (
@@ -82,7 +101,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
-      {/* ÜST BAR */}
+      {/* 1. KATMAN: ÜST BAR VE NAVİGASYON */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Genel Bakış</h1>
@@ -91,26 +110,30 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild size="sm">
+          <Button variant="outline" asChild size="sm" className="rounded-xl">
             <Link to="/profile"><Settings className="mr-2 h-4 w-4" /> Profili Düzenle</Link>
           </Button>
-          <Button variant="destructive" onClick={handleLogout} size="sm">
+          <Button variant="destructive" onClick={handleLogout} size="sm" className="rounded-xl">
             <LogOut className="mr-2 h-4 w-4" /> Çıkış
           </Button>
         </div>
       </div>
 
-      {/* KRİTİK KATMAN: Gelen Talepler Paneli */}
-      {/* Eğer birisi (Yusuf gibi) sana istek atarsa, en tepede otonom olarak görünecek */}
+      {/* 2. KATMAN: ACİL MÜDAHALE (Gelen Talepler) */}
       <IncomingRequests 
         requests={profile?.received_requests || []} 
         onRefresh={fetchProfile} 
       />
 
+      {/* 3. KATMAN: AKTİF MÜRETTEBAT (Proje Grupları) */}
+      <div className="mb-8">
+        <ProjectTeamList projects={profile?.projects || []} />
+      </div>
+
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
-        {/* SOL KOLON: Kimlik ve Erişim */}
+        {/* SOL KOLON: KİMLİK VE ERİŞİM */}
         <div className="space-y-6">
-          <Card className="shadow-sm border-none ring-1 ring-gray-200">
+          <Card className="shadow-sm border-none ring-1 ring-gray-200 rounded-[2rem]">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Araştırmacı Kimliği</CardTitle>
               <User className="h-4 w-4 text-muted-foreground" />
@@ -131,7 +154,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-none ring-1 ring-blue-100 bg-blue-50/30">
+          <Card className="shadow-sm border-none ring-1 ring-blue-100 bg-blue-50/30 rounded-[2rem]">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-blue-600">Erişim Seviyesi</CardTitle>
             </CardHeader>
@@ -141,10 +164,10 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* SAĞ TARAF: RADAR VE FORM */}
+        {/* SAĞ KOLON: YETENEK ANALİZİ VE GÜNCELLEME */}
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <Card className="shadow-sm border-none ring-1 ring-gray-200">
+            <Card className="shadow-sm border-none ring-1 ring-gray-200 rounded-[2rem]">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Yetenek Dağılımı</CardTitle>
                 <BrainCircuit className="h-4 w-4 text-blue-500" />
@@ -169,7 +192,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ALT BÖLÜM: Partner Önerileri */}
+        {/* ALT BÖLÜM: PARTNER ÖNERİLERİ */}
         <div className="col-span-full pt-8 mt-4 border-t border-gray-200">
           <SuggestedPartners suggestions={profile?.suggestions || []} />
         </div>
