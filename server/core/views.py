@@ -61,39 +61,39 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
 # core/views.py
 
-@extend_schema(
-    summary="Giriş Yapan Kullanıcının Profili",
-    description="Token sahibinin Researcher profilini döner veya günceller.",
-    responses={200: ResearcherSerializer}
-)
-# KRİTİK: 'patch' metodunu izin verilenler listesine ekledik
-@action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated], url_path='me')
-def me(self, request):
-    """
-    GET /api/researchers/me/ -> Profil bilgilerini getirir.
-    PATCH /api/researchers/me/ -> Yetenekleri veya profili kısmi günceller.
-    """
-    try:
-        # request.user üzerinden profilini buluyoruz
-        researcher = Researcher.objects.get(user=request.user)
-        
-        # Eğer pilot (sen) bir güncelleme (PATCH) gönderdiyse:
-        if request.method == 'PATCH':
-            # partial=True çok kritik; sadece değişen 'skills' alanını mühürlememizi sağlar
-            serializer = self.get_serializer(researcher, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save() # Bu satır models.py'daki otonom sinyali tetikler!
+    @extend_schema(
+        summary="Giriş Yapan Kullanıcının Profili",
+        description="Token sahibinin Researcher profilini döner veya günceller.",
+        responses={200: ResearcherSerializer}
+    )
+    # KRİTİK: 'patch' metodunu izin verilenler listesine ekledik
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated], url_path='me')
+    def me(self, request):
+        """
+        GET /api/researchers/me/ -> Profil bilgilerini getirir.
+        PATCH /api/researchers/me/ -> Yetenekleri veya profili kısmi günceller.
+        """
+        try:
+            # request.user üzerinden profilini buluyoruz
+            researcher = Researcher.objects.get(user=request.user)
+            
+            # Eğer pilot (sen) bir güncelleme (PATCH) gönderdiyse:
+            if request.method == 'PATCH':
+                # partial=True çok kritik; sadece değişen 'skills' alanını mühürlememizi sağlar
+                serializer = self.get_serializer(researcher, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save() # Bu satır models.py'daki otonom sinyali tetikler!
+                return Response(serializer.data)
+            
+            # Eğer sadece bakıyorsan (GET):
+            serializer = self.get_serializer(researcher)
             return Response(serializer.data)
-        
-        # Eğer sadece bakıyorsan (GET):
-        serializer = self.get_serializer(researcher)
-        return Response(serializer.data)
-        
-    except Researcher.DoesNotExist:
-        return Response(
-            {"detail": "Bu kullanıcıya bağlı bir araştırmacı profili bulunamadı."}, 
-            status=404
-        )
+            
+        except Researcher.DoesNotExist:
+            return Response(
+                {"detail": "Bu kullanıcıya bağlı bir araştırmacı profili bulunamadı."}, 
+                status=404
+            )
 
     # views.py - ResearcherViewSet içine ekle
     def perform_update(self, serializer):
