@@ -43,8 +43,17 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'created_at',
             'skills',
             'suggestions',
-            'received_requests', # BU ALAN EKSİK OLDUĞU İÇİN GÖREMİYORDUN!
+            'received_requests',
+            'projects' # BU ALAN EKSİK OLDUĞU İÇİN GÖREMİYORDUN!
         ]
+    def get_projects(self, obj):
+        # Araştırmacının (Senanur, ID 94) sahibi olduğu tüm projeleri getirir
+        return [{
+            'project_id': p.project_id,
+            'title': p.title,
+            'summary': p.summary,
+            'status': p.status
+        } for p in obj.projects_as_pi.all()]    
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):

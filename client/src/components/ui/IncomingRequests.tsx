@@ -12,6 +12,7 @@ interface IncomingRequestsProps {
 const IncomingRequests: React.FC<IncomingRequestsProps> = ({ requests, onRefresh }) => {
   
   const handleResponse = async (requestId: number, status: 'accepted' | 'rejected') => {
+    console.log("🚀 Sinyal fırlatılıyor:", { requestId, status }); // Log mühürle
     try {
       const token = localStorage.getItem('accessToken');
       const response = await fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/respond-request/`, {
