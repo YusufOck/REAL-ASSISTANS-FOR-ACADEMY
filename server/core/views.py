@@ -123,61 +123,61 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             print(f"⚠️ AI İşleme Hatası (Update): {str(e)}")
 
     # views.py -> ResearcherViewSet içindeki onboard metodunu güncelle
-@action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
-def onboard(self, request):
-    serializer = ResearcherOnboardSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    d = serializer.validated_data
-    
-    try:
-        # 🛰️ ATOMİK MÜHÜR: Bir işlem bile hata verirse tüm kayıt geri alınır
-        with transaction.atomic():
-            # 1. Django User oluştur
-            user = User.objects.create_user(
-                username=d['email'], 
-                email=d['email'], 
-                password=d['password']
-            )
-            
-            # 2. Researcher profilini oluştur ve User'a mühürle
-            res = Researcher.objects.create(
-                user=user, 
-                full_name=d['full_name'], 
-                email=d['email'], 
-                department_id=d['department_id'], 
-                bio=d.get('bio', ''), 
-                role=d.get('role', 'student'),
-                title=d.get('title', '')
-            )
-            
-            # 3. Eğer bio varsa AI analizini burada da tetikle
-            if res.bio:
-                dept_name = res.department.name if res.department else "General Academic"
-                # AI servisini çağır (Embedding + Skill Extraction)
-                # res.embedding = generate_embedding(res.bio) 
-                # res.save()
+    @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
+    def onboard(self, request):
+        serializer = ResearcherOnboardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        
+        try:
+            # 🛰️ ATOMİK MÜHÜR: Bir işlem bile hata verirse tüm kayıt geri alınır
+            with transaction.atomic():
+                # 1. Django User oluştur
+                user = User.objects.create_user(
+                    username=d['email'], 
+                    email=d['email'], 
+                    password=d['password']
+                )
+                
+                # 2. Researcher profilini oluştur ve User'a mühürle
+                res = Researcher.objects.create(
+                    user=user, 
+                    full_name=d['full_name'], 
+                    email=d['email'], 
+                    department_id=d['department_id'], 
+                    bio=d.get('bio', ''), 
+                    role=d.get('role', 'student'),
+                    title=d.get('title', '')
+                )
+                
+                # 3. Eğer bio varsa AI analizini burada da tetikle
+                if res.bio:
+                    dept_name = res.department.name if res.department else "General Academic"
+                    # AI servisini çağır (Embedding + Skill Extraction)
+                    # res.embedding = generate_embedding(res.bio) 
+                    # res.save()
 
-            # 4. Opsiyonel Proje oluşturma mantığı (Mevcut kodunla aynı)
-            if d.get('create_project'):
-                p = d['create_project']
-                proj = Project.objects.create(
-                    title=p['title'], 
-                    summary=p.get('summary', ''), 
-                    pi=res, 
-                    department_id=d['department_id']
-                )
-                ProjectResearcher.objects.create(
-                    project=proj, 
-                    researcher=res, 
-                    role="Principal Investigator", 
-                    joined_at=timezone.now()
-                )
-            
-            return Response({"id": res.researcher_id, "detail": "Otonom kayıt başarılı."}, status=201)
-            
-    except Exception as e:
-        # Hata anında 'user' veritabanına hiç yazılmamış gibi davranılır
-        return Response({"detail": f"Kayıt Hatası: {str(e)}"}, status=500)
+                # 4. Opsiyonel Proje oluşturma mantığı (Mevcut kodunla aynı)
+                if d.get('create_project'):
+                    p = d['create_project']
+                    proj = Project.objects.create(
+                        title=p['title'], 
+                        summary=p.get('summary', ''), 
+                        pi=res, 
+                        department_id=d['department_id']
+                    )
+                    ProjectResearcher.objects.create(
+                        project=proj, 
+                        researcher=res, 
+                        role="Principal Investigator", 
+                        joined_at=timezone.now()
+                    )
+                
+                return Response({"id": res.researcher_id, "detail": "Otonom kayıt başarılı."}, status=201)
+                
+        except Exception as e:
+            # Hata anında 'user' veritabanına hiç yazılmamış gibi davranılır
+            return Response({"detail": f"Kayıt Hatası: {str(e)}"}, status=500)
 
     @action(detail=True, methods=['post'], url_path='send-request')
     def send_request(self, request, pk=None):
