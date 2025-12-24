@@ -106,7 +106,7 @@ class ProjectResearcher(models.Model):
         "Project",
         on_delete=models.CASCADE,
         db_column="project_id",
-        related_name='project_memberships'
+        related_name='memberships' # <--- views.py ile uyumlu hale getirildi
     )
     researcher = models.ForeignKey(
         "Researcher",
@@ -296,6 +296,7 @@ class ResearcherSkill(models.Model):
         "Researcher",
         on_delete=models.CASCADE,
         db_column="researcher_id",
+        related_name="researcher_skills" # <--- BU SATIR EKLENDİ!
     )
     skill = models.ForeignKey(
         "Skill",

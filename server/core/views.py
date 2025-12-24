@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.db.models import Count, Q, F
 from django.contrib.auth.models import User
 import itertools # Network ilişkileri için
-
+from django.db.models import F
 from rest_framework import viewsets, status, filters, permissions, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -85,40 +85,99 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # core/views.py -> ResearcherViewSet
 
     def perform_update(self, serializer):
-        # 1. Slider değerini (veya bio'yu) veritabanına yaz
+        """
+        Profil güncellendiğinde (PATCH/PUT) otomatik çalışır.
+        HATA ÇÖZÜMÜ: İlişki ismine (related_name) güvenmek yerine 
+        doğrudan ResearcherSkill modeli üzerinden filtreleme yapıyoruz.
+        """
+        # 1. Veriyi kaydet (bio, title vb.)
         instance = serializer.save()
 
-        # 2. Yetenekleri 'ağırlıklı' bir metne dönüştür 🛰️
-        # Örn: "Senior Python Expert (Level: 95)"
-        skill_weights = ", ".join([
-            f"{s.skill.name} Expert (Level: {s.level})" 
-            for s in instance.researcher_skills.select_related('skill').all()
-            if s.level > 80  # Sadece uzman olduğu alanları vektöre baskın yap
-        ])
-
-        # 3. Vektörü (Embedding) bu ağırlıklı veriyle mühürle
-        # Artık slider değiştikçe AI seni farklı bir 'uzmanlık seviyesinde' görecek!
-        semantic_text = f"{instance.title}. {instance.bio}. Uzmanlıklar: {skill_weights}"
-        instance.embedding = generate_embedding(semantic_text)
-        instance.save()
-        
-        print(f"✅ Otonom Radar: {instance.full_name} için slider-bazlı yeni vektör üretildi.")
-
-    @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
-    def onboard(self, request):
-        serializer = ResearcherOnboardSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        d = serializer.validated_data
         try:
-            with transaction.atomic():
-                user = User.objects.create_user(username=d['email'], email=d['email'], password=d['password'])
-                res = Researcher.objects.create(user=user, full_name=d['full_name'], email=d['email'], department_id=d['department_id'], bio=d.get('bio', ''), role=d.get('role', 'student'))
-                if d.get('create_project'):
-                    p = d['create_project']
-                    proj = Project.objects.create(title=p['title'], summary=p.get('summary', ''), pi=res, department_id=d['department_id'])
-                    ProjectResearcher.objects.create(project=proj, researcher=res, role="Principal Investigator", joined_at=timezone.now())
-                return Response({"id": res.researcher_id}, status=201)
-        except Exception as e: return Response({"detail": str(e)}, status=500)
+            # 2. Yetenekleri 'ağırlıklı' metne dönüştür 🛰️
+            # HATA BURADAYDI: instance.researcher_skills yerine doğrudan model sorgusu:
+            user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
+            
+            skill_weights = ", ".join([
+                f"{s.skill.name} Expert (Level: {s.level})" 
+                for s in user_skills if s.level > 80
+            ])
+
+            # 3. Bölüm ismini güvenli çek
+            dept_name = instance.department.name if instance.department else "General Academic"
+
+            # 4. AI İşlemleri (Embedding + Skill Extraction)
+            # Not: Eğer bio değiştiyse Gemini'yi tekrar tetiklemek mantıklıdır.
+            if instance.bio:
+                # Semantic Search vektörünü mühürle
+                semantic_text = f"{instance.title or ''}. {instance.bio}. Uzmanlıklar: {skill_weights}"
+                instance.embedding = generate_embedding(semantic_text)
+                
+                # Opsiyonel: Bio'dan yeni skill çıkartmak istiyorsan burayı açabilirsin
+                # instance.skills = analyze_skills_with_gemini(instance.bio, dept_name)
+                
+                instance.save()
+                print(f"✅ Otonom Radar: {instance.full_name} için vektör mühürlendi.")
+
+        except Exception as e:
+            print(f"⚠️ AI İşleme Hatası (Update): {str(e)}")
+
+    # views.py -> ResearcherViewSet içindeki onboard metodunu güncelle
+@action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
+def onboard(self, request):
+    serializer = ResearcherOnboardSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    d = serializer.validated_data
+    
+    try:
+        # 🛰️ ATOMİK MÜHÜR: Bir işlem bile hata verirse tüm kayıt geri alınır
+        with transaction.atomic():
+            # 1. Django User oluştur
+            user = User.objects.create_user(
+                username=d['email'], 
+                email=d['email'], 
+                password=d['password']
+            )
+            
+            # 2. Researcher profilini oluştur ve User'a mühürle
+            res = Researcher.objects.create(
+                user=user, 
+                full_name=d['full_name'], 
+                email=d['email'], 
+                department_id=d['department_id'], 
+                bio=d.get('bio', ''), 
+                role=d.get('role', 'student'),
+                title=d.get('title', '')
+            )
+            
+            # 3. Eğer bio varsa AI analizini burada da tetikle
+            if res.bio:
+                dept_name = res.department.name if res.department else "General Academic"
+                # AI servisini çağır (Embedding + Skill Extraction)
+                # res.embedding = generate_embedding(res.bio) 
+                # res.save()
+
+            # 4. Opsiyonel Proje oluşturma mantığı (Mevcut kodunla aynı)
+            if d.get('create_project'):
+                p = d['create_project']
+                proj = Project.objects.create(
+                    title=p['title'], 
+                    summary=p.get('summary', ''), 
+                    pi=res, 
+                    department_id=d['department_id']
+                )
+                ProjectResearcher.objects.create(
+                    project=proj, 
+                    researcher=res, 
+                    role="Principal Investigator", 
+                    joined_at=timezone.now()
+                )
+            
+            return Response({"id": res.researcher_id, "detail": "Otonom kayıt başarılı."}, status=201)
+            
+    except Exception as e:
+        # Hata anında 'user' veritabanına hiç yazılmamış gibi davranılır
+        return Response({"detail": f"Kayıt Hatası: {str(e)}"}, status=500)
 
     @action(detail=True, methods=['post'], url_path='send-request')
     def send_request(self, request, pk=None):
@@ -148,14 +207,27 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def projects(self, request, pk=None):
-        # ORM DÖNÜŞÜMÜ
-        projs = Project.objects.filter(memberships__researcher_id=pk).values('project_id', 'title', 'status', 'start_date', 'end_date')
+        """
+        ORM DÖNÜŞÜMÜ: memberships__researcher_id filtresi 
+        Project modelinde Researcher ile olan Many-to-Many adıdır.
+        """
+        # Burada 'memberships' ismini kullandığın için Project modelinde 
+        # related_name='memberships' olduğundan emin olmalısın.
+        projs = Project.objects.filter(memberships__researcher_id=pk).values(
+            'project_id', 'title', 'status', 'start_date', 'end_date'
+        )
         return Response(list(projs))
 
     @action(detail=True, methods=['get'])
     def skills(self, request, pk=None):
-        # ORM DÖNÜŞÜMÜ
-        skills = ResearcherSkill.objects.filter(researcher_id=pk).values(id=F('skill__skill_id'), name=F('skill__name'), level=F('level'))
+        """
+        Hatasız ORM Sorgusu: Doğrudan model üzerinden çekiyoruz.
+        """
+        skills = ResearcherSkill.objects.filter(researcher_id=pk).values(
+            id=F('skill__skill_id'), 
+            name=F('skill__name'), 
+            level=F('level')
+        )
         return Response(list(skills))
 
 # -------------------------

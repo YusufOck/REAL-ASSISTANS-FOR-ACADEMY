@@ -3,22 +3,29 @@ from .models import (
     Researcher, Department, Project, Publication, 
     Skill, Tag, EntityTag, FundingAgency, 
     FundingAgencyGrant, Notification, CollaborationRequest,
-    ProjectResearcher  # <-- KRİTİK: Eksik olan parça mühürlendi!
+    ProjectResearcher,
+    ResearcherSkill  # <-- YENİ: Yetenek ilişkisi mühürlendi!
 )
 
 # ---------------------------------------------------------
-# 0. INLINE: PROJE İÇİNDE MÜRETTEBAT LİSTESİ 🛰️
+# 0. INLINES: OTONOM ALT YÖNETİM PANELLERİ 🛰️
 # ---------------------------------------------------------
+
 class ProjectResearcherInline(admin.TabularInline):
-    """
-    Bu parça sayesinde 'Projects' sayfasına girdiğinde 
-    alt tarafta mürettebat listesini otonom olarak görebileceksin.
-    """
+    """Proje sayfasında mürettebat listesini yönetmek için."""
     model = ProjectResearcher
-    extra = 1  # Yeni üye eklemek için boş satır sayısı
+    extra = 1
+
+class ResearcherSkillInline(admin.TabularInline):
+    """
+    YENİ: Araştırmacı sayfasında yetenekleri ve seviyelerini (1-5) 
+    doğrudan yönetebilmen için eklendi.
+    """
+    model = ResearcherSkill
+    extra = 1
 
 # ---------------------------------------------------------
-# 1. ARAŞTIRMACI (RESEARCHER)
+# 1. ARAŞTIRMACI (RESEARCHER) - GÜNCELLEME 🚀
 # ---------------------------------------------------------
 @admin.register(Researcher)
 class ResearcherAdmin(admin.ModelAdmin):
@@ -26,40 +33,43 @@ class ResearcherAdmin(admin.ModelAdmin):
     list_display_links = ('full_name',)
     list_filter = ('role', 'department')
     search_fields = ('full_name', 'email')
+    # Araştırmacı içinden yeteneklerini direkt yönet:
+    inlines = [ResearcherSkillInline]
 
 # ---------------------------------------------------------
-# 2. PROJELER (PROJECTS) - GÜNCELLENDİ 🏗️
+# 2. PROJELER (PROJECTS)
 # ---------------------------------------------------------
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ('project_id', 'title', 'status', 'pi', 'created_at')
     list_filter = ('status', 'department')
     search_fields = ('title', 'summary')
-    # Mustafa Arslan'ı burada görmek için inline ekledik:
     inlines = [ProjectResearcherInline]
 
 # ---------------------------------------------------------
-# 3. İŞBİRLİĞİ TALEPLERİ (COLLABORATION REQUESTS)
+# 3. İŞBİRLİĞİ TALEPLERİ VE DİĞERLERİ
 # ---------------------------------------------------------
 @admin.register(CollaborationRequest)
 class CollaborationRequestAdmin(admin.ModelAdmin):
     list_display = ('request_id', 'sender', 'receiver', 'project', 'status', 'created_at')
     list_filter = ('status', 'request_type')
-    # Admin'den 'Kabul Edildi' yaptığında Signal'i tetikleyen yer burası
 
-# ---------------------------------------------------------
-# 4. DİĞERLERİ (BASİT KAYIT)
-# ---------------------------------------------------------
 @admin.register(ProjectResearcher)
 class ProjectResearcherAdmin(admin.ModelAdmin):
-    """Mürettebatı bağımsız bir tablo olarak da yönetebilmen için."""
     list_display = ('project', 'researcher', 'role', 'joined_at')
     list_filter = ('role', 'project')
+
+@admin.register(ResearcherSkill)
+class ResearcherSkillAdmin(admin.ModelAdmin):
+    """Yetenek eşleşmelerini bağımsız yönetmek için."""
+    list_display = ('researcher', 'skill', 'level')
+    list_filter = ('skill', 'level')
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
     list_display = ('department_id', 'name')
 
+# Basit Kayıtlar
 admin.site.register(Skill)
 admin.site.register(Tag)
 admin.site.register(Publication)
