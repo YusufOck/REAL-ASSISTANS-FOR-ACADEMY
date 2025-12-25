@@ -44,57 +44,51 @@ import google.generativeai as genai
 from django.conf import settings
 
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
-    # 1. ÖN KONTROL: Çok kısa metinler için API kotasını harcama
     if not bio_text or len(str(bio_text)) < 15:
+        print(f"⚠️ DEBUG: Bio çok kısa, analiz iptal edildi. Bio: {bio_text}")
         return {}
 
     api_key = getattr(settings, 'GEMINI_API_KEY', None)
-    if not api_key:
-        print("⚠️ HATA: Gemini API Key bulunamadı.")
-        return {}
-
     try:
         genai.configure(api_key=api_key, transport='rest')
         model = genai.GenerativeModel('gemini-flash-latest') 
         
-        # MÜHÜRLENMİŞ PROMPT: JSON dışı her şeyi yasakla
         prompt = f"""
         Analyze the following bio as an expert in {department_name}.
         Extract technical/professional skills and assign scores (0-100).
         Return ONLY a raw JSON object. NO Markdown, NO text.
-        Example: {{"Skill": 85}}
         Bio: {bio_text}
         """
         
         response = model.generate_content(prompt)
-        raw_text = response.text.strip()
-
-        # 🛡️ DOUBLE-LOCK: TEMİZLEME VE PARSE ETME KATMANI
-        # Regex: En dıştaki { ... } bloğunu bulur
-        json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         
+        # 🛡️ GÜVENLİK KONTROLÜ: Gemini bazen metni bloklar
+        try:
+            raw_text = response.text.strip()
+            print(f"🔍 DEBUG - AI Ham Yanıt: {raw_text}") # İşte burada ne döndüğünü göreceğiz
+        except ValueError:
+            # Eğer içerik güvenlik filtrelerine takılırsa .text hata verir
+            print("⚠️ DEBUG: Gemini yanıtı güvenlik filtreleri tarafından engellendi.")
+            print(f"Prompt Feedback: {response.prompt_feedback}")
+            return {}
+
+        # 🛡️ DOUBLE-LOCK: TEMİZLEME
+        json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         if json_match:
             try:
-                # Sadece regex ile bulunan kısmı parse et
                 clean_json_text = json_match.group(0)
-                return json.loads(clean_json_text)
+                parsed_json = json.loads(clean_json_text)
+                print(f"✅ DEBUG - Parse Edilen Skill Sayısı: {len(parsed_json)}")
+                return parsed_json
             except json.JSONDecodeError as je:
-                # Eğer JSON hala hatalıysa (Örn: yarım kalmış), logla ve boş dön
-                print(f"⚠️ [JSON HATASI] AI bozuk veri döndürdü: {je}")
+                print(f"⚠️ DEBUG - JSON Parse Hatası: {je} | Ham Metin: {raw_text}")
                 return {}
         
-        print("⚠️ [AI HATASI] Yanıt içinde geçerli JSON bulunamadı.")
+        print(f"⚠️ DEBUG - Geçerli JSON bulunamadı. Gelen metin: {raw_text}")
         return {}
 
     except Exception as e:
-        # KOTA VE DİĞER API HATALARI
-        error_str = str(e)
-        if "429" in error_str:
-            print("⚠️ BİLGİ: Gemini API kotası doldu.")
-        elif "500" in error_str:
-            print("⚠️ BİLGİ: Gemini sunucu hatası (Internal Error).")
-        else:
-            print(f"⚠️ Gemini Analiz Hatası: {e}")
+        print(f"❌ DEBUG - Gemini Genel Hata: {e}")
         return {}
 
 
