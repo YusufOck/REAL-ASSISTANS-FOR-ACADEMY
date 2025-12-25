@@ -38,39 +38,64 @@ def generate_embedding(text):
 # Diğer fonksiyonların (calculate_cosine_similarity vb.) burada devam etsin...
 
 
+import re
+import json
+import google.generativeai as genai
+from django.conf import settings
+
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
+    # 1. ÖN KONTROL: Çok kısa metinler için API kotasını harcama
     if not bio_text or len(str(bio_text)) < 15:
         return {}
 
     api_key = getattr(settings, 'GEMINI_API_KEY', None)
+    if not api_key:
+        print("⚠️ HATA: Gemini API Key bulunamadı.")
+        return {}
+
     try:
         genai.configure(api_key=api_key, transport='rest')
-        
-        # Listenin en güvenli ismi: gemini-flash-latest
-        # Bu isim genellikle en stabil flash modeline (şu an 2.0 veya 2.5) yönlendirir.
         model = genai.GenerativeModel('gemini-flash-latest') 
         
+        # MÜHÜRLENMİŞ PROMPT: JSON dışı her şeyi yasakla
         prompt = f"""
-        Analyze the following bio from the perspective of an expert in {department_name}.
+        Analyze the following bio as an expert in {department_name}.
         Extract technical/professional skills and assign scores (0-100).
-        Return ONLY a JSON object. Example: {{"Skill": 85}}
+        Return ONLY a raw JSON object. NO Markdown, NO text.
+        Example: {{"Skill": 85}}
         Bio: {bio_text}
         """
         
         response = model.generate_content(prompt)
+        raw_text = response.text.strip()
+
+        # 🛡️ DOUBLE-LOCK: TEMİZLEME VE PARSE ETME KATMANI
+        # Regex: En dıştaki { ... } bloğunu bulur
+        json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         
-        json_match = re.search(r'\{.*\}', response.text.strip(), re.DOTALL)
         if json_match:
-            return json.loads(json_match.group())
+            try:
+                # Sadece regex ile bulunan kısmı parse et
+                clean_json_text = json_match.group(0)
+                return json.loads(clean_json_text)
+            except json.JSONDecodeError as je:
+                # Eğer JSON hala hatalıysa (Örn: yarım kalmış), logla ve boş dön
+                print(f"⚠️ [JSON HATASI] AI bozuk veri döndürdü: {je}")
+                return {}
+        
+        print("⚠️ [AI HATASI] Yanıt içinde geçerli JSON bulunamadı.")
         return {}
 
     except Exception as e:
-        # KOTA HATASI (429) YAKALAMA
-        if "429" in str(e):
-            print("⚠️ BİLGİ: Gemini API kotası doldu. İşlem AI analizi olmadan tamamlanıyor.")
+        # KOTA VE DİĞER API HATALARI
+        error_str = str(e)
+        if "429" in error_str:
+            print("⚠️ BİLGİ: Gemini API kotası doldu.")
+        elif "500" in error_str:
+            print("⚠️ BİLGİ: Gemini sunucu hatası (Internal Error).")
         else:
             print(f"⚠️ Gemini Analiz Hatası: {e}")
-        return {} # Hata alsa bile boş sözlük dön ki views.py tarafı patlamasın.
+        return {}
 
 
 def generate_embedding(text):
