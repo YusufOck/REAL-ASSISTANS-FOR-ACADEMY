@@ -6,8 +6,11 @@ from django.db import connection
 from django.conf import settings
 from .models import Department, Researcher
 import re
-
+import sys
 import math
+
+
+
 
 # ---------------------------------------------------------
 # 0. YAPAY ZEKA MODELİ (GOOGLE GEMINI API) 🚀
@@ -38,58 +41,67 @@ def generate_embedding(text):
 # Diğer fonksiyonların (calculate_cosine_similarity vb.) burada devam etsin...
 
 
-import re
-import json
-import google.generativeai as genai
-from django.conf import settings
+
 
 def analyze_skills_with_gemini(bio_text, department_name="General Academic"):
-    if not bio_text or len(str(bio_text)) < 15:
-        print(f"⚠️ DEBUG: Bio çok kısa, analiz iptal edildi. Bio: {bio_text}")
-        return {}
+    """
+    Gemini ham yanıtını Render loglarında mühürlemek için optimize edilmiş sürüm.
+   
+    """
+    # 1. ÖN KONTROL
+    if not bio_text or len(str(bio_text).strip()) < 10:
+        print(f"⚠️ DEBUG [AI]: Bio çok kısa veya boş. İşlem iptal. Bio: '{bio_text}'", flush=True)
+        return {}, "Bio too short"
 
     api_key = getattr(settings, 'GEMINI_API_KEY', None)
+    if not api_key:
+        print("❌ DEBUG [AI]: GEMINI_API_KEY bulunamadı! Render Env Vars kontrol edilmeli.", flush=True)
+        return {}, "Missing API Key"
+
     try:
         genai.configure(api_key=api_key, transport='rest')
         model = genai.GenerativeModel('gemini-flash-latest') 
         
+        # Daha esnek ama JSON odaklı prompt
         prompt = f"""
-        Analyze the following bio as an expert in {department_name}.
-        Extract technical/professional skills and assign scores (0-100).
-        Return ONLY a raw JSON object. NO Markdown, NO text.
-        Bio: {bio_text}
+        Act as a technical recruiter. Analyze this bio from {department_name}:
+        '{bio_text}'
+        
+        Extract skills and scores (0-100). 
+        Return ONLY a JSON object like {{"SkillName": 80}}. 
+        If nothing found, return {{}}.
         """
         
         response = model.generate_content(prompt)
         
-        # 🛡️ GÜVENLİK KONTROLÜ: Gemini bazen metni bloklar
+        # 🛡️ HAM VERİ YAKALAMA (En kritik nokta)
         try:
             raw_text = response.text.strip()
-            print(f"🔍 DEBUG - AI Ham Yanıt: {raw_text}") # İşte burada ne döndüğünü göreceğiz
+            # BU SATIR RENDER LOGLARINDA GÖRÜNECEK ANA SATIRDIR
+            print(f"🔍 [AI HAM YANIT]: {raw_text}", flush=True) 
         except ValueError:
-            # Eğer içerik güvenlik filtrelerine takılırsa .text hata verir
-            print("⚠️ DEBUG: Gemini yanıtı güvenlik filtreleri tarafından engellendi.")
-            print(f"Prompt Feedback: {response.prompt_feedback}")
-            return {}
+            # Eğer güvenlik filtresi (Safety Settings) tetiklenirse .text okunamaz
+            safety_feedback = str(response.prompt_feedback)
+            print(f"⚠️ DEBUG [AI]: Güvenlik engeline takıldı! Feedback: {safety_feedback}", flush=True)
+            return {}, f"Blocked by safety: {safety_feedback}"
 
-        # 🛡️ DOUBLE-LOCK: TEMİZLEME
+        # 🛡️ ÇİFT KİLİT PARSING
         json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         if json_match:
             try:
-                clean_json_text = json_match.group(0)
-                parsed_json = json.loads(clean_json_text)
-                print(f"✅ DEBUG - Parse Edilen Skill Sayısı: {len(parsed_json)}")
-                return parsed_json
+                parsed_json = json.loads(json_match.group(0))
+                print(f"✅ DEBUG [AI]: Başarıyla parse edildi. Skill sayısı: {len(parsed_json)}", flush=True)
+                return parsed_json, raw_text
             except json.JSONDecodeError as je:
-                print(f"⚠️ DEBUG - JSON Parse Hatası: {je} | Ham Metin: {raw_text}")
-                return {}
+                print(f"⚠️ DEBUG [AI]: JSON Formatı bozuk: {je}", flush=True)
+                return {}, raw_text
         
-        print(f"⚠️ DEBUG - Geçerli JSON bulunamadı. Gelen metin: {raw_text}")
-        return {}
+        print("⚠️ DEBUG [AI]: Yanıt içinde süslü parantez {{}} bulunamadı.", flush=True)
+        return {}, raw_text
 
     except Exception as e:
-        print(f"❌ DEBUG - Gemini Genel Hata: {e}")
-        return {}
+        print(f"❌ DEBUG [AI]: Genel Sistem Hatası: {str(e)}", flush=True)
+        return {}, str(e)
 
 
 def generate_embedding(text):
