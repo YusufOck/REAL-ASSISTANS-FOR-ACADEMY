@@ -85,42 +85,53 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     # core/views.py -> ResearcherViewSet
 
     def perform_update(self, serializer):
-        """
-        Profil güncellendiğinde (PATCH/PUT) otomatik çalışır.
-        HATA ÇÖZÜMÜ: İlişki ismine (related_name) güvenmek yerine 
-        doğrudan ResearcherSkill modeli üzerinden filtreleme yapıyoruz.
-        """
-        # 1. Veriyi kaydet (bio, title vb.)
+        # 1. ESKİ VERİYİ YAKALA (Maliyet Kontrolü İçin) 🛰️
+        # Kayıt öncesi biyografiyi hafızaya alıyoruz.
+        old_bio = self.get_object().bio
+        
+        # 2. TEMEL KAYDI YAP
         instance = serializer.save()
 
-        try:
-            # 2. Yetenekleri 'ağırlıklı' metne dönüştür 🛰️
-            # HATA BURADAYDI: instance.researcher_skills yerine doğrudan model sorgusu:
-            user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
-            
-            skill_weights = ", ".join([
-                f"{s.skill.name} Expert (Level: {s.level})" 
-                for s in user_skills if s.level > 80
-            ])
+        # 3. DEĞİŞİM KONTROLÜ (Dirty Check) 🛡️
+        # Sadece biyografi değiştiyse veya yeni eklendiyse AI çalışır.
+        new_bio = serializer.validated_data.get('bio')
+        
+        if new_bio and new_bio != old_bio:
+            try:
+                dept_name = instance.department.name if instance.department else "General Academic"
+                
+                # OTONOM YETENEK AYIKLAMA (Gemini) 🧠
+                # Örn: {"Python": 90, "React": 75}
+                extracted_skills = analyze_skills_with_gemini(instance.bio, dept_name)
+                instance.skills = extracted_skills # JSON grafiği için mühürle
 
-            # 3. Bölüm ismini güvenli çek
-            dept_name = instance.department.name if instance.department else "General Academic"
+                # M2M SENKRONİZASYONU (Slider Tablosu) 🗄️
+                # Gemini'nin bulduğu her yeteneği ResearcherSkill tablosuna otonom işler.
+                if isinstance(extracted_skills, dict):
+                    for s_name, s_level in extracted_skills.items():
+                        # Yetenek genel tabloda yoksa oluştur, varsa getir
+                        skill_obj, _ = Skill.objects.get_or_create(name=s_name)
+                        
+                        # Araştırmacı ile yeteneği mühürle/güncelle
+                        ResearcherSkill.objects.update_or_create(
+                            researcher=instance,
+                            skill=skill_obj,
+                            defaults={'level': s_level}
+                        )
 
-            # 4. AI İşlemleri (Embedding + Skill Extraction)
-            # Not: Eğer bio değiştiyse Gemini'yi tekrar tetiklemek mantıklıdır.
-            if instance.bio:
-                # Semantic Search vektörünü mühürle
-                semantic_text = f"{instance.title or ''}. {instance.bio}. Uzmanlıklar: {skill_weights}"
+                # RADAR (EMBEDDING) GÜNCELLEME 🚀
+                # Güncel yetenek seviyelerini de hesaba katarak vektörü mühürle.
+                user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
+                skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
+                
+                semantic_text = f"{instance.title}. {instance.bio}. Skills: {skill_weights}"
                 instance.embedding = generate_embedding(semantic_text)
                 
-                # Opsiyonel: Bio'dan yeni skill çıkartmak istiyorsan burayı açabilirsin
-                # instance.skills = analyze_skills_with_gemini(instance.bio, dept_name)
-                
                 instance.save()
-                print(f"✅ Otonom Radar: {instance.full_name} için vektör mühürlendi.")
+                print(f"✅ Otonom Senkronizasyon: {instance.full_name} için tüm katmanlar güncellendi.")
 
-        except Exception as e:
-            print(f"⚠️ AI İşleme Hatası (Update): {str(e)}")
+            except Exception as e:
+                print(f"⚠️ AI/Sync Hatası: {str(e)}")
 
     # views.py -> ResearcherViewSet içindeki onboard metodunu güncelle
     @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
