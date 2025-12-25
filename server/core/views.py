@@ -70,42 +70,16 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     filterset_fields = {'department': ['exact'], 'title': ['icontains'], 'full_name': ['icontains']}
     search_fields = ['full_name', 'email', 'bio']
 
-    @action(detail=False, methods=['get', 'patch'], url_path='me')
-    def me(self, request):
-        try:
-            researcher = Researcher.objects.get(user=request.user)
-            if request.method == 'PATCH':
-                serializer = self.get_serializer(researcher, data=request.data, partial=True)
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-                return Response(serializer.data)
-            return Response(self.get_serializer(researcher).data)
-        except Researcher.DoesNotExist: return Response({"detail": "Profil bulunamadı."}, status=404)
-
-    # core/views.py -> ResearcherViewSet
-
-    # server/core/views.py içindeki ResearcherViewSet altında:
-
-    # server/core/views.py
-
-    # server/core/views.py
-
-    def perform_update(self, serializer):
-        old_bio = self.get_object().bio
-        instance = serializer.save()
-
-        # 🛰️ Biyografi Değiştiyse Tüm Sistemi Otonom Olarak Sıfırla
-        new_bio = serializer.validated_data.get('bio')
+    def _trigger_ai_analysis(self, instance, old_bio, validated_data):
+        new_bio = validated_data.get('bio')
         if new_bio and new_bio != old_bio:
             try:
                 dept_name = instance.department.name if instance.department else "General Academic"
-                
-                # 🧠 AI: Yeni yetenekleri ayıkla (Java, C++, MySQL vb.)
-                extracted_skills = analyze_skills_with_gemini(instance.bio, dept_name)
+                # 🧠 AI: Gemini ile yetenekleri çıkar
+                extracted_skills = analyze_skills_with_gemini(new_bio, dept_name)
                 instance.skills = extracted_skills 
 
-                # 🗄️ ESKİ VERİLERİ SİL: Eski slider verilerini temizle
-                # Bu satır image_fa158d.png'deki karmaşayı çözer!
+                # 🗄️ ESKİ VERİLERİ SİL
                 ResearcherSkill.objects.filter(researcher=instance).delete()
 
                 if isinstance(extracted_skills, dict):
@@ -115,18 +89,44 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                             researcher=instance, skill=skill_obj, level=s_level
                         )
 
-                # 🚀 VEKTÖRÜ MÜHÜRLE: Önerilerin (Suggestions) değişmesi için şart!
+                # 🚀 VEKTÖRÜ MÜHÜRLE
                 user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
                 skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
-                semantic_text = f"{instance.title}. {instance.bio}. Skills: {skill_weights}"
+                semantic_text = f"{instance.title}. {new_bio}. Skills: {skill_weights}"
                 instance.embedding = generate_embedding(semantic_text)
                 
                 instance.save(update_fields=['skills', 'embedding'])
-                print(f"✅ Otonom Dinamik Sistem Yenilendi: {instance.full_name}")
+                print(f"✅ Otonom Dinamik Sistem Yenilendi: {instance.full_name}", flush=True)
 
             except Exception as e:
-                print(f"⚠️ AI Hatası: {str(e)}")
-    # views.py -> ResearcherViewSet içindeki onboard metodunu güncelle
+                print(f"⚠️ AI Hatası: {str(e)}", flush=True)
+
+    @action(detail=False, methods=['get', 'patch'], url_path='me')
+    def me(self, request):
+        try:
+            researcher = Researcher.objects.get(user=request.user)
+            if request.method == 'PATCH':
+                old_bio = researcher.bio # 👈 Değişimi yakalamak için eskiyi al
+                serializer = self.get_serializer(researcher, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                
+                instance = serializer.save()
+                
+                # 🔥 KRİTİK: AI motorunu burada elinle tetikle!
+                self._trigger_ai_analysis(instance, old_bio, serializer.validated_data)
+                
+                # instance güncellendiği için serializer'ı tazeleyip dön
+                return Response(self.get_serializer(instance).data)
+            
+            return Response(self.get_serializer(researcher).data)
+        except Researcher.DoesNotExist: 
+            return Response({"detail": "Profil bulunamadı."}, status=404)
+
+    def perform_update(self, serializer):
+        # Standart PATCH /api/researchers/99/ istekleri için burası hala lazım
+        old_bio = self.get_object().bio
+        instance = serializer.save()
+        self._trigger_ai_analysis(instance, old_bio, serializer.validated_data)
     @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
     def onboard(self, request):
         serializer = ResearcherOnboardSerializer(data=request.data)
