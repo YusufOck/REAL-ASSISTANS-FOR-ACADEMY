@@ -86,57 +86,46 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
     # server/core/views.py içindeki ResearcherViewSet altında:
 
+    # server/core/views.py
+
+    # server/core/views.py
+
     def perform_update(self, serializer):
-        # 1. Eski veriyi yakala (Değişim kontrolü için)
         old_bio = self.get_object().bio
-        
-        # 2. Temel güncellemeyi yap (bio, title vb. veritabanına yazılsın)
         instance = serializer.save()
 
-        # 3. DİNAMİK TETİKLEYİCİ: Biyografi değişti mi? 🛰️
-        # 'serializer.validated_data' içindeki bio'yu kontrol ediyoruz.
+        # 🛰️ Biyografi Değiştiyse Tüm Sistemi Otonom Olarak Sıfırla
         new_bio = serializer.validated_data.get('bio')
-        
         if new_bio and new_bio != old_bio:
             try:
                 dept_name = instance.department.name if instance.department else "General Academic"
                 
-                # 🧠 AI ADIMI 1: Gemini ile biyografiden yeni yetenekleri ayıkla
-                # Örn: {"Python": 90, "React": 75}
+                # 🧠 AI: Yeni yetenekleri ayıkla (Java, C++, MySQL vb.)
                 extracted_skills = analyze_skills_with_gemini(instance.bio, dept_name)
-                
-                # RADAR İÇİN MÜHÜRLE: JSON verisini güncelle
                 instance.skills = extracted_skills 
 
-                # 🗄️ SLIDER/M2M SENKRONİZASYONU: "Eski Çöpleri Temizle" 🧹
-                # Biyografi değiştiği için eski yetenekleri siliyoruz ki slider'lar güncellensin.
+                # 🗄️ ESKİ VERİLERİ SİL: Eski slider verilerini temizle
+                # Bu satır image_fa158d.png'deki karmaşayı çözer!
                 ResearcherSkill.objects.filter(researcher=instance).delete()
 
-                # Gemini'nin yeni bulduğu yetenekleri tabloya otonom işle
                 if isinstance(extracted_skills, dict):
                     for s_name, s_level in extracted_skills.items():
                         skill_obj, _ = Skill.objects.get_or_create(name=s_name)
                         ResearcherSkill.objects.create(
-                            researcher=instance,
-                            skill=skill_obj,
-                            level=s_level
+                            researcher=instance, skill=skill_obj, level=s_level
                         )
 
-                # 🚀 ÖNERİLER (EMBEDDING) GÜNCELLEME
-                # Yeni biyografi ve yeni yetenek seviyeleriyle vektörü yeniden mühürle.
-                # related_name="researcher_skills" kullanarak güncel veriyi çekiyoruz.
-                user_skills = instance.researcher_skills.select_related('skill').all()
+                # 🚀 VEKTÖRÜ MÜHÜRLE: Önerilerin (Suggestions) değişmesi için şart!
+                user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
                 skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
-                
                 semantic_text = f"{instance.title}. {instance.bio}. Skills: {skill_weights}"
                 instance.embedding = generate_embedding(semantic_text)
                 
-                # Tüm otonom değişiklikleri tek seferde kaydet
                 instance.save(update_fields=['skills', 'embedding'])
-                print(f"✅ Otonom Dinamik Sistem: {instance.full_name} için tüm grafikler, sliderlar ve öneriler yenilendi.")
+                print(f"✅ Otonom Dinamik Sistem Yenilendi: {instance.full_name}")
 
             except Exception as e:
-                print(f"⚠️ AI Senkronizasyon Hatası: {str(e)}")
+                print(f"⚠️ AI Hatası: {str(e)}")
     # views.py -> ResearcherViewSet içindeki onboard metodunu güncelle
     @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
     def onboard(self, request):

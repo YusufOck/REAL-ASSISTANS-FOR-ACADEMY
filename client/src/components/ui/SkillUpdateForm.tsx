@@ -15,43 +15,32 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({ initialSkills, onUpda
     setSkills(prev => ({ ...prev, [skillName]: value }));
   };
 
+  // SkillUpdateForm.tsx içindeki handleSubmit metodu:
+
   const handleSubmit = async () => {
-  setIsUpdating(true);
-  
-  // MÜHENDİSLİK DENETİMİ: image_97c5a2.png'deki gerçek anahtar ismini kullanıyoruz!
-  const token = localStorage.getItem('accessToken'); 
-  
-  if (!token) {
-    console.error("❌ HATA: 'accessToken' Local Storage'da bulunamadı!");
-    toast.error("Oturum anahtarı bulunamadı. Lütfen tekrar giriş yapın.");
-    setIsUpdating(false);
-    return;
-  }
+    setIsUpdating(true);
+    const token = localStorage.getItem('accessToken'); 
+    
+    try {
+      const response = await fetch('https://real-assistans-for-academy-cbun.onrender.com/api/researchers/me/', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ skills }) // Sadece manuel slider değişimlerini gönderir
+      });
 
-  try {
-    const response = await fetch('https://real-assistans-for-academy-cbun.onrender.com/api/researchers/me/', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
-      },
-      body: JSON.stringify({ skills })
-    });
-
-    if (response.ok) {
-      toast.success("Yeteneklerin güncellendi! AI önerileri yenileniyor...");
-      onUpdateSuccess();
-    } else {
-      const data = await response.json();
-      console.error("❌ BACKEND HATASI:", data);
-      toast.error(`Hata: ${data.detail || "Güncelleme başarısız"}`);
+      if (response.ok) {
+        toast.success("Yeteneklerin mühürlendi! AI radarı yenileniyor...");
+        // 🚀 Dashboard'un fetchProfile() fonksiyonunu tetikle
+        onUpdateSuccess(); 
+      }
+      // ... hata yönetimi
+    } finally {
+      setIsUpdating(false);
     }
-  } catch (error) {
-    toast.error("Bağlantı hatası.");
-  } finally {
-    setIsUpdating(false);
-  }
-};
+  };
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm ring-1 ring-gray-100 h-full">
