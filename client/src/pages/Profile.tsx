@@ -70,32 +70,37 @@ export default function Profile() {
     
     setSaving(true)
     
-    // 🧠 Dirty Check: Biyografi değiştiyse kullanıcıya AI'nın tetikleneceğini bildir
+    // 🧠 Dirty Check: Maliyet ve Hız Kontrolü
+    // Biyografi değiştiyse backend yoğun bir AI senkronizasyonuna girecek.
     const isBioChanged = profile.bio !== initialBio
+
     if (isBioChanged) {
-      toast.info("Biyografi değişikliği algılandı. AI Radarı otonom olarak güncelleniyor...", {
+      toast.info("Biyografi değişikliği algılandı. AI Slider'lar, Radar ve Öneriler otonom olarak senkronize ediliyor...", {
         icon: <Sparkles className="h-4 w-4 text-blue-500" />,
-        duration: 4000
+        duration: 5000
       })
     }
 
     try {
-      // Backend'deki 'perform_update' metoduna PATCH isteği fırlatılır
+      // 🚀 KRİTİK: Backend'deki yeni 'perform_update' mantığını tetikler
       await authService.updateProfile(profile.researcher_id, {
         title: profile.title,
         bio: profile.bio,
         department: profile.department,
       })
       
-      toast.success("Profil ve Yetenek Haritası mühürlendi!")
+      toast.success("Tüm sistemler (Slider, Radar, Öneriler) başarıyla senkronize edildi!")
       
-      // 🚀 KRİTİK: Dashboard'a dönmeden önce verileri tazelemek yerine 
-      // direkt yönlendiriyoruz, Dashboard zaten useEffect ile taze veriyi çekecek.
+      // 🛰️ DİNAMİK TETİKLEYİCİ: 
+      // Dashboard'a döndüğümüzde useEffect taze verileri (yeni slider seviyeleri ve öneriler) 
+      // backend'den otonom olarak çekecek.
       setTimeout(() => {
         navigate("/dashboard")
       }, 1000)
-    } catch (error) {
-      toast.error("Güncelleme başarısız. AI motoruyla bağlantı kurulamadı.")
+    } catch (error: any) {
+      // Hata durumunda uçağı yere indir
+      const errorMsg = error.response?.data?.detail || "Güncelleme başarısız. AI senkronizasyon hatası."
+      toast.error(errorMsg)
     } finally {
       setSaving(false)
     }
