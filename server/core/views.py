@@ -72,35 +72,64 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
     def _trigger_ai_analysis(self, instance, old_bio, validated_data):
         new_bio = validated_data.get('bio')
-        if new_bio and new_bio != old_bio:
-            try:
-                dept_name = instance.department.name if instance.department else "General Academic"
-                # 🧠 AI: Gemini ile yetenekleri çıkar
-                extracted_skills = analyze_skills_with_gemini(new_bio, dept_name)
-                instance.skills = extracted_skills 
+        
+        # 1. Kontrol: Bio değişmediyse işlem yapma
+        if not new_bio or new_bio == old_bio:
+            return
 
-                # 🗄️ ESKİ VERİLERİ SİL
-                ResearcherSkill.objects.filter(researcher=instance).delete()
+        try:
+            dept_name = instance.department.name if instance.department else "General Academic"
+            
+            # 🧠 AI: Gemini servisinden veriyi ve ham yanıtı al
+            ai_data, raw_debug = analyze_skills_with_gemini(new_bio, dept_name)
+            
+            # 🛡️ DATA INTEGRITY CHECK: Verinin her zaman DICT olmasını sağla
+            # Eğer liste gelirse (image_26b586.png'deki gibi), içindeki sözlüğü ayıkla
+            final_skills = {}
+            if isinstance(ai_data, list) and len(ai_data) > 0:
+                for item in ai_data:
+                    if isinstance(item, dict):
+                        final_skills.update(item)
+            elif isinstance(ai_data, dict):
+                final_skills = ai_data
 
-                if isinstance(extracted_skills, dict):
-                    for s_name, s_level in extracted_skills.items():
-                        skill_obj, _ = Skill.objects.get_or_create(name=s_name)
-                        ResearcherSkill.objects.create(
-                            researcher=instance, skill=skill_obj, level=s_level
-                        )
+            # 🔍 DEBUG: Eğer skills boşsa ham yanıtı preview için sakla
+            if not final_skills:
+                instance.skills = {"DEBUG_RAW": str(raw_debug)[:200]}
+            else:
+                instance.skills = final_skills 
 
-                # 🚀 VEKTÖRÜ MÜHÜRLE
-                user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
-                skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
-                semantic_text = f"{instance.title}. {new_bio}. Skills: {skill_weights}"
-                instance.embedding = generate_embedding(semantic_text)
-                
-                instance.save(update_fields=['skills', 'embedding'])
-                print(f"✅ Otonom Dinamik Sistem Yenilendi: {instance.full_name}", flush=True)
+            # 🗄️ ESKİ VERİLERİ SİL
+            ResearcherSkill.objects.filter(researcher=instance).delete()
 
-            except Exception as e:
-                print(f"⚠️ AI Hatası: {str(e)}", flush=True)
+            # 🛰️ Skill Nesnelerini Oluştur (Sadece final_skills sözlük ise çalışır)
+            if final_skills:
+                for s_name, s_level in final_skills.items():
+                    skill_obj, _ = Skill.objects.get_or_create(name=str(s_name)[:100])
+                    # Skorun sayısal olduğundan emin ol
+                    try:
+                        level_int = int(s_level)
+                    except (ValueError, TypeError):
+                        level_int = 50 # Fallback
+                    
+                    ResearcherSkill.objects.create(
+                        researcher=instance, 
+                        skill=skill_obj, 
+                        level=level_int
+                    )
 
+            # 🚀 VEKTÖRÜ MÜHÜRLE: Önerilerin (Suggestions) canlanması için şart
+            user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
+            skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
+            semantic_text = f"{instance.title}. {new_bio}. Skills: {skill_weights}"
+            instance.embedding = generate_embedding(semantic_text)
+            
+            # Sadece bu iki alanı güncelle ki diğer veriler ezilmesin
+            instance.save(update_fields=['skills', 'embedding'])
+            print(f"✅ Otonom Dinamik Sistem Yenilendi: {instance.full_name}", flush=True)
+
+        except Exception as e:
+            print(f"⚠️ AI Analiz/Kayıt Hatası: {str(e)}", flush=True)
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
         try:
