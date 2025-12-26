@@ -216,6 +216,8 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             # Hata anında 'user' veritabanına hiç yazılmamış gibi davranılır
             return Response({"detail": f"Kayıt Hatası: {str(e)}"}, status=500)
 
+    # server/core/views.py
+
     @action(detail=True, methods=['POST'], url_path='send-request')
     def send_request(self, request, pk=None):
         receiver = self.get_object()
@@ -230,28 +232,25 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             ).first()
 
             if existing_req:
-                # 🛑 DURUM A: İstek zaten beklemedeyse
                 if existing_req.status == 'pending':
                     return Response({"detail": "Bu projeye zaten beklemede olan bir talebiniz var."}, status=400)
                 
-                # 🛡️ DURUM B: REDDEDİLEN İSTEK İÇİN 10 GÜN KONTROLÜ
+                # 🛡️ 10 GÜN KONTROLÜ
                 if existing_req.status == 'rejected':
                     cooldown_limit = existing_req.updated_at + timedelta(days=10)
-                    
                     if timezone.now() < cooldown_limit:
                         remaining_days = (cooldown_limit - timezone.now()).days
-                        # 🛰️ OTONOM RED MESAJI
                         return Response({
                             "detail": f"10 gün boyunca aynı proje için birden fazla istek veya davet gönderilemez. (Kalan süre: {remaining_days + 1} gün)"
                         }, status=400)
                 
-                # 🔄 DURUM C: 10 gün dolmuşsa veya durum 'accepted' ise (tekrar talep için tazele)
+                # 🔄 İsteği Tazele (Sinyal burada otomatik çalışacak)
                 existing_req.status = 'pending'
                 existing_req.message = serializer.validated_data.get('message', '')
                 existing_req.save()
-                return Response({"detail": "İş birliği talebiniz soğuma süresi sonrası başarıyla tazelendi."}, status=200)
+                return Response({"detail": "İş birliği talebiniz otonom olarak tazelendi."}, status=200)
 
-            # 🛰️ DURUM D: Hiç kayıt yoksa sıfırdan oluştur
+            # 🛰️ Yeni Kayıt (Sinyal burada otomatik çalışacak)
             CollaborationRequest.objects.create(
                 sender=sender,
                 receiver=receiver,

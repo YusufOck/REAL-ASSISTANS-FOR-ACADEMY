@@ -84,28 +84,32 @@ class ResearcherSerializer(serializers.ModelSerializer):
 
     # core/serializers.py içindeki get_notifications metodunu güncelle:
 
+    # core/serializers.py içindeki get_notifications metodu
+
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_notifications(self, obj):
         from .models import Notification, CollaborationRequest
         notes = Notification.objects.filter(recipient=obj).order_by('-created_at')[:15]
         result = []
         for n in notes:
-            # 🎯 HEDEF ATIŞI: Bildirime özel kaydedilmiş isteği çekiyoruz
             req = None
             if n.request_id:
                 req = CollaborationRequest.objects.filter(request_id=n.request_id).first()
             
+            # 🛰️ OTONOM KONTROL: Sadece 'YENİ' talepler modal açabilir
+            is_actionable = n.title == "YENİ İŞ BİRLİĞİ TALEBİ"
+
             note_data = {
                 'id': n.notification_id,
                 'title': n.title,
                 'message': n.message,
                 'created_at': n.created_at.strftime("%H:%M"),
-                # 🛡️ VERİ KARIŞIKLIĞINI BİTİREN BLOK
                 'request_id': n.request_id,
+                'is_actionable': is_actionable, # 🚀 Bu bayrak frontend'e yol gösterecek
                 'sender_name': req.sender.full_name if req else "Sistem",
                 'sender_bio': req.sender.bio if req else "",
                 'sender_skills': req.sender.skills if req else {},
-                'sender_title': req.sender.title if req else ""
+                'sender_title': req.sender.title if req else "Araştırmacı"
             }
             result.append(note_data)
         return result

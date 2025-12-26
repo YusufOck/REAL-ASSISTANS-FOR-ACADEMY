@@ -21,7 +21,7 @@ import {
   Trophy,
   Users,
   Sparkles,
-  Trash2, // 🚀 ÇÖP KUTUSU İKONU EKLENDİ
+  Trash2,
 } from "lucide-react"
 
 import { toast } from "sonner"
@@ -45,14 +45,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // 🚀 BİLDİRİM VE İNCELEME STATE'LERİ
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
-  // ✅ LIVE radar için: dashboard seviyesinde “draft skills”
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
-  
-  // 🛡️ OTONOM KİLİT: Çift isteği engelleyen kilit mekanizması
   const isFetching = useRef(false);
 
   useEffect(() => {
@@ -91,20 +87,17 @@ export default function Dashboard() {
     }
   }
 
-  // 🚀 SİLME FONKSİYONU: Bildirimi otonom olarak imha eder
   const handleDeleteNotification = async (e: React.MouseEvent, notificationId: number) => {
-    e.stopPropagation(); // 🚫 Modalın açılmasını engeller
+    e.stopPropagation();
     try {
-      // Backend'deki bildirimi sil
       await api.delete(`/api/notifications/${notificationId}/`); 
       toast.success("Bildirim istasyondan temizlendi.");
-      fetchProfile(); // 🔄 Listeyi tazele
+      fetchProfile();
     } catch (error) {
       toast.error("Temizlik işlemi başarısız oldu.");
     }
   }
 
-  // 🚀 YANIT FONKSİYONU: Kabul/Red işlemini fırlatır
   const handleRespond = async (requestId: number, status: string, msg: string) => {
     try {
       await api.post("/api/researchers/respond-request/", {
@@ -169,6 +162,7 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#0b1020] text-slate-100 font-sans">
+      {/* Background gradients... */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/12 via-transparent to-transparent" />
         <div className="absolute -top-24 -right-24 h-[520px] w-[520px] rounded-full bg-fuchsia-500/10 blur-3xl" />
@@ -176,7 +170,7 @@ export default function Dashboard() {
       </div>
 
       <div className="relative h-full flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar... */}
         <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
           <div className="p-6 border-b border-white/10">
             <div className="flex items-center gap-3">
@@ -244,9 +238,15 @@ export default function Dashboard() {
                         profile.notifications.map((n: any) => (
                           <div 
                             key={n.id} 
-                            className="group relative p-4 border-b border-white/5 hover:bg-white/[0.08] transition-colors cursor-pointer"
+                            className={`group relative p-4 border-b border-white/5 hover:bg-white/[0.08] transition-colors cursor-pointer ${n.is_actionable ? 'border-l-2 border-l-indigo-500' : ''}`}
                             onClick={() => {
-                              if (n.request_id) setSelectedRequest(n); // 🚀 Bağımsız request_id mühürlendi
+                              // 🛡️ MÜHÜR: Sadece aksiyon gerektiren bildirimler modalı açar
+                              if (n.is_actionable && n.request_id) {
+                                setSelectedRequest(n);
+                              } else {
+                                // Red mesajı gibi durumlarda sadece toast göster, modalı açma!
+                                toast.info(n.message, { description: n.title });
+                              }
                               setShowNotifications(false);
                             }}
                           >
@@ -254,7 +254,6 @@ export default function Dashboard() {
                               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{n.title}</p>
                               <div className="flex items-center gap-2">
                                 <span className="text-[9px] text-slate-500 font-bold">{n.created_at}</span>
-                                {/* 🗑️ ÇÖP KUTUSU: Sadece hover yapınca otonom belirir */}
                                 <button 
                                   onClick={(e) => handleDeleteNotification(e, n.id)}
                                   className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all"
@@ -357,7 +356,6 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* 🏝️ YÜZEN ADA (REVIEW MODAL): Bir bildirim seçildiğinde otonom açılır */}
       {selectedRequest && (
         <CollaborationReviewModal 
           request={selectedRequest} 
