@@ -1,4 +1,5 @@
 # core/views.py
+from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Count, Q, F
@@ -215,13 +216,52 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             # Hata anında 'user' veritabanına hiç yazılmamış gibi davranılır
             return Response({"detail": f"Kayıt Hatası: {str(e)}"}, status=500)
 
-    @action(detail=True, methods=['post'], url_path='send-request')
+    @action(detail=True, methods=['POST'], url_path='send-request')
     def send_request(self, request, pk=None):
-        receiver = self.get_object(); sender = request.user.researcher
+        receiver = self.get_object()
+        sender = Researcher.objects.get(user=request.user)
         serializer = SendCollaborationRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        req = CollaborationRequest.objects.create(sender=sender, receiver=receiver, project_id=serializer.validated_data['project_id'], request_type=serializer.validated_data['request_type'], message=serializer.validated_data.get('message', ''))
-        return Response({"request_id": req.request_id}, status=201)
+        
+        if serializer.is_valid():
+            existing_req = CollaborationRequest.objects.filter(
+                sender=sender, 
+                receiver=receiver, 
+                project_id=serializer.validated_data['project_id']
+            ).first()
+
+            if existing_req:
+                # 🛑 DURUM A: İstek zaten beklemedeyse
+                if existing_req.status == 'pending':
+                    return Response({"detail": "Bu projeye zaten beklemede olan bir talebiniz var."}, status=400)
+                
+                # 🛡️ DURUM B: REDDEDİLEN İSTEK İÇİN 10 GÜN KONTROLÜ
+                if existing_req.status == 'rejected':
+                    cooldown_limit = existing_req.updated_at + timedelta(days=10)
+                    
+                    if timezone.now() < cooldown_limit:
+                        remaining_days = (cooldown_limit - timezone.now()).days
+                        # 🛰️ OTONOM RED MESAJI
+                        return Response({
+                            "detail": f"10 gün boyunca aynı proje için birden fazla istek veya davet gönderilemez. (Kalan süre: {remaining_days + 1} gün)"
+                        }, status=400)
+                
+                # 🔄 DURUM C: 10 gün dolmuşsa veya durum 'accepted' ise (tekrar talep için tazele)
+                existing_req.status = 'pending'
+                existing_req.message = serializer.validated_data.get('message', '')
+                existing_req.save()
+                return Response({"detail": "İş birliği talebiniz soğuma süresi sonrası başarıyla tazelendi."}, status=200)
+
+            # 🛰️ DURUM D: Hiç kayıt yoksa sıfırdan oluştur
+            CollaborationRequest.objects.create(
+                sender=sender,
+                receiver=receiver,
+                project_id=serializer.validated_data['project_id'],
+                request_type=serializer.validated_data['request_type'],
+                message=serializer.validated_data.get('message', '')
+            )
+            return Response({"detail": "İş birliği talebi fırlatıldı."}, status=201)
+            
+        return Response(serializer.errors, status=400)
 
     @action(detail=False, methods=['post'], url_path='respond-request')
     def respond_request(self, request):
