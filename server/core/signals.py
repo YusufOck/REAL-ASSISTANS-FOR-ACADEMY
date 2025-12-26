@@ -28,17 +28,42 @@ def auto_tag_researcher(sender, instance, created, **kwargs):
 # ---------------------------------------------------------
 # 2. MEVCUT: İLK BİLDİRİM SİSTEMİ (İstek Gönderildiğinde)
 # ---------------------------------------------------------
+# server/core/signals.py
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .models import CollaborationRequest, Notification
+
 @receiver(post_save, sender=CollaborationRequest)
-def create_notification_on_request(sender, instance, created, **kwargs):
-    if created:  
-        action_text = "bir davet" if instance.request_type == 'invite' else "bir katılım isteği"
-        project_title = instance.project.title if instance.project else "Proje"
+def handle_collaboration_notification(sender, instance, created, **kwargs):
+    """
+    🛰️ MASTER SIGNAL: Tüm bildirim trafiğini tek merkezden yönetir.
+    Çift bildirim kirliliğini bitirir ve modal için request_id mühürler.
+    """
+    
+    # 🛡️ 1. DURUM: YENİ BİR İSTEK (is_actionable = True tetiklenir)
+    if created or instance.status == 'pending':
+        # Dashboard.tsx'teki 'is_actionable' mantığını "YENİ İŞ BİRLİĞİ TALEBİ" başlığı açar.
         Notification.objects.create(
             recipient=instance.receiver,
-            title="Yeni İşbirliği İsteği",
-            message=f"{instance.sender.full_name}, '{project_title}' projesi için size {action_text} gönderdi."
+            title="YENİ İŞ BİRLİĞİ TALEBİ", 
+            message=f"{instance.sender.full_name}, '{instance.project.title}' projesine katılmak için talep gönderdi.",
+            request_id=instance.request_id # 🎯 MODALIN AÇILMASI İÇİN ŞART
         )
-        print(f"🔔 TRIGGER: {instance.receiver.full_name} kişisine ilk bildirim oluşturuldu.")
+        print(f"🔔 SİNYAL: Yeni talep bildirimi fırlatıldı (ReqID: {instance.request_id})")
+
+    # 🛡️ 2. DURUM: KARAR VERİLDİ (Özet Modu tetiklenir)
+    elif instance.status in ['accepted', 'rejected']:
+        status_text = "kabul etti" if instance.status == 'accepted' else "reddedildi"
+        title_text = "İSTEK KABUL EDİLDİ" if instance.status == 'accepted' else "İSTEK REDDEDİLDİ"
+        
+        # Bildirim, isteği ilk gönderen kişiye (sender) geri gider.
+        Notification.objects.create(
+            recipient=instance.sender,
+            title=title_text,
+            message=f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi {status_text}.",
+            request_id=instance.request_id # 🎯 Özet modalında veriyi görmek için şart
+        )
+        print(f"📡 SİNYAL: Karar bildirimi fırlatıldı ({instance.status})")
 
 # ---------------------------------------------------------
 # 3. YENİ: OTONOM GRUP KATILIMI (İstek Kabul Edildiğinde) 🚀
