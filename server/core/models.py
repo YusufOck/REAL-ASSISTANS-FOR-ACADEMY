@@ -359,11 +359,18 @@ class CollaborationRequest(models.Model):
         return f"{self.sender} -> {self.receiver} ({self.status})"
     
 
-# core/models.py (En alta)
+# ---------------------------------------------------------
+# 🔔 BİLDİRİM VE İLETİŞİM SİSTEMİ (Mühürlenmiş Versiyon)
+# ---------------------------------------------------------
 
 class Notification(models.Model):
     notification_id = models.AutoField(primary_key=True)
     recipient = models.ForeignKey(Researcher, on_delete=models.CASCADE, related_name='notifications')
+    
+    # 🛰️ KRİTİK BAĞ: Bildirimin hangi iş birliği talebine ait olduğunu mühürler.
+    # Bu alan sayesinde "farklı isim çıkması" sorunu otonom olarak çözülür.
+    request_id = models.IntegerField(null=True, blank=True) 
+    
     title = models.CharField(max_length=255)
     message = models.TextField()
     is_read = models.BooleanField(default=False)
@@ -375,69 +382,61 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"To: {self.recipient.full_name} | {self.title}"
-    
 
 
-
-# core/models.py içindeki ilgili kısmı şu şekilde mühürle:
+# ---------------------------------------------------------
+# 🚀 OTONOM SİNYAL MERKEZİ
+# ---------------------------------------------------------
 
 @receiver(post_save, sender=Researcher)
 def update_researcher_embedding(sender, instance, created, **kwargs):
+    # (Bu kısım senin mevcut kodunla aynı, embedding güncellemesi için kalsın)
     from .services import generate_embedding
-    
-    # 1. Slider verilerini metne çeviriyoruz (AI'nın anlaması için)
     skills_text = ""
     if instance.skills and isinstance(instance.skills, dict):
         skills_text = " Yeteneklerim: " + ", ".join([f"{k} %{v}" for k, v in instance.skills.items()])
-    
-    # 2. Biyografi ve slider verilerini birleştiriyoruz
     combined_text = f"{instance.bio or ''} {skills_text}".strip()
-    
     if combined_text:
         try:
             vector = generate_embedding(combined_text)
             if vector:
-                # 3. Veriyi mühürlüyoruz
                 sender.objects.filter(pk=instance.pk).update(embedding=vector)
-                
-                # --- İŞTE DİNAMİK LOG SATIRI ---
-                # Artık kimin profilini güncelliyorsan (Senanur, Yusuf vb.) onun ismi yazar
-                print(f"✅ [AI MOTORU] {instance.full_name} için öneriler otonom olarak güncellendi.")
-                
+                print(f"✅ [AI MOTORU] {instance.full_name} için embedding güncellendi.")
         except Exception as e:
             print(f"❌ {instance.full_name} için AI vektör hatası: {e}")
 
 
-
-# core/models.py (En alt sinyal kısmını bu versiyonla değiştir)
-
 @receiver(post_save, sender=CollaborationRequest)
 def create_collaboration_notification(sender, instance, created, **kwargs):
     """
-    🛡️ MASTER SİNYAL: Mükerrer bildirimleri engeller ve tüm akışı mühürler.
+    🛡️ MASTER SİNYAL: Mükerrer bildirimleri engeller ve request_id ile mühürler.
+    Bu sinyal sayesinde zilden tıklayınca doğru kişi açılır.
     """
-    # 🚫 Çift bildirim kontrolü: Bu istek için zaten bir bildirim var mı?
     if created:
-        # Yeni bir istek geldiğinde sadece bir bildirim oluştur
+        # DURUM 1: Yeni İstek Gelişi
         title = "YENİ İŞ BİRLİĞİ TALEBİ"
         msg = f"{instance.sender.full_name}, '{instance.project.title}' projenize katılmak için talep gönderdi."
-        
-        # Sadece alıcıya (Receiver) bildirim gönder
+
         Notification.objects.get_or_create(
             recipient=instance.receiver,
+            request_id=instance.request_id, # 👈 Veri karışıklığını bitiren mühür
             title=title,
             message=msg,
             defaults={'is_read': False}
         )
+        print(f"🔔 Yeni İstek Bildirimi Oluşturuldu: {instance.receiver.full_name}", flush=True)
+
     else:
-        # Karar verildiğinde (Accepted/Rejected) gönderene (Sender) haber ver
+        # DURUM 2: Karar Verilişi (Kabul/Red)
         if instance.status in ['accepted', 'rejected']:
             status_text = "ONAYLANDI" if instance.status == 'accepted' else "REDDEDİLDİ"
             title = f"İSTEK {status_text}"
             msg = f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi {instance.status}."
-            
+
             Notification.objects.get_or_create(
                 recipient=instance.sender,
+                request_id=instance.request_id, # 👈 Cevap bildiriminde de bağı koru
                 title=title,
                 message=msg
             )
+            print(f"🔔 Karar Bildirimi Oluşturuldu: {instance.sender.full_name}", flush=True)

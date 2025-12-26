@@ -1,3 +1,4 @@
+from django import views
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
@@ -35,6 +36,9 @@ router.register(r'funding-grants', FundingAgencyGrantViewSet, basename='funding-
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'entity-tags', EntityTagViewSet, basename='entity-tag')
 router.register(r'skills', SkillViewSet, basename='skill')
+# core/urls.py (Eklemen gereken satır)
+
+router.register(r'notifications', views.NotificationViewSet, basename='notifications')
 
 # 4. URL Yolları
 urlpatterns = [

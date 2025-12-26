@@ -330,3 +330,19 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
+
+
+# core/views.py (En alta ekle)
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.all().order_by('-created_at')
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # 🛡️ GÜVENLİK MÜHÜRÜ: Sadece giriş yapmış olan araştırmacının bildirimlerini göster/sil
+        try:
+            res = Researcher.objects.get(user=self.request.user)
+            return Notification.objects.filter(recipient=res)
+        except Researcher.DoesNotExist:
+            return Notification.objects.none()    

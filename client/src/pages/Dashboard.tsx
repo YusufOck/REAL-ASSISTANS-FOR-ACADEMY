@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useRef } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { authService } from "@/services/authService"
-import { api } from "@/lib/api" // 🚀 HATAYI ÇÖZEN IMPORT
+import { api } from "@/lib/api" 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -21,6 +21,7 @@ import {
   Trophy,
   Users,
   Sparkles,
+  Trash2, // 🚀 ÇÖP KUTUSU İKONU EKLENDİ
 } from "lucide-react"
 
 import { toast } from "sonner"
@@ -30,7 +31,7 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 import SuggestedPartners from "@/components/ui/SuggestedPartners"
 import SkillUpdateForm from "@/components/ui/SkillUpdateForm"
 import ProjectTeamList from "@/components/ui/ProjectTeamList"
-import CollaborationReviewModal from "@/components/ui/CollaborationReviewModal" // 🚀 MODAL IMPORTU
+import CollaborationReviewModal from "@/components/ui/CollaborationReviewModal" 
 
 // Types
 interface Suggestion { researcher_id: number; full_name: string; department_name: string; score: number; match_reasons: string[]; is_complementary: boolean; }
@@ -44,7 +45,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // 🚀 YENİ STATE'LER: Bildirim paneli ve seçilen inceleme talebi
+  // 🚀 BİLDİRİM VE İNCELEME STATE'LERİ
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
@@ -90,6 +91,19 @@ export default function Dashboard() {
     }
   }
 
+  // 🚀 SİLME FONKSİYONU: Bildirimi otonom olarak imha eder
+  const handleDeleteNotification = async (e: React.MouseEvent, notificationId: number) => {
+    e.stopPropagation(); // 🚫 Modalın açılmasını engeller
+    try {
+      // Backend'deki bildirimi sil
+      await api.delete(`/api/notifications/${notificationId}/`); 
+      toast.success("Bildirim istasyondan temizlendi.");
+      fetchProfile(); // 🔄 Listeyi tazele
+    } catch (error) {
+      toast.error("Temizlik işlemi başarısız oldu.");
+    }
+  }
+
   // 🚀 YANIT FONKSİYONU: Kabul/Red işlemini fırlatır
   const handleRespond = async (requestId: number, status: string, msg: string) => {
     try {
@@ -99,7 +113,7 @@ export default function Dashboard() {
         response_message: msg
       });
       toast.success(status === 'accepted' ? "İş birliği onaylandı!" : "İstek reddedildi.");
-      fetchProfile(); // 🔄 Sayfayı otonom tazele
+      fetchProfile(); 
       setSelectedRequest(null);
     } catch (error: any) {
       toast.error("İşlem başarısız: " + (error.response?.data?.detail || "Sunucu hatası"));
@@ -230,17 +244,26 @@ export default function Dashboard() {
                         profile.notifications.map((n: any) => (
                           <div 
                             key={n.id} 
+                            className="group relative p-4 border-b border-white/5 hover:bg-white/[0.08] transition-colors cursor-pointer"
                             onClick={() => {
-                              if (n.request_id) setSelectedRequest(n); // Sadece isteği olan bildirimler açılır
+                              if (n.request_id) setSelectedRequest(n); // 🚀 Bağımsız request_id mühürlendi
                               setShowNotifications(false);
                             }}
-                            className={`p-4 border-b border-white/5 hover:bg-white/[0.08] transition-colors cursor-pointer ${n.request_id ? 'border-l-2 border-l-indigo-500' : ''}`}
                           >
                             <div className="flex justify-between items-start mb-1">
                               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{n.title}</p>
-                              <span className="text-[9px] text-slate-500 font-bold">{n.created_at}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] text-slate-500 font-bold">{n.created_at}</span>
+                                {/* 🗑️ ÇÖP KUTUSU: Sadece hover yapınca otonom belirir */}
+                                <button 
+                                  onClick={(e) => handleDeleteNotification(e, n.id)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
                             </div>
-                            <p className="text-xs text-slate-200/80 leading-relaxed">{n.message}</p>
+                            <p className="text-xs text-slate-200/80 leading-relaxed pr-6">{n.message}</p>
                           </div>
                         ))
                       ) : (

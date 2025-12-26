@@ -5,7 +5,7 @@ from drf_spectacular.utils import extend_schema_field
 from .models import (
     Department, Researcher, Project, Publication, 
     FundingAgency, FundingAgencyGrant, Tag, 
-    EntityTag, Skill, ProjectResearcher, CollaborationRequest
+    EntityTag, Skill, ProjectResearcher, CollaborationRequest, Notification
 )
 # ÖNEMLİ: get_collaboration_suggestions importu kalsın, views.py kullanacak.
 from .services import get_collaboration_suggestions
@@ -52,6 +52,14 @@ class SkillSerializer(serializers.ModelSerializer):
         model = Skill
         fields = ['skill_id', 'name']
 
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """
+    🗑️ İMHA MÜHÜRÜ: Bildirimlerin silinebilmesi (Trash Can) için bu sınıf şarttır.
+    """
+    class Meta:
+        model = Notification
+        fields = ['notification_id', 'title', 'message', 'is_read', 'created_at', 'request_id']
 # --- 2. ANA ARAŞTIRMACI MOTORU (DASHBOARD VERİSİ) ---
 
 # core/serializers.py
@@ -74,35 +82,33 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'notifications' # 🛰️ Listeye eklendi
         ]
 
-    # core/serializers.py içindeki get_notifications metodunu bu şekilde güncelle:
+    # core/serializers.py içindeki get_notifications metodunu güncelle:
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_notifications(self, obj):
         from .models import Notification, CollaborationRequest
-        notes = Notification.objects.filter(recipient=obj).order_by('-created_at')[:10]
+        notes = Notification.objects.filter(recipient=obj).order_by('-created_at')[:15]
         result = []
         for n in notes:
-            # 🛰️ Otonom Arama: Bildirim bir iş birliği isteğiyle mi ilgili?
-            # Mesajın içindeki proje adından veya tipinden ilgili isteği buluyoruz
-            # (Gelişmiş mimaride Notification modeline request_id eklenmelidir)
-            req = CollaborationRequest.objects.filter(receiver=obj, status='pending').first()
+            # 🎯 HEDEF ATIŞI: Bildirime özel kaydedilmiş isteği çekiyoruz
+            req = None
+            if n.request_id:
+                req = CollaborationRequest.objects.filter(request_id=n.request_id).first()
             
             note_data = {
                 'id': n.notification_id,
                 'title': n.title,
                 'message': n.message,
                 'created_at': n.created_at.strftime("%H:%M"),
-                # 🛡️ Yüzen Ada Verileri:
-                'request_id': req.request_id if req else None,
-                'sender_name': req.sender.full_name if req else None,
-                'sender_bio': req.sender.bio if req else None,
+                # 🛡️ VERİ KARIŞIKLIĞINI BİTİREN BLOK
+                'request_id': n.request_id,
+                'sender_name': req.sender.full_name if req else "Sistem",
+                'sender_bio': req.sender.bio if req else "",
                 'sender_skills': req.sender.skills if req else {},
-                'sender_title': req.sender.title if req else "Araştırmacı"
+                'sender_title': req.sender.title if req else ""
             }
             result.append(note_data)
         return result
-
-    # ... (get_projects, get_received_requests ve get_suggestions kısımları aynen kalsın)
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
