@@ -106,6 +106,7 @@ class ResearcherSerializer(serializers.ModelSerializer):
                 'request_id': n.request_id,
                 # 🛰️ MÜHÜRLÜ VERİLER: Modalın içeriği için gereken her şey
                 'status': req.status if req else 'completed', # pending, accepted, rejected
+                'request_message': req.message if req else "",
                 'rejection_note': req.response_message if req and req.status == 'rejected' else "",
                 'project_name': req.project.title if req else "Bilinmeyen Proje",
                 'sender_name': req.sender.full_name if req else "Sistem",

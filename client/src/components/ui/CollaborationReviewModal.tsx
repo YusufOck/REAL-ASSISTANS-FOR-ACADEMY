@@ -27,7 +27,7 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
             <div className={`p-2 rounded-2xl ${isPending ? 'bg-indigo-500/10' : 'bg-slate-500/10'}`}>
               {isPending ? <User size={20} className="text-indigo-400" /> : <ShieldCheck size={20} className="text-slate-400" />}
             </div>
-            <h3 className="font-black text-white tracking-tight uppercase text-xs tracking-[0.2em]">
+            <h3 className="font-black text-white tracking-tight uppercase text-xs flex items-center gap-2">
               {isPending ? "Araştırmacı İnceleme" : "İstek Kayıt Özeti"}
             </h3>
           </div>
@@ -69,6 +69,18 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
           {/* 🚀 MOD 1: BEKLEYEN İSTEK (İşlem Modu) */}
           {isPending ? (
             <>
+              {/* 🛰️ ARAŞTIRMACININ İLK MESAJI (YENİ EKLENDİ) */}
+              {request.request_message && (
+                <div className="p-5 bg-indigo-500/5 border border-indigo-500/10 rounded-[2rem] space-y-2">
+                  <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                    <MessageSquare size={12} /> Araştırmacı Notu
+                  </p>
+                  <p className="text-sm text-slate-200 leading-relaxed italic">
+                    "{request.request_message}"
+                  </p>
+                </div>
+              )}
+
               {/* Yetenek Matrisi */}
               <div className="space-y-4 pt-4 border-t border-white/5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
@@ -92,12 +104,12 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
               {/* Cevap Mesajı Alanı */}
               <div className="space-y-3 pt-4 border-t border-white/5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <MessageSquare size={14} /> Karar Notunuz
+                  <MessageSquare size={14} /> Karar Notunuz (Cevabınız)
                 </p>
                 <textarea 
                   className="w-full bg-white/[0.03] border border-white/10 rounded-[1.5rem] p-5 text-sm text-slate-100 placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all resize-none"
                   rows={4}
-                  placeholder="Araştırmacıya iletilecek mesajı (red sebebini vb.) buraya yazın..."
+                  placeholder="Araştırmacıya iletilecek mesajı buraya yazın..."
                   value={responseMsg}
                   onChange={(e) => setResponseMsg(e.target.value)}
                 />
@@ -110,11 +122,11 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Gönderilen Mesaj</p>
                   <p className="text-sm text-slate-300 leading-relaxed italic">
-                    "{request.message || "Bu istek için bir ön yazı girilmemiş."}"
+                    "{request.request_message || "Bu istek için bir ön yazı girilmemiş."}"
                   </p>
                 </div>
 
-                {/* 🛰️ RED AÇIKLAMASI MÜHÜRÜ: 'redderken yazdığım açıklama' tam burada görünür */}
+                {/* 🛰️ RED AÇIKLAMASI MÜHÜRÜ */}
                 {request.rejection_note && (
                   <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl space-y-2">
                     <p className="text-[9px] font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
