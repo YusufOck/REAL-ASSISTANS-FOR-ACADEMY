@@ -1,4 +1,5 @@
-from django import views
+# server/core/urls.py
+
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
@@ -9,6 +10,7 @@ from rest_framework_simplejwt.views import (
 )
 
 # 2. Kendi View'larımızı Çağırıyoruz
+# 🛡️ MÜHÜR: 'django import views' satırını sildik ve buraya NotificationViewSet'i ekledik
 from .views import (
     RegisterView,
     DepartmentViewSet,
@@ -20,9 +22,7 @@ from .views import (
     TagViewSet,
     EntityTagViewSet,
     SkillViewSet,
-    # Hata verenleri şimdilik kapalı tutuyoruz
-    # DashboardStatsViewSet, 
-    # NetworkGraphViewSet
+    NotificationViewSet, # 🚀 Buraya eklendi
 )
 
 # 3. Router Ayarları
@@ -36,17 +36,16 @@ router.register(r'funding-grants', FundingAgencyGrantViewSet, basename='funding-
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'entity-tags', EntityTagViewSet, basename='entity-tag')
 router.register(r'skills', SkillViewSet, basename='skill')
-# core/urls.py (Eklemen gereken satır)
 
-router.register(r'notifications', views.NotificationViewSet, basename='notifications')
+# 🛰️ BİLDİRİM HATTI: Artık hata vermeden otonom olarak çalışacak
+router.register(r'notifications', NotificationViewSet, basename='notifications')
 
 # 4. URL Yolları
 urlpatterns = [
     # --- AUTH (KİMLİK DOĞRULAMA) ---
-    # Kayıt Ol
     path('register/', RegisterView.as_view(), name='register'),
     
-    # Giriş Yap (Token Al) - Bunu ana dosyadan buraya taşıdık
+    # Giriş Yap (Token Al)
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
