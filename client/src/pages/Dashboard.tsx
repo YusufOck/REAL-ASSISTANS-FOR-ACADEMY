@@ -1,5 +1,5 @@
 // src/pages/Dashboard.tsx
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react" 
 import { Link, useNavigate } from "react-router-dom"
 
 import { authService } from "@/services/authService"
@@ -31,35 +31,10 @@ import SkillUpdateForm from "@/components/ui/SkillUpdateForm"
 import IncomingRequests from "@/components/ui/IncomingRequests"
 import ProjectTeamList from "@/components/ui/ProjectTeamList"
 
-// Types
-interface Suggestion {
-  researcher_id: number
-  full_name: string
-  department_name: string
-  score: number
-  match_reasons: string[]
-  is_complementary: boolean
-}
-interface UserProject {
-  project_id: number
-  title: string
-  status: string
-  my_role: string
-  group_members: any[]
-}
-interface UserProfile {
-  researcher_id: number
-  full_name: string
-  email: string
-  title: string | null
-  role: string
-  department: number | null
-  department_name: string | null
-  skills: Record<string, number> | null
-  suggestions?: Suggestion[]
-  received_requests?: any[]
-  projects?: UserProject[]
-}
+// Types (Aynen Korundu)
+interface Suggestion { researcher_id: number; full_name: string; department_name: string; score: number; match_reasons: string[]; is_complementary: boolean; }
+interface UserProject { project_id: number; title: string; status: string; my_role: string; group_members: any[]; }
+interface UserProfile { researcher_id: number; full_name: string; email: string; title: string | null; role: string; department: number | null; department_name: string | null; skills: any; suggestions?: Suggestion[]; received_requests?: any[]; projects?: UserProject[]; }
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -71,51 +46,63 @@ export default function Dashboard() {
   // ✅ LIVE radar için: dashboard seviyesinde “draft skills”
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
 
+  // 🛡️ OTONOM KİLİT: Çift isteği engelleyen kilit mekanizması
+  const isFetching = useRef(false);
+
   useEffect(() => {
     fetchProfile()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Profile gelince draft'ı mühürle
-  useEffect(() => {
-    if (profile?.skills && typeof profile.skills === "object" && !Array.isArray(profile.skills)) {
-      setSkillsDraft(profile.skills as Record<string, number>)
-    }
-  }, [profile?.skills])
-
   const fetchProfile = async () => {
+    // 🚧 KİLİT KONTROLÜ: Tek hat üzerinden güvenli akış
+    if (isFetching.current) return;
+    isFetching.current = true;
+
     setIsRefreshing(true)
     try {
       const data = await authService.getProfile()
+      
+      // 🛡️ DOUBLE-SYNC: Hem profili hem yetenekleri aynı anda mühürle
       setProfile(data)
+      
+      if (data?.skills) {
+        let cleanSkills = {};
+        // Veri formatı kontrolü (Array/Object uyumluluğu)
+        if (Array.isArray(data.skills)) {
+          cleanSkills = data.skills.find((i: any) => typeof i === 'object' && i !== null) || {};
+        } else {
+          cleanSkills = data.skills;
+        }
+        setSkillsDraft(cleanSkills);
+      }
+      
     } catch (error: any) {
       if (error.response?.status === 401) {
-        authService.logout()
-        navigate("/login")
-        return
+        authService.logout(); navigate("/login"); return;
       }
       toast.error("Profil bilgileri senkronize edilemedi.")
     } finally {
       setLoading(false)
       setIsRefreshing(false)
+      // 🔓 KİLİDİ AÇ
+      isFetching.current = false;
     }
   }
 
-  // ✅ Radar artık skillsDraft’tan besleniyor
+  // ✅ Radar grafiği verisi (skillsDraft'tan beslenir)
   const chartData = useMemo(() => {
     const s = skillsDraft
-    if (!s || typeof s !== "object") return []
+    if (!s || typeof s !== "object" || Array.isArray(s)) return []
     return Object.entries(s).map(([key, value]) => ({
       subject: key,
-      A: value,
+      A: Number(value),
       fullMark: 100,
     }))
   }, [skillsDraft])
 
   const handleLogout = () => {
-    authService.logout()
-    navigate("/login")
-    toast.info("Oturum kapatıldı.")
+    authService.logout(); navigate("/login"); toast.info("Oturum kapatıldı.")
   }
 
   if (loading) {
@@ -126,7 +113,6 @@ export default function Dashboard() {
     )
   }
 
-  // ✅ White kalan alt componentleri dark’a çekmek için override
   const themeOverride =
     "[&_.bg-white]:!bg-white/[0.06] " +
     "[&_.bg-slate-50]:!bg-white/[0.05] " +
@@ -146,7 +132,7 @@ export default function Dashboard() {
     "[&_.text-slate-500]:!text-slate-200/65 " +
     "[&_.text-gray-500]:!text-slate-200/65 " +
     "[&_.text-slate-400]:!text-slate-200/55 " +
-    "[&_.text-gray-400]:!text-slate-200/55 " + // ✅ burada + eksikti
+    "[&_.text-gray-400]:!text-slate-200/55 " +
     "[&_.rounded-full]:!border-white/10 " +
     "[&_.rounded-full]:!bg-white/[0.06] " +
     "[&_.rounded-full]:!text-slate-200/80 " +
@@ -154,16 +140,13 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#0b1020] text-slate-100 font-sans">
-      {/* Background */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/12 via-transparent to-transparent" />
         <div className="absolute -top-24 -right-24 h-[520px] w-[520px] rounded-full bg-fuchsia-500/10 blur-3xl" />
         <div className="absolute -bottom-24 -left-24 h-[520px] w-[520px] rounded-full bg-sky-500/10 blur-3xl" />
       </div>
 
-      {/* ✅ Layout: tek dikey scroll MAIN’de */}
       <div className="relative h-full flex overflow-hidden">
-        {/* SIDEBAR (scroll YOK) */}
         <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
           <div className="p-6 border-b border-white/10">
             <div className="flex items-center gap-3">
@@ -186,7 +169,6 @@ export default function Dashboard() {
             <NavItem icon={<Settings size={18} />} label="Settings" to="/profile" />
           </nav>
 
-          {/* ✅ Tek logout burada */}
           <div className="p-4 border-t border-white/10">
             <button
               type="button"
@@ -200,9 +182,7 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* CONTENT */}
         <section className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
-          {/* TOPBAR (sticky) */}
           <header className="shrink-0 sticky top-0 z-30 h-20 px-5 sm:px-8 border-b border-white/10 bg-[#0b1020]/55 backdrop-blur-xl flex items-center justify-between">
             <div className="relative w-[320px] sm:w-[440px] hidden sm:block">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300/60" size={18} />
@@ -259,7 +239,7 @@ export default function Dashboard() {
                 <Link
                   to="/profile"
                   className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center
-                             text-white font-black text-lg hover:scale-[1.03] transition shadow-sm"
+                               text-white font-black text-lg hover:scale-[1.03] transition shadow-sm"
                   title="Profile"
                 >
                   {profile?.full_name?.charAt(0) ?? "U"}
@@ -268,7 +248,6 @@ export default function Dashboard() {
             </div>
           </header>
 
-          {/* ✅ MAIN: TEK dikey scroll burada */}
           <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 sm:px-8 py-6">
             <div className="max-w-[1500px] mx-auto space-y-6 pb-4">
               <div className="flex items-center justify-between gap-4">
@@ -282,12 +261,7 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                <Button
-                  onClick={fetchProfile}
-                  variant="secondary"
-                  className="md:hidden rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10
-                             hover:bg-white/[0.09] font-black text-xs uppercase tracking-widest"
-                >
+                <Button onClick={fetchProfile} variant="secondary" className="md:hidden rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10 font-black text-xs uppercase tracking-widest">
                   Yenile
                 </Button>
               </div>
@@ -298,50 +272,29 @@ export default function Dashboard() {
                 <div className="col-span-12 xl:col-span-8 space-y-6 min-w-0">
                   <Card className="bg-white/[0.05] border-white/10 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between p-6 border-b border-white/10">
-                      <CardTitle className="text-xs font-black uppercase tracking-[0.35em] text-slate-200/70">
-                        Yetenek Matrisi
-                      </CardTitle>
+                      <CardTitle className="text-xs font-black uppercase tracking-[0.35em] text-slate-200/70">Yetenek Matrisi</CardTitle>
                       <Atom size={18} className="text-indigo-200" />
                     </CardHeader>
-
                     <CardContent className="h-[420px] p-6">
                       {chartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
                             <PolarGrid stroke="rgba(255,255,255,0.12)" />
-                            <PolarAngleAxis
-                              dataKey="subject"
-                              tick={{
-                                fill: "rgba(226,232,240,0.75)",
-                                fontSize: 12,
-                                fontWeight: 800,
-                              }}
-                            />
-                            <Radar
-                              name="Skill"
-                              dataKey="A"
-                              stroke="#a5b4fc"
-                              strokeWidth={2}
-                              fill="#818cf8"
-                              fillOpacity={0.18}
-                            />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(226,232,240,0.75)", fontSize: 12, fontWeight: 800 }} />
+                            <Radar name="Skill" dataKey="A" stroke="#a5b4fc" strokeWidth={2} fill="#818cf8" fillOpacity={0.18} />
                           </RadarChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="h-full w-full rounded-2xl border border-dashed border-white/15 bg-white/[0.03] flex items-center justify-center text-sm text-slate-200/70 font-semibold">
-                          Yetenek verisi bekleniyor...
+                        <div className="h-full w-full rounded-2xl border border-dashed border-white/15 bg-white/[0.03] flex items-center justify-center text-sm text-slate-200/70 font-semibold text-center px-4 italic">
+                          Yetenek verisi biyografiden ayıklanıyor veya henüz tanımlanmadı...
                         </div>
                       )}
                     </CardContent>
                   </Card>
 
-                  <Card
-                    className={`bg-white/[0.05] border-white/10 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden ${themeOverride}`}
-                  >
+                  <Card className={`bg-white/[0.05] border-white/10 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden ${themeOverride}`}>
                     <CardHeader className="p-6 border-b border-white/10">
-                      <CardTitle className="text-xs font-black uppercase tracking-[0.35em] text-slate-200/70">
-                        Aktif Operasyonlar
-                      </CardTitle>
+                      <CardTitle className="text-xs font-black uppercase tracking-[0.35em] text-slate-200/70">Aktif Operasyonlar</CardTitle>
                     </CardHeader>
                     <CardContent className="p-6">
                       <ProjectTeamList projects={profile?.projects || []} />
@@ -350,42 +303,18 @@ export default function Dashboard() {
                 </div>
 
                 <div className="col-span-12 xl:col-span-4 space-y-6 min-w-0">
-                  <Card
-                    className={`bg-white/[0.05] border-white/10 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden ${themeOverride}`}
-                  >
+                  <Card className={`bg-white/[0.05] border-white/10 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden ${themeOverride}`}>
                     <CardHeader className="p-6 border-b border-white/10">
-                      <CardTitle className="text-xs font-black uppercase tracking-[0.35em] text-slate-200/70">
-                        Partner Önerileri
-                      </CardTitle>
+                      <CardTitle className="text-xs font-black uppercase tracking-[0.35em] text-slate-200/70">Partner Önerileri</CardTitle>
                     </CardHeader>
                     <CardContent className="p-6">
-                      {/* ⚠️ SuggestedPartners içinde yatay scrollbarı gizlemek için:
-                          container’a `no-scrollbar overflow-y-hidden` eklemelisin.
-                          (Bu dosyada değil, SuggestedPartners.tsx içinde) */}
                       <SuggestedPartners suggestions={profile?.suggestions || []} />
                     </CardContent>
                   </Card>
 
                   <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden">
                     <div className="p-3">
-                      <SkillUpdateForm
-                        initialSkills={skillsDraft}
-                        onSkillsChange={setSkillsDraft}
-                        onUpdateSuccess={fetchProfile}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="relative overflow-hidden rounded-[2rem] p-6 border border-white/10 bg-gradient-to-br from-indigo-500/12 to-sky-500/8 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
-                    <h4 className="font-black text-lg tracking-tight text-white">Terminal Durumu</h4>
-                    <p className="text-slate-200/70 text-xs mt-2 font-semibold leading-relaxed">
-                      Sistem, yetenek setinizi optimize ediyor. Aşırı uç değerler otomatik dengelenir.
-                    </p>
-                    <div className="mt-6 flex items-center gap-3 bg-white/[0.06] p-4 rounded-2xl border border-white/10">
-                      <ShieldCheck size={18} className="text-emerald-300" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-100">
-                        Güvenli Erişim Onaylandı
-                      </span>
+                      <SkillUpdateForm initialSkills={skillsDraft} onSkillsChange={setSkillsDraft} onUpdateSuccess={fetchProfile} />
                     </div>
                   </div>
                 </div>
@@ -398,42 +327,9 @@ export default function Dashboard() {
   )
 }
 
-function NavItem({
-  icon,
-  label,
-  active = false,
-  to,
-}: {
-  icon: React.ReactNode
-  label: string
-  active?: boolean
-  to?: string
-}) {
-  const cls = [
-    "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition border text-left",
-    active
-      ? "bg-indigo-500/12 text-white border-indigo-400/20 shadow-[0_0_0_1px_rgba(129,140,248,0.15)]"
-      : "bg-transparent text-slate-200/70 border-transparent hover:border-white/10 hover:bg-white/[0.04] hover:text-white",
-  ].join(" ")
-
-  const content = (
-    <>
-      <span className={active ? "text-indigo-200" : "text-slate-200/60"}>{icon}</span>
-      <span className="text-xs font-black uppercase tracking-widest">{label}</span>
-    </>
-  )
-
-  if (to) {
-    return (
-      <Link to={to} className={cls}>
-        {content} 
-      </Link>
-    )
-  }
-
-  return (
-    <button type="button" className={cls}>
-      {content}
-    </button>
-  )
+function NavItem({ icon, label, active = false, to }: { icon: React.ReactNode; label: string; active?: boolean; to?: string }) {
+  const cls = [ "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition border text-left", active ? "bg-indigo-500/12 text-white border-indigo-400/20 shadow-[0_0_0_1px_rgba(129,140,248,0.15)]" : "bg-transparent text-slate-200/70 border-transparent hover:border-white/10 hover:bg-white/[0.04] hover:text-white" ].join(" ")
+  const content = ( <> <span className={active ? "text-indigo-200" : "text-slate-200/60"}>{icon}</span> <span className="text-xs font-black uppercase tracking-widest">{label}</span> </> )
+  if (to) return ( <Link to={to} className={cls}>{content}</Link> )
+  return ( <button type="button" className={cls}>{content}</button> )
 }

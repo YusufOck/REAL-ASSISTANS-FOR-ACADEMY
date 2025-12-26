@@ -71,91 +71,91 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     search_fields = ['full_name', 'email', 'bio']
 
     def _trigger_ai_analysis(self, instance, old_bio, validated_data):
+        """
+        🛡️ KRİTİK MÜHÜR: AI motorunu sadece biyografi değiştiğinde çalıştırır.
+        """
         new_bio = validated_data.get('bio')
         
-        # 1. Kontrol: Bio değişmediyse işlem yapma
+        # 1. Kontrol: Eğer biyografi alanı gönderilmediyse veya değişmediyse AI'yı tetikleme!
         if not new_bio or new_bio == old_bio:
+            print(f"ℹ️ AI Pas Geçildi: Biyografi aynı veya boş. ({instance.full_name})", flush=True)
             return
 
         try:
             dept_name = instance.department.name if instance.department else "General Academic"
             
-            # 🧠 AI: Gemini servisinden veriyi ve ham yanıtı al
+            # 🧠 Gemini Servisi: Sadece bu noktada 12 saniyelik sürece girilir.
             ai_data, raw_debug = analyze_skills_with_gemini(new_bio, dept_name)
             
-            # 🛡️ DATA INTEGRITY CHECK: Verinin her zaman DICT olmasını sağla
-            # Eğer liste gelirse (image_26b586.png'deki gibi), içindeki sözlüğü ayıkla
+            # 🛡️ DATA INTEGRITY: Verinin her zaman DICT olmasını mühürle
             final_skills = {}
             if isinstance(ai_data, list) and len(ai_data) > 0:
                 for item in ai_data:
-                    if isinstance(item, dict):
-                        final_skills.update(item)
+                    if isinstance(item, dict): final_skills.update(item)
             elif isinstance(ai_data, dict):
                 final_skills = ai_data
 
-            # 🔍 DEBUG: Eğer skills boşsa ham yanıtı preview için sakla
-            if not final_skills:
-                instance.skills = {"DEBUG_RAW": str(raw_debug)[:200]}
-            else:
-                instance.skills = final_skills 
-
-            # 🗄️ ESKİ VERİLERİ SİL
+            # Veritabanı Güncelleme
+            instance.skills = final_skills if final_skills else {"DEBUG_RAW": str(raw_debug)[:200]}
+            
+            # Eski yetenekleri temizle ve yenilerini otonom mühürle
             ResearcherSkill.objects.filter(researcher=instance).delete()
-
-            # 🛰️ Skill Nesnelerini Oluştur (Sadece final_skills sözlük ise çalışır)
             if final_skills:
                 for s_name, s_level in final_skills.items():
                     skill_obj, _ = Skill.objects.get_or_create(name=str(s_name)[:100])
-                    # Skorun sayısal olduğundan emin ol
                     try:
                         level_int = int(s_level)
                     except (ValueError, TypeError):
-                        level_int = 50 # Fallback
+                        level_int = 50
                     
-                    ResearcherSkill.objects.create(
-                        researcher=instance, 
-                        skill=skill_obj, 
-                        level=level_int
-                    )
+                    ResearcherSkill.objects.create(researcher=instance, skill=skill_obj, level=level_int)
 
-            # 🚀 VEKTÖRÜ MÜHÜRLE: Önerilerin (Suggestions) canlanması için şart
+            # 🚀 VEKTÖR MÜHÜRÜ: Öneriler için embedding üret
             user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
             skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
             semantic_text = f"{instance.title}. {new_bio}. Skills: {skill_weights}"
             instance.embedding = generate_embedding(semantic_text)
             
-            # Sadece bu iki alanı güncelle ki diğer veriler ezilmesin
             instance.save(update_fields=['skills', 'embedding'])
-            print(f"✅ Otonom Dinamik Sistem Yenilendi: {instance.full_name}", flush=True)
+            print(f"✅ AI Analizi Tamamlandı: {instance.full_name}", flush=True)
 
         except Exception as e:
-            print(f"⚠️ AI Analiz/Kayıt Hatası: {str(e)}", flush=True)
+            print(f"⚠️ AI Analiz Hatası: {str(e)}", flush=True)
+
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
+        """
+        🚀 HIZLI HAT: GET isteği milisaniyeler içinde yanıt verir.
+        """
         try:
             researcher = Researcher.objects.get(user=request.user)
+            
             if request.method == 'PATCH':
-                old_bio = researcher.bio # 👈 Değişimi yakalamak için eskiyi al
+                # 🛡️ Eski biyografiyi mühürle
+                old_bio = researcher.bio 
                 serializer = self.get_serializer(researcher, data=request.data, partial=True)
                 serializer.is_valid(raise_exception=True)
                 
                 instance = serializer.save()
                 
-                # 🔥 KRİTİK: AI motorunu burada elinle tetikle!
+                # AI motoru sadece PATCH anında ve bio değişirse çalışır
                 self._trigger_ai_analysis(instance, old_bio, serializer.validated_data)
                 
-                # instance güncellendiği için serializer'ı tazeleyip dön
+                # Güncel veriyi dön
                 return Response(self.get_serializer(instance).data)
             
+            # 🏁 GET DURUMU: Doğrudan DB'den hazır veriyi dön (AI çalışmaz!)
             return Response(self.get_serializer(researcher).data)
+            
         except Researcher.DoesNotExist: 
             return Response({"detail": "Profil bulunamadı."}, status=404)
 
     def perform_update(self, serializer):
-        # Standart PATCH /api/researchers/99/ istekleri için burası hala lazım
+        # Standart ModelViewSet güncellemeleri için koruma kalkanı
         old_bio = self.get_object().bio
         instance = serializer.save()
         self._trigger_ai_analysis(instance, old_bio, serializer.validated_data)
+        
     @action(detail=False, methods=['post'], url_path='onboard', permission_classes=[AllowAny])
     def onboard(self, request):
         serializer = ResearcherOnboardSerializer(data=request.data)
