@@ -1,6 +1,6 @@
 // src/components/ui/CollaborationReviewModal.tsx
 import { useState } from "react"
-import { Loader2, User, X, Check, XCircle, Code, MessageSquare, Info, ShieldCheck } from "lucide-react"
+import { Loader2, User, X, Check, XCircle, Code, MessageSquare, Info, ShieldCheck, AlertCircle } from "lucide-react"
 import { Button } from "./button"
 
 export default function CollaborationReviewModal({ request, onClose, onRespond }: any) {
@@ -21,13 +21,13 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
       <div className="w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         
-        {/* 🛡️ HEADER: Duruma göre başlık değişir */}
+        {/* 🛡️ HEADER: Duruma göre başlık ve ikon değişir */}
         <div className="p-7 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-2xl ${isPending ? 'bg-indigo-500/10' : 'bg-slate-500/10'}`}>
               {isPending ? <User size={20} className="text-indigo-400" /> : <ShieldCheck size={20} className="text-slate-400" />}
             </div>
-            <h3 className="font-black text-white tracking-tight">
+            <h3 className="font-black text-white tracking-tight uppercase text-xs tracking-[0.2em]">
               {isPending ? "Araştırmacı İnceleme" : "İstek Kayıt Özeti"}
             </h3>
           </div>
@@ -38,14 +38,14 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
         <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
           
           {/* Kimlik Bilgileri */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-3xl font-black text-white tracking-tighter">{request.sender_name}</p>
                 <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">{request.sender_title || "Araştırmacı"}</p>
               </div>
               
-              {/* 🛡️ DURUM ROZETİ: Sadece bitmiş isteklerde görünür */}
+              {/* 🛡️ DURUM ROZETİ: Sadece sonuçlanmış (accepted/rejected) isteklerde görünür */}
               {!isPending && (
                 <div className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border ${
                   request.status === 'accepted' 
@@ -66,7 +66,7 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
             {isPending && <p className="text-sm text-slate-400 italic leading-relaxed pt-2">"{request.sender_bio || "Biyografi belirtilmemiş."}"</p>}
           </div>
 
-          {/* 🚀 MOD 1: BEKLEYEN İSTEK (Detaylı Analiz ve Karar) */}
+          {/* 🚀 MOD 1: BEKLEYEN İSTEK (İşlem Modu) */}
           {isPending ? (
             <>
               {/* Yetenek Matrisi */}
@@ -97,20 +97,35 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
                 <textarea 
                   className="w-full bg-white/[0.03] border border-white/10 rounded-[1.5rem] p-5 text-sm text-slate-100 placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all resize-none"
                   rows={4}
-                  placeholder="Araştırmacıya iletilecek mesajı buraya yazın..."
+                  placeholder="Araştırmacıya iletilecek mesajı (red sebebini vb.) buraya yazın..."
                   value={responseMsg}
                   onChange={(e) => setResponseMsg(e.target.value)}
                 />
               </div>
             </>
           ) : (
-            /* 🛰️ MOD 2: SONUÇLANMIŞ İSTEK (Sadece Özet Bilgi) */
+            /* 🛰️ MOD 2: SONUÇLANMIŞ İSTEK (Özet Modu) */
             <div className="space-y-4 pt-4 border-t border-white/5">
-              <div className="p-6 bg-white/[0.02] rounded-[2rem] border border-white/5 space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">İstek Mesajı</p>
-                <p className="text-sm text-slate-300 leading-relaxed italic">
-                  "{request.message || "Bu istek için bir ön yazı girilmemiş."}"
-                </p>
+              <div className="p-6 bg-white/[0.02] rounded-[2rem] border border-white/5 space-y-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Gönderilen Mesaj</p>
+                  <p className="text-sm text-slate-300 leading-relaxed italic">
+                    "{request.message || "Bu istek için bir ön yazı girilmemiş."}"
+                  </p>
+                </div>
+
+                {/* 🛰️ RED AÇIKLAMASI MÜHÜRÜ: 'redderken yazdığım açıklama' tam burada görünür */}
+                {request.rejection_note && (
+                  <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl space-y-2">
+                    <p className="text-[9px] font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
+                      <AlertCircle size={12} /> Red Gerekçesi
+                    </p>
+                    <p className="text-xs text-slate-200 leading-relaxed font-semibold">
+                      {request.rejection_note}
+                    </p>
+                  </div>
+                )}
+                
                 <div className="pt-4 flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-widest border-t border-white/5">
                   <Loader2 size={12} className="text-indigo-500" />
                   Sistem Kayıt Tarihi: {request.created_at}

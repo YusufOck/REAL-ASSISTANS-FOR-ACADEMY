@@ -351,7 +351,7 @@ class CollaborationRequest(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'collaboration_request'
         unique_together = ('sender', 'receiver', 'project')
@@ -407,37 +407,3 @@ def update_researcher_embedding(sender, instance, created, **kwargs):
             print(f"❌ {instance.full_name} için AI vektör hatası: {e}")
 
 
-@receiver(post_save, sender=CollaborationRequest)
-def create_collaboration_notification(sender, instance, created, **kwargs):
-    """
-    🛡️ MASTER SİNYAL: Mükerrer bildirimleri engeller ve request_id ile mühürler.
-    Bu sinyal sayesinde zilden tıklayınca doğru kişi açılır.
-    """
-    if created:
-        # DURUM 1: Yeni İstek Gelişi
-        title = "YENİ İŞ BİRLİĞİ TALEBİ"
-        msg = f"{instance.sender.full_name}, '{instance.project.title}' projenize katılmak için talep gönderdi."
-
-        Notification.objects.get_or_create(
-            recipient=instance.receiver,
-            request_id=instance.request_id, # 👈 Veri karışıklığını bitiren mühür
-            title=title,
-            message=msg,
-            defaults={'is_read': False}
-        )
-        print(f"🔔 Yeni İstek Bildirimi Oluşturuldu: {instance.receiver.full_name}", flush=True)
-
-    else:
-        # DURUM 2: Karar Verilişi (Kabul/Red)
-        if instance.status in ['accepted', 'rejected']:
-            status_text = "ONAYLANDI" if instance.status == 'accepted' else "REDDEDİLDİ"
-            title = f"İSTEK {status_text}"
-            msg = f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi {instance.status}."
-
-            Notification.objects.get_or_create(
-                recipient=instance.sender,
-                request_id=instance.request_id, # 👈 Cevap bildiriminde de bağı koru
-                title=title,
-                message=msg
-            )
-            print(f"🔔 Karar Bildirimi Oluşturuldu: {instance.sender.full_name}", flush=True)

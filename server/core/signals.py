@@ -6,6 +6,9 @@ from .models import Researcher, Tag, EntityTag, CollaborationRequest, Notificati
 import re
 from .models import ResearcherSkill
 from .services import generate_embedding
+
+
+
 # ---------------------------------------------------------
 # 1. MEVCUT: OTOMATİK ETİKETLEME (AUTO TAGGING)
 # ---------------------------------------------------------
@@ -29,41 +32,44 @@ def auto_tag_researcher(sender, instance, created, **kwargs):
 # 2. MEVCUT: İLK BİLDİRİM SİSTEMİ (İstek Gönderildiğinde)
 # ---------------------------------------------------------
 # server/core/signals.py
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from .models import CollaborationRequest, Notification
+
+
+
 
 @receiver(post_save, sender=CollaborationRequest)
 def handle_collaboration_notification(sender, instance, created, **kwargs):
     """
-    🛰️ MASTER SIGNAL: Tüm bildirim trafiğini tek merkezden yönetir.
-    Çift bildirim kirliliğini bitirir ve modal için request_id mühürler.
+    🛰️ TEK MASTER SİNYAL: 
+    1. Çift bildirimleri bitirir.
+    2. Modal için request_id mühürler.
+    3. Reddedilme açıklamasını (response_message) otonom ekler.
     """
     
-    # 🛡️ 1. DURUM: YENİ BİR İSTEK (is_actionable = True tetiklenir)
+    # 🛡️ DURUM 1: YENİ İSTEK VEYA TAZELEME (Alıcıya gider)
     if created or instance.status == 'pending':
-        # Dashboard.tsx'teki 'is_actionable' mantığını "YENİ İŞ BİRLİĞİ TALEBİ" başlığı açar.
         Notification.objects.create(
             recipient=instance.receiver,
             title="YENİ İŞ BİRLİĞİ TALEBİ", 
             message=f"{instance.sender.full_name}, '{instance.project.title}' projesine katılmak için talep gönderdi.",
-            request_id=instance.request_id # 🎯 MODALIN AÇILMASI İÇİN ŞART
+            request_id=instance.request_id # 👈 Dashboard modalı için kritik mühür
         )
-        print(f"🔔 SİNYAL: Yeni talep bildirimi fırlatıldı (ReqID: {instance.request_id})")
 
-    # 🛡️ 2. DURUM: KARAR VERİLDİ (Özet Modu tetiklenir)
+    # 🛡️ DURUM 2: KARAR VERİLDİ (Gönderene geri gider)
     elif instance.status in ['accepted', 'rejected']:
         status_text = "kabul etti" if instance.status == 'accepted' else "reddedildi"
         title_text = "İSTEK KABUL EDİLDİ" if instance.status == 'accepted' else "İSTEK REDDEDİLDİ"
         
-        # Bildirim, isteği ilk gönderen kişiye (sender) geri gider.
+        # 🛰️ RED AÇIKLAMASI MÜHÜRÜ
+        final_message = f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi {status_text}."
+        if instance.status == 'rejected' and instance.response_message:
+            final_message += f" Gerekçe: {instance.response_message}" # Artık reddedilen kişi bunu görebilecek!
+
         Notification.objects.create(
             recipient=instance.sender,
             title=title_text,
-            message=f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi {status_text}.",
-            request_id=instance.request_id # 🎯 Özet modalında veriyi görmek için şart
+            message=final_message,
+            request_id=instance.request_id
         )
-        print(f"📡 SİNYAL: Karar bildirimi fırlatıldı ({instance.status})")
 
 # ---------------------------------------------------------
 # 3. YENİ: OTONOM GRUP KATILIMI (İstek Kabul Edildiğinde) 🚀
