@@ -1,3 +1,4 @@
+# server/core/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from drf_spectacular.utils import extend_schema_field
@@ -6,9 +7,10 @@ from .models import (
     FundingAgency, FundingAgencyGrant, Tag, 
     EntityTag, Skill, ProjectResearcher, CollaborationRequest
 )
+# ÖNEMLİ: get_collaboration_suggestions importu kalsın, views.py kullanacak.
 from .services import get_collaboration_suggestions
 
-# --- 1. TEMEL MODEL SERIALIZER'LAR ---
+# --- 1. TEMEL MODEL SERIALIZER'LAR (DEĞİŞMEDİ) ---
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -67,21 +69,16 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'received_requests', 'projects'
         ]
 
-    # server/core/serializers.py içindeki ResearcherSerializer.get_projects metodu
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
         from .models import Project, ProjectResearcher
-        
-        # Hatayı bitiren doğru ID toplama:
         pi_ids = list(Project.objects.filter(pi=obj).values_list('project_id', flat=True))
         member_ids = list(ProjectResearcher.objects.filter(researcher=obj).values_list('project_id', flat=True))
-        
         all_ids = set(pi_ids + member_ids)
         all_projects = Project.objects.filter(project_id__in=all_ids).distinct()
         
         result = []
         for p in all_projects:
-            # Proje ekibini otonom olarak çek
             members = ProjectResearcher.objects.filter(project=p).select_related('researcher')
             group_members = [{
                 'id': m.researcher.researcher_id,
@@ -94,13 +91,12 @@ class ResearcherSerializer(serializers.ModelSerializer):
                 'title': p.title,
                 'status': p.status,
                 'my_role': 'PI (Lider)' if p.pi == obj else 'Member (Mürettebat)',
-                'group_members': group_members # ARTIK MUSTAFA BURADA!
+                'group_members': group_members
             })
         return result
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_received_requests(self, obj):
-        # Dashboard senkronizasyonu için 'Beklemede' durumunu da kapsar
         requests = CollaborationRequest.objects.filter(receiver=obj, status__in=['pending', 'Beklemede'])
         return [{
             'request_id': r.request_id,
@@ -113,12 +109,15 @@ class ResearcherSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):
-        try:
-            return get_collaboration_suggestions(obj.researcher_id, limit=5)
-        except:
-            return []
+        """
+        🚀 MÜHÜRLÜ HIZLI HAT: Hesaplama yapma! 
+        Artık her GET isteğinde get_collaboration_suggestions çağrılmıyor.
+        Sadece veritabanındaki yeni açtığımız JSON alanını dönüyoruz.
+        """
+        # Veritabanında veri varsa onu dön, yoksa boş liste dön
+        return obj.suggestions_json if obj.suggestions_json else []
 
-# --- 3. AKSİYON VE KAYIT SERIALIZER'LARI ---
+# --- 3. AKSİYON VE KAYIT SERIALIZER'LARI (DEĞİŞMEDİ) ---
 
 class ResearcherOnboardSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150)
@@ -148,11 +147,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('username', 'password', 'email', 'first_name', 'last_name')
-
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
 
-# --- 4. ANALİTİK VE NETWORK SERIALIZER'LARI ---
+# --- 4. ANALİTİK VE NETWORK SERIALIZER'LARI (DEĞİŞMEDİ) ---
 
 class DashboardStatsSerializer(serializers.Serializer):
     total_researchers = serializers.IntegerField()
@@ -160,17 +158,10 @@ class DashboardStatsSerializer(serializers.Serializer):
     total_publications = serializers.IntegerField()
 
 class NetworkNodeSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    label = serializers.CharField()
-    group = serializers.CharField(required=False)
-    title = serializers.CharField(required=False, allow_null=True)
+    id = serializers.IntegerField(); label = serializers.CharField(); group = serializers.CharField(required=False); title = serializers.CharField(required=False, allow_null=True)
 
 class NetworkEdgeSerializer(serializers.Serializer):
-    from_id = serializers.IntegerField(source='from')
-    to = serializers.IntegerField()
-    value = serializers.IntegerField()
-    type = serializers.CharField()
+    from_id = serializers.IntegerField(source='from'); to = serializers.IntegerField(); value = serializers.IntegerField(); type = serializers.CharField()
 
 class NetworkGraphSerializer(serializers.Serializer):
-    nodes = NetworkNodeSerializer(many=True)
-    edges = NetworkEdgeSerializer(many=True)
+    nodes = NetworkNodeSerializer(many=True); edges = NetworkEdgeSerializer(many=True)

@@ -54,6 +54,9 @@ class Researcher(models.Model):
     # Gemini'den gelen 768 veya 1536 boyutlu vektörleri burada saklayacağız.
     #
     embedding = models.JSONField(null=True, blank=True)
+    # 🚀 YENİ MÜHÜR: Önerileri burada saklayarak GET hızını milisaniyelere düşüreceğiz.
+    suggestions_json = models.JSONField(default=list, blank=True)
+    # -----------------------------------------
     
     created_at = models.DateTimeField(default=timezone.now)
 
