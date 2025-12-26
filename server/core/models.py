@@ -408,28 +408,42 @@ def update_researcher_embedding(sender, instance, created, **kwargs):
             print(f"❌ {instance.full_name} için AI vektör hatası: {e}")
 
 
-# core/models.py (En alt kısım)
+
 
 @receiver(post_save, sender=CollaborationRequest)
 def create_collaboration_notification(sender, instance, created, **kwargs):
     """
-    🛡️ KRİTİK MÜHÜR: İstek gönderildiğinde veya durumu değiştiğinde 
-    bildirim oluşturur.
+    🛡️ MASTER SİNYAL: Ham istekleri, davetleri ve kararları otonom bildirir.
     """
     if created:
-        # Sena birine istek attığında karşı tarafa (Receiver) bildirim gider
-        title = "Yeni İş Birliği Talebi"
-        msg = f"{instance.sender.full_name}, '{instance.project.title}' projesi için talep gönderdi."
-        Notification.objects.create(recipient=instance.receiver, title=title, message=msg)
-    else:
-        # İstek kabul edildiğinde isteği atana (Sender) müjde verilir
-        if instance.status == 'accepted':
-            title = "İş Birliği Onaylandı"
-            msg = f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi kabul etti!"
-            Notification.objects.create(recipient=instance.sender, title=title, message=msg)
+        # 🛰️ DURUM 1: Yeni Bir İstek Oluşturuldu (Ham Akış)
+        # Alıcı (Receiver) her zaman bildirimi alacak olan kişidir.
+        title = "YENİ İŞ BİRLİĞİ TALEBİ"
         
-        # İstek reddedildiğinde bildirim gider
+        if instance.request_type == 'invite':
+            # Örn: Oğuz seni projesine davet etti
+            msg = f"{instance.sender.full_name}, sizi '{instance.project.title}' projesine davet etti."
+        else:
+            # Örn: Oğuz senin projerine katılmak istiyor
+            msg = f"{instance.sender.full_name}, '{instance.project.title}' projenize katılmak için istek gönderdi."
+        
+        # Bildirimi alan kişi: İsteğin ulaştığı (Receiver) araştırmacı
+        Notification.objects.create(
+            recipient=instance.receiver, 
+            title=title, 
+            message=msg
+        )
+        print(f"🔔 [SİNYAL] Yeni İstek Bildirimi Oluşturuldu: {instance.receiver.full_name}", flush=True)
+
+    else:
+        # 🛰️ DURUM 2: Karar Verildi (Kabul / Red Akışı)
+        # Burada bildirimi alacak olan kişi, isteği ilk gönderen (Sender) kişidir.
+        if instance.status == 'accepted':
+            title = "İSTEK KABUL EDİLDİ"
+            msg = f"{instance.receiver.full_name}, '{instance.project.title}' projesi için gönderdiğiniz talebi onayladı."
+            Notification.objects.create(recipient=instance.sender, title=title, message=msg)
+            
         elif instance.status == 'rejected':
-            title = "İstek Reddedildi"
+            title = "İSTEK REDDEDİLDİ"
             msg = f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi reddetti."
-            Notification.objects.create(recipient=instance.sender, title=title, message=msg)            
+            Notification.objects.create(recipient=instance.sender, title=title, message=msg)         
