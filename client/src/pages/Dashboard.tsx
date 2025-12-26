@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useRef } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { authService } from "@/services/authService"
+import { api } from "@/lib/api" // 🚀 HATAYI ÇÖZEN IMPORT
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -28,8 +29,8 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 // Components
 import SuggestedPartners from "@/components/ui/SuggestedPartners"
 import SkillUpdateForm from "@/components/ui/SkillUpdateForm"
-// ℹ️ IncomingRequests artık bildirim panelinin içinde yaşayacak, merkezi bloktan silindi.
 import ProjectTeamList from "@/components/ui/ProjectTeamList"
+import CollaborationReviewModal from "@/components/ui/CollaborationReviewModal" // 🚀 MODAL IMPORTU
 
 // Types
 interface Suggestion { researcher_id: number; full_name: string; department_name: string; score: number; match_reasons: string[]; is_complementary: boolean; }
@@ -43,12 +44,13 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // 🚀 BİLDİRİM STATE: Panelin açılıp kapanmasını yönetir
+  // 🚀 YENİ STATE'LER: Bildirim paneli ve seçilen inceleme talebi
   const [showNotifications, setShowNotifications] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
   // ✅ LIVE radar için: dashboard seviyesinde “draft skills”
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
-
+  
   // 🛡️ OTONOM KİLİT: Çift isteği engelleyen kilit mekanizması
   const isFetching = useRef(false);
 
@@ -85,6 +87,22 @@ export default function Dashboard() {
       setLoading(false)
       setIsRefreshing(false)
       isFetching.current = false;
+    }
+  }
+
+  // 🚀 YANIT FONKSİYONU: Kabul/Red işlemini fırlatır
+  const handleRespond = async (requestId: number, status: string, msg: string) => {
+    try {
+      await api.post("/api/researchers/respond-request/", {
+        request_id: requestId,
+        status: status,
+        response_message: msg
+      });
+      toast.success(status === 'accepted' ? "İş birliği onaylandı!" : "İstek reddedildi.");
+      fetchProfile(); // 🔄 Sayfayı otonom tazele
+      setSelectedRequest(null);
+    } catch (error: any) {
+      toast.error("İşlem başarısız: " + (error.response?.data?.detail || "Sunucu hatası"));
     }
   }
 
@@ -144,6 +162,7 @@ export default function Dashboard() {
       </div>
 
       <div className="relative h-full flex overflow-hidden">
+        {/* Sidebar */}
         <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
           <div className="p-6 border-b border-white/10">
             <div className="flex items-center gap-3">
@@ -195,7 +214,6 @@ export default function Dashboard() {
                   aria-label="Notifications"
                 >
                   <Bell size={22} />
-                  {/* 🔴 Otonom Uyarı: Bildirim varsa nokta yanar */}
                   {profile?.notifications && profile.notifications.length > 0 && (
                     <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-indigo-500 rounded-full border-2 border-[#0b1020] animate-pulse shadow-[0_0_10px_rgba(129,140,248,0.8)]" />
                   )}
@@ -210,7 +228,14 @@ export default function Dashboard() {
                     <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                       {profile?.notifications && profile.notifications.length > 0 ? (
                         profile.notifications.map((n: any) => (
-                          <div key={n.id} className="p-4 border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                          <div 
+                            key={n.id} 
+                            onClick={() => {
+                              if (n.request_id) setSelectedRequest(n); // Sadece isteği olan bildirimler açılır
+                              setShowNotifications(false);
+                            }}
+                            className={`p-4 border-b border-white/5 hover:bg-white/[0.08] transition-colors cursor-pointer ${n.request_id ? 'border-l-2 border-l-indigo-500' : ''}`}
+                          >
                             <div className="flex justify-between items-start mb-1">
                               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{n.title}</p>
                               <span className="text-[9px] text-slate-500 font-bold">{n.created_at}</span>
@@ -254,8 +279,6 @@ export default function Dashboard() {
                   </p>
                 </div>
               </div>
-
-              {/* 🛡️ TEMİZLİK: image_b0c7e1.png'deki o büyük "IncomingRequests" bloğu buradan silindi. */}
 
               <div className="grid grid-cols-12 gap-6">
                 <div className="col-span-12 xl:col-span-8 space-y-6 min-w-0">
@@ -310,6 +333,15 @@ export default function Dashboard() {
           </main>
         </section>
       </div>
+
+      {/* 🏝️ YÜZEN ADA (REVIEW MODAL): Bir bildirim seçildiğinde otonom açılır */}
+      {selectedRequest && (
+        <CollaborationReviewModal 
+          request={selectedRequest} 
+          onClose={() => setSelectedRequest(null)} 
+          onRespond={handleRespond} 
+        />
+      )}
     </div>
   )
 }

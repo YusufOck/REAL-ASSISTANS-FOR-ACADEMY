@@ -74,20 +74,33 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'notifications' # 🛰️ Listeye eklendi
         ]
 
+    # core/serializers.py içindeki get_notifications metodunu bu şekilde güncelle:
+
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_notifications(self, obj):
-        """
-        🔔 OTONOM TAKİP: Bildirimleri en yeniden en eskiye sıralar.
-        """
-        from .models import Notification
+        from .models import Notification, CollaborationRequest
         notes = Notification.objects.filter(recipient=obj).order_by('-created_at')[:10]
-        return [{
-            'id': n.notification_id,
-            'title': n.title,
-            'message': n.message,
-            'is_read': n.is_read,
-            'created_at': n.created_at.strftime("%H:%M")
-        } for n in notes]
+        result = []
+        for n in notes:
+            # 🛰️ Otonom Arama: Bildirim bir iş birliği isteğiyle mi ilgili?
+            # Mesajın içindeki proje adından veya tipinden ilgili isteği buluyoruz
+            # (Gelişmiş mimaride Notification modeline request_id eklenmelidir)
+            req = CollaborationRequest.objects.filter(receiver=obj, status='pending').first()
+            
+            note_data = {
+                'id': n.notification_id,
+                'title': n.title,
+                'message': n.message,
+                'created_at': n.created_at.strftime("%H:%M"),
+                # 🛡️ Yüzen Ada Verileri:
+                'request_id': req.request_id if req else None,
+                'sender_name': req.sender.full_name if req else None,
+                'sender_bio': req.sender.bio if req else None,
+                'sender_skills': req.sender.skills if req else {},
+                'sender_title': req.sender.title if req else "Araştırmacı"
+            }
+            result.append(note_data)
+        return result
 
     # ... (get_projects, get_received_requests ve get_suggestions kısımları aynen kalsın)
 
