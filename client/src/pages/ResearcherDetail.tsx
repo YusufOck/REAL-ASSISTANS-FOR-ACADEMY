@@ -1,219 +1,233 @@
 // src/pages/ResearcherDetail.tsx
+import { useEffect, useState, useRef } from "react"
+import { useParams, useNavigate } from "react-router-dom"
+import {
+  Loader2,
+  ArrowLeft,
+  Brain,
+  Code,
+  FolderGit2,
+  CheckCircle2,
+  Send,
+  UserPlus,
+  Users,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2, ArrowLeft, Brain, Code, FolderGit2, CheckCircle2, Send, UserPlus, Users } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+export default function ResearcherDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
 
-const ResearcherDetail = () => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [researcher, setResearcher] = useState<any>(null);
-  const [otherProjects, setOtherProjects] = useState<any[]>([]); // Karşı tarafın projeleri
-  const [myProjects, setMyProjects] = useState<any[]>([]); // Senin projelerin (Davet için)
-  const [loading, setLoading] = useState(true);
+  const [researcher, setResearcher] = useState<any>(null)
+  const [otherProjects, setOtherProjects] = useState<any[]>([])
+  const [myProjects, setMyProjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // --- AKSİYON STATE'LERİ ---
-  const [requestType, setRequestType] = useState<'join_request' | 'invite'>('join_request');
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [requestMessage, setRequestMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
+  const [requestType, setRequestType] = useState<"join_request" | "invite">("join_request")
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
+  const [requestMessage, setRequestMessage] = useState("")
+  const [isSending, setIsSending] = useState(false)
+
+  // 🛡️ OTONOM KİLİT: image_b03ca5.png'deki o çift istekleri engelleyen kilit mekanizması
+  const isFetching = useRef(false)
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      // 🚧 KİLİT KONTROLÜ: Eğer bir hat zaten açıksa, ikinciyi otonom olarak reddet
+      if (isFetching.current) return
+      isFetching.current = true
+
+      setLoading(true)
       try {
-        const token = localStorage.getItem('accessToken'); 
-        const headers = { 'Authorization': `Bearer ${token}` };
+        const token = localStorage.getItem("accessToken")
+        const headers = { Authorization: `Bearer ${token}` }
 
-        // 1. Karşıdaki Araştırmacının Profili (image_a2b204)
-        const resProfile = await fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/`, { headers });
-        const profileData = await resProfile.json();
+        // 🛰️ VERİ İSTASYONU: Üç farklı veri kaynağı tek hat üzerinden paralel çekiliyor
+        const [resProfile, resOtherProjects, resMe] = await Promise.all([
+          fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/`, { headers }),
+          fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/projects/`, { headers }),
+          fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/me/`, { headers }),
+        ])
 
-        // 2. Karşıdaki Araştırmacının Projeleri (image_a2b1cb)
-        const resOtherProjects = await fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/projects/`, { headers });
-        const otherProjectsData = await resOtherProjects.json();
+        const profileRaw = await resProfile.json()
+        const projectsData = await resOtherProjects.json()
+        const meData = await resMe.json()
 
-        // 3. Kendi Bilgilerin ve Projelerin (Davet sistemi için gerekli)
-        const resMe = await fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/me/`, { headers });
-        const meData = await resMe.json();
+        // 🛡️ VERİ SENKRONİZASYONU: "Uzmanlık Alanları Neden Boş?" sorusunu çözen mühürleme bloğu
+        // Backend bazen profil verisini veya skills verisini dizi olarak gönderebiliyor
+        let cleanProfile = Array.isArray(profileRaw) ? profileRaw.find(i => typeof i === 'object') : profileRaw;
+        
+        if (cleanProfile && cleanProfile.skills && Array.isArray(cleanProfile.skills)) {
+          cleanProfile.skills = cleanProfile.skills.find((i: any) => typeof i === 'object' && i !== null) || {};
+        }
 
-        setResearcher(profileData);
-        setOtherProjects(otherProjectsData);
-        setMyProjects(meData.projects || []); // Me endpoint'inin projeleri döndüğünden emin olmalısın
+        setResearcher(cleanProfile)
+        setOtherProjects(projectsData)
+        setMyProjects(meData.projects || [])
       } catch (error) {
-        toast.error("Veriler otonom olarak çekilemedi!");
+        toast.error("Araştırmacı verileri senkronize edilemedi.")
       } finally {
-        setLoading(false);
+        setLoading(false)
+        // 🔓 KİLİDİ AÇ: Veri akışı tamamlandı
+        isFetching.current = false
       }
-    };
+    }
 
-    if (id) fetchData();
-  }, [id]);
+    if (id) fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   const handleSendRequest = async () => {
-    if (!selectedProjectId) {
-      toast.error(requestType === 'join_request' ? "Lütfen katılmak istediğiniz projeyi seçin!" : "Lütfen davet etmek istediğiniz projenizi seçin!");
-      return;
-    }
-
-    setIsSending(true);
+    if (!selectedProjectId) return
+    setIsSending(true)
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/send-request/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          receiver_id: id,  
-          project_id: selectedProjectId,
-          message: requestMessage,
-          request_type: requestType // join_request veya invite
-        })
-      });
-
-      if (response.ok) {
-        toast.success("İş birliği talebi otonom olarak fırlatıldı!");
-        setRequestMessage("");
-        setSelectedProjectId(null);
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.detail || "İstek fırlatılamadı.");
+      const token = localStorage.getItem("accessToken")
+      const res = await fetch(
+        `https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/send-request/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            receiver_id: id,
+            project_id: selectedProjectId,
+            message: requestMessage,
+            request_type: requestType,
+          }),
+        }
+      )
+      if (!res.ok) {
+        const e = await res.json()
+        throw new Error(e.detail)
       }
-    } catch (error) {
-      toast.error("Bağlantı hatası.");
+      toast.success("İş birliği talebi fırlatıldı.")
+      setSelectedProjectId(null)
+      setRequestMessage("")
+    } catch (e: any) {
+      toast.error(e.message || "İstek gönderilemedi.")
     } finally {
-      setIsSending(false);
+      setIsSending(false)
     }
-  };
+  }
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center flex-col gap-4">
-      <Loader2 className="animate-spin text-blue-600" size={48} />
-      <p className="text-slate-500 font-bold">Veri İstasyonu Bağlanıyor...</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#0b1020]">
+        <Loader2 className="h-12 w-12 animate-spin text-indigo-400" />
+      </div>
+    )
+  }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <Button variant="ghost" onClick={() => navigate(-1)} className="hover:bg-slate-100 transition-all">
-        <ArrowLeft className="mr-2" /> Geri Dön
-      </Button>
-
-      {/* ARAŞTIRMACI ÖZETİ */}
-      <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 ring-1 ring-gray-50">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="p-3 bg-blue-50 rounded-2xl">
-            <Brain className="text-blue-600" size={32} />
-          </div>
-          <div>
-            <h1 className="text-4xl font-black text-slate-900">{researcher?.full_name}</h1>
-            <p className="text-blue-600 font-bold tracking-wide">{researcher?.title || "Araştırmacı"}</p>
-          </div>
-        </div>
-        <p className="text-slate-600 italic text-lg">"{researcher?.bio}"</p>
-      </div>
-
-      {/* İSTEK TİPİ SEÇİCİ (KATILIM VS DAVET) */}
-      <div className="flex flex-col md:flex-row gap-4 p-2 bg-slate-100 rounded-3xl border border-slate-200">
-        <button 
-          onClick={() => { setRequestType('join_request'); setSelectedProjectId(null); }}
-          className={`flex-1 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all ${
-            requestType === 'join_request' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
+    <div className="min-h-screen bg-[#0b1020] text-slate-100 px-6 py-10">
+      <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(-1)}
+          className="text-slate-300 hover:text-white hover:bg-white/[0.05] rounded-xl"
         >
-          <Users size={20} /> Projesine Katılmak İstiyorum
-        </button>
-        <button 
-          onClick={() => { setRequestType('invite'); setSelectedProjectId(null); }}
-          className={`flex-1 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all ${
-            requestType === 'invite' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
+          <ArrowLeft className="mr-2" /> Geri Dön
+        </Button>
+
+        <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-8 shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-500/15 rounded-2xl border border-indigo-400/20">
+              <Brain className="text-indigo-300" size={32} />
+            </div>
+            <div>
+              <h1 className="text-4xl font-black text-white">{researcher?.full_name}</h1>
+              <p className="text-indigo-300 font-bold">{researcher?.title || "Araştırmacı"}</p>
+            </div>
+          </div>
+          {researcher?.bio && (
+            <p className="mt-4 text-slate-200/80 italic leading-relaxed">“{researcher.bio}”</p>
+          )}
+        </div>
+
+        <div className="flex gap-4 bg-white/[0.04] border border-white/10 rounded-2xl p-2">
+          <button
+            onClick={() => { setRequestType("join_request"); setSelectedProjectId(null); }}
+            className={`flex-1 py-3 rounded-xl font-black transition ${requestType === "join_request" ? "bg-indigo-500/20 text-indigo-300 shadow-lg shadow-indigo-500/10" : "text-slate-400 hover:text-white"}`}
+          >
+            <Users className="inline mr-2" size={18} /> Projesine Katıl
+          </button>
+          <button
+            onClick={() => { setRequestType("invite"); setSelectedProjectId(null); }}
+            className={`flex-1 py-3 rounded-xl font-black transition ${requestType === "invite" ? "bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/10" : "text-slate-400 hover:text-white"}`}
+          >
+            <UserPlus className="inline mr-2" size={18} /> Projeme Davet Et
+          </button>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-8">
+          <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
+            <h3 className="text-xl font-black mb-6 flex items-center gap-2">
+              <Code className="text-indigo-400" /> Uzmanlık Alanları
+            </h3>
+            <div className="space-y-5">
+              {researcher?.skills && Object.entries(researcher.skills).length > 0 ? (
+                Object.entries(researcher.skills).map(([skill, level]: any) => (
+                  <div key={skill} className="space-y-1.5">
+                    <div className="flex justify-between text-[11px] font-black text-slate-300 uppercase tracking-widest">
+                      <span>{skill}</span>
+                      <span className="text-indigo-300">%{level}</span>
+                    </div>
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 transition-all duration-700" style={{ width: `${level}%` }} />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-slate-500 italic text-sm text-center py-4">Bu araştırmacı henüz yeteneklerini mühürlememiş.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
+            <h3 className="text-xl font-black mb-6 flex items-center gap-2">
+              <FolderGit2 className="text-emerald-400" /> 
+              {requestType === "join_request" ? "Katılabileceğin Projeleri" : "Onu Davet Edebileceğin Projelerin"}
+            </h3>
+            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
+              {(requestType === "join_request" ? otherProjects : myProjects).map((p: any) => (
+                <div
+                  key={p.project_id}
+                  onClick={() => setSelectedProjectId(p.project_id)}
+                  className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${selectedProjectId === p.project_id ? "border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/5" : "border-white/5 bg-white/[0.03] hover:border-white/20"}`}
+                >
+                  {selectedProjectId === p.project_id && <CheckCircle2 className="absolute top-4 right-4 text-indigo-400" size={18} />}
+                  <p className="font-bold text-slate-100 pr-8">{p.title}</p>
+                </div>
+              ))}
+              {(requestType === "join_request" ? otherProjects : myProjects).length === 0 && (
+                <p className="text-slate-500 italic text-sm text-center py-10">Görüntülenecek proje bulunamadı.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {selectedProjectId && (
+          <div className="animate-in slide-in-from-bottom-4 duration-300">
+            <textarea
+              value={requestMessage}
+              onChange={(e) => setRequestMessage(e.target.value)}
+              className="w-full min-h-[140px] bg-white/[0.05] border border-white/10 rounded-3xl p-6 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 transition-all"
+              placeholder="İş birliği için bir not ekleyin..."
+            />
+          </div>
+        )}
+
+        <Button
+          onClick={handleSendRequest}
+          disabled={!selectedProjectId || isSending}
+          className="w-full h-16 rounded-[1.5rem] bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-black text-lg shadow-2xl transition-all active:scale-[0.98] disabled:opacity-30"
         >
-          <UserPlus size={20} /> Projeme Davet Etmek İstiyorum
-        </button>
+          {isSending ? <Loader2 className="animate-spin" /> : <><Send className="mr-2" size={20} /> İŞ BİRLİĞİ TALEBİ GÖNDER</>}
+        </Button>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* YETENEKLER */}
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-          <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <Code className="text-indigo-500" /> Uzmanlık Alanları
-          </h3>
-          <div className="space-y-4">
-            {researcher?.skills && Object.entries(researcher.skills).map(([skill, level]: any) => (
-              <div key={skill} className="space-y-1">
-                <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                  <span>{skill}</span>
-                  <span>%{level}</span>
-                </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500" style={{ width: `${level}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* PROJE LİSTESİ (SEÇİLEN TİPE GÖRE DEĞİŞİR) */}
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-          <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <FolderGit2 className={requestType === 'join_request' ? "text-emerald-500" : "text-indigo-500"} /> 
-            {requestType === 'join_request' ? 'Katılabileceğin Projeleri' : 'Onu Davet Edeceğin Projelerin'}
-          </h3>
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-            {(requestType === 'join_request' ? otherProjects : myProjects).map((project: any) => (
-              <div 
-                key={project.project_id} 
-                onClick={() => setSelectedProjectId(project.project_id)}
-                className={`p-4 cursor-pointer transition-all rounded-2xl border-2 relative ${
-                  selectedProjectId === project.project_id 
-                  ? 'border-blue-600 bg-blue-50' 
-                  : 'border-slate-100 bg-slate-50 hover:border-slate-200'
-                }`}
-              >
-                {selectedProjectId === project.project_id && (
-                  <CheckCircle2 className="absolute top-3 right-3 text-blue-600" size={18} />
-                )}
-                <h4 className="font-bold text-slate-800 text-sm">{project.title}</h4>
-              </div>
-            ))}
-            {(requestType === 'join_request' ? otherProjects : myProjects).length === 0 && (
-              <p className="text-slate-400 italic text-sm text-center py-8">Liste boş.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* NOT ALANI */}
-      {selectedProjectId && (
-        <div className="animate-in slide-in-from-bottom-4 duration-300">
-          <textarea 
-            className="w-full p-6 rounded-3xl border-2 border-slate-100 focus:border-blue-500 outline-none text-slate-700 min-h-[150px] shadow-inner bg-slate-50/50"
-            placeholder={requestType === 'join_request' ? "Neden bu projeye katılmalısın?" : "Neden seninle çalışmalı?"}
-            value={requestMessage}
-            onChange={(e) => setRequestMessage(e.target.value)}
-          />
-        </div>
-      )}
-
-      <Button 
-        onClick={handleSendRequest}
-        disabled={!selectedProjectId || isSending}
-        className={`w-full py-8 text-xl font-black rounded-3xl shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 ${
-          selectedProjectId 
-          ? (requestType === 'join_request' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-indigo-600 hover:bg-indigo-700') 
-          : 'bg-slate-200 text-slate-400'
-        } text-white`}
-      >
-        {isSending ? <Loader2 className="animate-spin" /> : <Send size={24} />}
-        {requestType === 'join_request' ? 'KATILIM İSTEĞİ GÖNDER' : 'PROJEME DAVET ET'}
-      </Button>
     </div>
-  );
-};
-
-export default ResearcherDetail;
+  )
+}

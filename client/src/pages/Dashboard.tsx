@@ -28,13 +28,13 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 // Components
 import SuggestedPartners from "@/components/ui/SuggestedPartners"
 import SkillUpdateForm from "@/components/ui/SkillUpdateForm"
-import IncomingRequests from "@/components/ui/IncomingRequests"
+// ℹ️ IncomingRequests artık bildirim panelinin içinde yaşayacak, merkezi bloktan silindi.
 import ProjectTeamList from "@/components/ui/ProjectTeamList"
 
-// Types (Aynen Korundu)
+// Types
 interface Suggestion { researcher_id: number; full_name: string; department_name: string; score: number; match_reasons: string[]; is_complementary: boolean; }
 interface UserProject { project_id: number; title: string; status: string; my_role: string; group_members: any[]; }
-interface UserProfile { researcher_id: number; full_name: string; email: string; title: string | null; role: string; department: number | null; department_name: string | null; skills: any; suggestions?: Suggestion[]; received_requests?: any[]; projects?: UserProject[]; }
+interface UserProfile { researcher_id: number; full_name: string; email: string; title: string | null; role: string; department: number | null; department_name: string | null; skills: any; suggestions?: Suggestion[]; received_requests?: any[]; projects?: UserProject[]; notifications?: any[]; }
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -42,6 +42,9 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // 🚀 BİLDİRİM STATE: Panelin açılıp kapanmasını yönetir
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // ✅ LIVE radar için: dashboard seviyesinde “draft skills”
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
@@ -55,20 +58,16 @@ export default function Dashboard() {
   }, [])
 
   const fetchProfile = async () => {
-    // 🚧 KİLİT KONTROLÜ: Tek hat üzerinden güvenli akış
     if (isFetching.current) return;
     isFetching.current = true;
 
     setIsRefreshing(true)
     try {
       const data = await authService.getProfile()
-      
-      // 🛡️ DOUBLE-SYNC: Hem profili hem yetenekleri aynı anda mühürle
       setProfile(data)
       
       if (data?.skills) {
         let cleanSkills = {};
-        // Veri formatı kontrolü (Array/Object uyumluluğu)
         if (Array.isArray(data.skills)) {
           cleanSkills = data.skills.find((i: any) => typeof i === 'object' && i !== null) || {};
         } else {
@@ -85,12 +84,10 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
       setIsRefreshing(false)
-      // 🔓 KİLİDİ AÇ
       isFetching.current = false;
     }
   }
 
-  // ✅ Radar grafiği verisi (skillsDraft'tan beslenir)
   const chartData = useMemo(() => {
     const s = skillsDraft
     if (!s || typeof s !== "object" || Array.isArray(s)) return []
@@ -170,12 +167,7 @@ export default function Dashboard() {
           </nav>
 
           <div className="p-4 border-t border-white/10">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10
-                         text-slate-300/70 hover:text-red-300 hover:border-red-400/20 hover:bg-red-500/5 transition"
-            >
+            <button type="button" onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 text-slate-300/70 hover:text-red-300 hover:border-red-400/20 hover:bg-red-500/5 transition">
               <LogOut size={18} />
               <span className="text-xs font-black uppercase tracking-widest">Sistemi Kapat</span>
             </button>
@@ -186,62 +178,65 @@ export default function Dashboard() {
           <header className="shrink-0 sticky top-0 z-30 h-20 px-5 sm:px-8 border-b border-white/10 bg-[#0b1020]/55 backdrop-blur-xl flex items-center justify-between">
             <div className="relative w-[320px] sm:w-[440px] hidden sm:block">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300/60" size={18} />
-              <input
-                type="text"
-                placeholder="Sistemde ara..."
-                className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-400/30 transition
-                           placeholder:text-slate-300/40"
-              />
+              <input type="text" placeholder="Sistemde ara..." className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-400/30 transition placeholder:text-slate-300/40" />
             </div>
 
             <div className="flex items-center gap-4 sm:gap-6 ml-auto">
-              <Button
-                onClick={fetchProfile}
-                variant="secondary"
-                className="hidden md:inline-flex rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10
-                           hover:bg-white/[0.09] font-black text-xs uppercase tracking-widest"
-              >
-                {isRefreshing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Yenileniyor
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2 text-indigo-300" />
-                    Yenile
-                  </>
-                )}
+              <Button onClick={fetchProfile} variant="secondary" className="hidden md:inline-flex rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10 hover:bg-white/[0.09] font-black text-xs uppercase tracking-widest">
+                {isRefreshing ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Yenileniyor</> : <><Sparkles className="h-4 w-4 mr-2 text-indigo-300" /> Yenile</>}
               </Button>
 
-              <button
-                type="button"
-                className="relative p-2 rounded-2xl text-slate-300/70 hover:text-indigo-200 hover:bg-white/[0.06] transition"
-                aria-label="Notifications"
-              >
-                <Bell size={22} />
-                {profile?.received_requests && profile.received_requests.length > 0 && (
-                  <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-indigo-400 rounded-full border-2 border-[#0b1020] shadow-[0_0_10px_rgba(129,140,248,0.9)]" />
+              {/* 🔔 BİLDİRİM MERKEZİ PANELİ */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 rounded-2xl text-slate-300/70 hover:text-indigo-200 hover:bg-white/[0.06] transition"
+                  aria-label="Notifications"
+                >
+                  <Bell size={22} />
+                  {/* 🔴 Otonom Uyarı: Bildirim varsa nokta yanar */}
+                  {profile?.notifications && profile.notifications.length > 0 && (
+                    <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-indigo-500 rounded-full border-2 border-[#0b1020] animate-pulse shadow-[0_0_10px_rgba(129,140,248,0.8)]" />
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-4 w-[350px] bg-[#0f172a] border border-white/10 rounded-[2rem] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="p-5 border-b border-white/10 bg-white/[0.02] flex justify-between items-center">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-100">Bildirimler</h4>
+                      <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">CANLI</span>
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                      {profile?.notifications && profile.notifications.length > 0 ? (
+                        profile.notifications.map((n: any) => (
+                          <div key={n.id} className="p-4 border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                            <div className="flex justify-between items-start mb-1">
+                              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{n.title}</p>
+                              <span className="text-[9px] text-slate-500 font-bold">{n.created_at}</span>
+                            </div>
+                            <p className="text-xs text-slate-200/80 leading-relaxed">{n.message}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-10 text-center opacity-40">
+                          <Bell size={32} className="mx-auto mb-3 text-slate-500" />
+                          <p className="text-[10px] font-black uppercase tracking-tighter">Bildirim Yok</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
 
               <div className="h-8 w-px bg-white/10 hidden sm:block" />
 
               <div className="flex items-center gap-4">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-black text-white leading-tight">{profile?.full_name}</p>
-                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-1">
-                    {profile?.title || "Researcher"}
-                  </p>
+                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-1">{profile?.title || "Researcher"}</p>
                 </div>
-
-                <Link
-                  to="/profile"
-                  className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center
-                               text-white font-black text-lg hover:scale-[1.03] transition shadow-sm"
-                  title="Profile"
-                >
+                <Link to="/profile" className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center text-white font-black text-lg hover:scale-[1.03] transition shadow-sm" title="Profile">
                   {profile?.full_name?.charAt(0) ?? "U"}
                 </Link>
               </div>
@@ -252,21 +247,15 @@ export default function Dashboard() {
             <div className="max-w-[1500px] mx-auto space-y-6 pb-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
-                    İstasyon <span className="text-indigo-300">Merkezi</span>
-                  </h2>
+                  <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white">İstasyon <span className="text-indigo-300">Merkezi</span></h2>
                   <p className="text-slate-300/65 font-semibold text-sm mt-2 flex items-center gap-2">
                     <ShieldCheck size={16} className="text-emerald-300" />
                     Sistem: {isRefreshing ? "Senkronize ediliyor..." : "Senkronize"}
                   </p>
                 </div>
-
-                <Button onClick={fetchProfile} variant="secondary" className="md:hidden rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10 font-black text-xs uppercase tracking-widest">
-                  Yenile
-                </Button>
               </div>
 
-              <IncomingRequests requests={profile?.received_requests || []} onRefresh={fetchProfile} />
+              {/* 🛡️ TEMİZLİK: image_b0c7e1.png'deki o büyük "IncomingRequests" bloğu buradan silindi. */}
 
               <div className="grid grid-cols-12 gap-6">
                 <div className="col-span-12 xl:col-span-8 space-y-6 min-w-0">
@@ -285,9 +274,7 @@ export default function Dashboard() {
                           </RadarChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="h-full w-full rounded-2xl border border-dashed border-white/15 bg-white/[0.03] flex items-center justify-center text-sm text-slate-200/70 font-semibold text-center px-4 italic">
-                          Yetenek verisi biyografiden ayıklanıyor veya henüz tanımlanmadı...
-                        </div>
+                        <div className="h-full w-full rounded-2xl border border-dashed border-white/15 bg-white/[0.03] flex items-center justify-center text-sm text-slate-200/70 font-semibold text-center px-4 italic">Yetenek verisi biyografiden ayıklanıyor veya henüz tanımlanmadı...</div>
                       )}
                     </CardContent>
                   </Card>

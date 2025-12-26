@@ -54,11 +54,15 @@ class SkillSerializer(serializers.ModelSerializer):
 
 # --- 2. ANA ARAŞTIRMACI MOTORU (DASHBOARD VERİSİ) ---
 
+# core/serializers.py
+
 class ResearcherSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     suggestions = serializers.SerializerMethodField()
     received_requests = serializers.SerializerMethodField()
-    projects = serializers.SerializerMethodField() 
+    projects = serializers.SerializerMethodField()
+    # 🚀 YENİ MÜHÜR: Bildirimler bu kapıdan Dashboard'a akacak
+    notifications = serializers.SerializerMethodField() 
 
     class Meta:
         model = Researcher
@@ -66,8 +70,26 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'researcher_id', 'full_name', 'email', 'title',
             'department', 'department_name', 'bio',
             'created_at', 'skills', 'suggestions',
-            'received_requests', 'projects'
+            'received_requests', 'projects',
+            'notifications' # 🛰️ Listeye eklendi
         ]
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_notifications(self, obj):
+        """
+        🔔 OTONOM TAKİP: Bildirimleri en yeniden en eskiye sıralar.
+        """
+        from .models import Notification
+        notes = Notification.objects.filter(recipient=obj).order_by('-created_at')[:10]
+        return [{
+            'id': n.notification_id,
+            'title': n.title,
+            'message': n.message,
+            'is_read': n.is_read,
+            'created_at': n.created_at.strftime("%H:%M")
+        } for n in notes]
+
+    # ... (get_projects, get_received_requests ve get_suggestions kısımları aynen kalsın)
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
@@ -97,6 +119,7 @@ class ResearcherSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_received_requests(self, obj):
+        # Bu alan UI'da görünmese bile arka plan verisi için korundu
         requests = CollaborationRequest.objects.filter(receiver=obj, status__in=['pending', 'Beklemede'])
         return [{
             'request_id': r.request_id,
@@ -110,11 +133,8 @@ class ResearcherSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):
         """
-        🚀 MÜHÜRLÜ HIZLI HAT: Hesaplama yapma! 
-        Artık her GET isteğinde get_collaboration_suggestions çağrılmıyor.
-        Sadece veritabanındaki yeni açtığımız JSON alanını dönüyoruz.
+        🚀 MÜHÜRLÜ HIZLI HAT: Veritabanındaki hazır JSON'u döner.
         """
-        # Veritabanında veri varsa onu dön, yoksa boş liste dön
         return obj.suggestions_json if obj.suggestions_json else []
 
 # --- 3. AKSİYON VE KAYIT SERIALIZER'LARI (DEĞİŞMEDİ) ---

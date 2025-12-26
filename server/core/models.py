@@ -407,4 +407,29 @@ def update_researcher_embedding(sender, instance, created, **kwargs):
         except Exception as e:
             print(f"❌ {instance.full_name} için AI vektör hatası: {e}")
 
-            
+
+# core/models.py (En alt kısım)
+
+@receiver(post_save, sender=CollaborationRequest)
+def create_collaboration_notification(sender, instance, created, **kwargs):
+    """
+    🛡️ KRİTİK MÜHÜR: İstek gönderildiğinde veya durumu değiştiğinde 
+    bildirim oluşturur.
+    """
+    if created:
+        # Sena birine istek attığında karşı tarafa (Receiver) bildirim gider
+        title = "Yeni İş Birliği Talebi"
+        msg = f"{instance.sender.full_name}, '{instance.project.title}' projesi için talep gönderdi."
+        Notification.objects.create(recipient=instance.receiver, title=title, message=msg)
+    else:
+        # İstek kabul edildiğinde isteği atana (Sender) müjde verilir
+        if instance.status == 'accepted':
+            title = "İş Birliği Onaylandı"
+            msg = f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi kabul etti!"
+            Notification.objects.create(recipient=instance.sender, title=title, message=msg)
+        
+        # İstek reddedildiğinde bildirim gider
+        elif instance.status == 'rejected':
+            title = "İstek Reddedildi"
+            msg = f"{instance.receiver.full_name}, '{instance.project.title}' projesi talebinizi reddetti."
+            Notification.objects.create(recipient=instance.sender, title=title, message=msg)            
