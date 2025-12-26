@@ -45,10 +45,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  // 🚀 BİLDİRİM VE İNCELEME STATE'LERİ
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
+  // ✅ LIVE radar için: dashboard seviyesinde “draft skills”
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
+  
+  // 🛡️ OTONOM KİLİT: Çift isteği engelleyen kilit mekanizması
   const isFetching = useRef(false);
 
   useEffect(() => {
@@ -87,17 +91,19 @@ export default function Dashboard() {
     }
   }
 
+  // 🚀 SİLME FONKSİYONU: Bildirimi otonom olarak imha eder
   const handleDeleteNotification = async (e: React.MouseEvent, notificationId: number) => {
-    e.stopPropagation();
+    e.stopPropagation(); // 🚫 Modalın açılmasını engeller
     try {
       await api.delete(`/api/notifications/${notificationId}/`); 
       toast.success("Bildirim istasyondan temizlendi.");
-      fetchProfile();
+      fetchProfile(); // 🔄 Listeyi tazele
     } catch (error) {
       toast.error("Temizlik işlemi başarısız oldu.");
     }
   }
 
+  // 🚀 YANIT FONKSİYONU: Kabul/Red işlemini fırlatır
   const handleRespond = async (requestId: number, status: string, msg: string) => {
     try {
       await api.post("/api/researchers/respond-request/", {
@@ -162,7 +168,6 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#0b1020] text-slate-100 font-sans">
-      {/* Background gradients... */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/12 via-transparent to-transparent" />
         <div className="absolute -top-24 -right-24 h-[520px] w-[520px] rounded-full bg-fuchsia-500/10 blur-3xl" />
@@ -170,7 +175,6 @@ export default function Dashboard() {
       </div>
 
       <div className="relative h-full flex overflow-hidden">
-        {/* Sidebar... */}
         <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
           <div className="p-6 border-b border-white/10">
             <div className="flex items-center gap-3">
@@ -213,13 +217,11 @@ export default function Dashboard() {
                 {isRefreshing ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Yenileniyor</> : <><Sparkles className="h-4 w-4 mr-2 text-indigo-300" /> Yenile</>}
               </Button>
 
-              {/* 🔔 BİLDİRİM MERKEZİ PANELİ */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-2 rounded-2xl text-slate-300/70 hover:text-indigo-200 hover:bg-white/[0.06] transition"
-                  aria-label="Notifications"
                 >
                   <Bell size={22} />
                   {profile?.notifications && profile.notifications.length > 0 && (
@@ -240,18 +242,23 @@ export default function Dashboard() {
                             key={n.id} 
                             className={`group relative p-4 border-b border-white/5 hover:bg-white/[0.08] transition-colors cursor-pointer ${n.is_actionable ? 'border-l-2 border-l-indigo-500' : ''}`}
                             onClick={() => {
-                              // 🛡️ MÜHÜR: Sadece aksiyon gerektiren bildirimler modalı açar
-                              if (n.is_actionable && n.request_id) {
+                              // 🛡️ MÜHÜR: request_id varsa her durumda (Özet veya İşlem için) modalı açar
+                              if (n.request_id) {
                                 setSelectedRequest(n);
                               } else {
-                                // Red mesajı gibi durumlarda sadece toast göster, modalı açma!
                                 toast.info(n.message, { description: n.title });
                               }
                               setShowNotifications(false);
                             }}
                           >
                             <div className="flex justify-between items-start mb-1">
-                              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{n.title}</p>
+                              <div className="flex items-center gap-2">
+                                {/* Otonom Durum Göstergesi: Sadece bekleyenler için indigo nokta */}
+                                {n.is_actionable && (
+                                  <span className="h-1.5 w-1.5 bg-indigo-500 rounded-full animate-pulse" />
+                                )}
+                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{n.title}</p>
+                              </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-[9px] text-slate-500 font-bold">{n.created_at}</span>
                                 <button 
@@ -283,7 +290,7 @@ export default function Dashboard() {
                   <p className="text-sm font-black text-white leading-tight">{profile?.full_name}</p>
                   <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-1">{profile?.title || "Researcher"}</p>
                 </div>
-                <Link to="/profile" className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center text-white font-black text-lg hover:scale-[1.03] transition shadow-sm" title="Profile">
+                <Link to="/profile" className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center text-white font-black text-lg hover:scale-[1.03] transition shadow-sm">
                   {profile?.full_name?.charAt(0) ?? "U"}
                 </Link>
               </div>
@@ -356,6 +363,7 @@ export default function Dashboard() {
         </section>
       </div>
 
+      {/* 🏝️ YÜZEN ADA (MODAL) */}
       {selectedRequest && (
         <CollaborationReviewModal 
           request={selectedRequest} 

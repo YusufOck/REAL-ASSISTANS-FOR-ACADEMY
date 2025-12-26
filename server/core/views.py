@@ -260,7 +260,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             )
             return Response({"detail": "İş birliği talebi fırlatıldı."}, status=201)
             
-        return Response(serializer.errors, status=400)
+        return Response(serializer.errors, status=400)  
 
     @action(detail=False, methods=['post'], url_path='respond-request')
     def respond_request(self, request):

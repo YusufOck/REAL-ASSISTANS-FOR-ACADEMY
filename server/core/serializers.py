@@ -86,6 +86,8 @@ class ResearcherSerializer(serializers.ModelSerializer):
 
     # core/serializers.py içindeki get_notifications metodu
 
+    # core/serializers.py içindeki get_notifications metodu
+
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_notifications(self, obj):
         from .models import Notification, CollaborationRequest
@@ -96,16 +98,15 @@ class ResearcherSerializer(serializers.ModelSerializer):
             if n.request_id:
                 req = CollaborationRequest.objects.filter(request_id=n.request_id).first()
             
-            # 🛰️ OTONOM KONTROL: Sadece 'YENİ' talepler modal açabilir
-            is_actionable = n.title == "YENİ İŞ BİRLİĞİ TALEBİ"
-
             note_data = {
                 'id': n.notification_id,
                 'title': n.title,
                 'message': n.message,
                 'created_at': n.created_at.strftime("%H:%M"),
                 'request_id': n.request_id,
-                'is_actionable': is_actionable, # 🚀 Bu bayrak frontend'e yol gösterecek
+                # 🛰️ MÜHÜRLÜ VERİLER: Modalın içeriği için gereken her şey
+                'status': req.status if req else 'completed', # pending, accepted, rejected
+                'project_name': req.project.title if req else "Bilinmeyen Proje",
                 'sender_name': req.sender.full_name if req else "Sistem",
                 'sender_bio': req.sender.bio if req else "",
                 'sender_skills': req.sender.skills if req else {},
