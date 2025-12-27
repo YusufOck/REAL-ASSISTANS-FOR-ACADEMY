@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import { api } from "@/lib/api" // 🛰️ API Instance entegre edildi
 
 export default function ResearcherDetail() {
   const { id } = useParams()
@@ -29,33 +30,28 @@ export default function ResearcherDetail() {
   const [requestMessage, setRequestMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
 
-  // 🛡️ OTONOM KİLİT: image_b03ca5.png'deki o çift istekleri engelleyen kilit mekanizması
+  // 🛡️ OTONOM KİLİT: image_b03ca5.png'deki çift istekleri engeller
   const isFetching = useRef(false)
 
   useEffect(() => {
     const fetchData = async () => {
-      // 🚧 KİLİT KONTROLÜ: Eğer bir hat zaten açıksa, ikinciyi otonom olarak reddet
       if (isFetching.current) return
       isFetching.current = true
 
       setLoading(true)
       try {
-        const token = localStorage.getItem("accessToken")
-        const headers = { Authorization: `Bearer ${token}` }
-
-        // 🛰️ VERİ İSTASYONU: Üç farklı veri kaynağı tek hat üzerinden paralel çekiliyor
-        const [resProfile, resOtherProjects, resMe] = await Promise.all([
-          fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/`, { headers }),
-          fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/projects/`, { headers }),
-          fetch(`https://real-assistans-for-academy-cbun.onrender.com/api/researchers/me/`, { headers }),
+        // 🛰️ VERİ İSTASYONU: api.get kullanılarak headers ve prefix yönetimi otonomlaştırıldı
+        const [resProfile, resProjects, resMe] = await Promise.all([
+          api.get(`/researchers/${id}/`),
+          api.get(`/researchers/${id}/projects/`),
+          api.get(`/researchers/me/`),
         ])
 
-        const profileRaw = await resProfile.json()
-        const projectsData = await resOtherProjects.json()
-        const meData = await resMe.json()
+        const profileRaw = resProfile.data
+        const projectsData = resProjects.data
+        const meData = resMe.data
 
-        // 🛡️ VERİ SENKRONİZASYONU: "Uzmanlık Alanları Neden Boş?" sorusunu çözen mühürleme bloğu
-        // Backend bazen profil verisini veya skills verisini dizi olarak gönderebiliyor
+        // 🛡️ VERİ SENKRONİZASYONU: "Uzmanlık Alanları" mühürleme bloğu
         let cleanProfile = Array.isArray(profileRaw) ? profileRaw.find(i => typeof i === 'object') : profileRaw;
         
         if (cleanProfile && cleanProfile.skills && Array.isArray(cleanProfile.skills)) {
@@ -65,49 +61,35 @@ export default function ResearcherDetail() {
         setResearcher(cleanProfile)
         setOtherProjects(projectsData)
         setMyProjects(meData.projects || [])
-      } catch (error) {
-        toast.error("Araştırmacı verileri senkronize edilemedi.")
+      } catch (error: any) {
+        // 500 hatası alındığında (image_4b4600.png) kullanıcıyı bilgilendirir
+        toast.error("Veriler senkronize edilemedi. Sistem hatası (500).")
       } finally {
         setLoading(false)
-        // 🔓 KİLİDİ AÇ: Veri akışı tamamlandı
         isFetching.current = false
       }
     }
 
     if (id) fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   const handleSendRequest = async () => {
     if (!selectedProjectId) return
     setIsSending(true)
     try {
-      const token = localStorage.getItem("accessToken")
-      const res = await fetch(
-        `https://real-assistans-for-academy-cbun.onrender.com/api/researchers/${id}/send-request/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            receiver_id: id,
-            project_id: selectedProjectId,
-            message: requestMessage,
-            request_type: requestType,
-          }),
-        }
-      )
-      if (!res.ok) {
-        const e = await res.json()
-        throw new Error(e.detail)
-      }
+      // 🚀 İŞ BİRLİĞİ TRANSFERİ: POST isteği api instance üzerinden atılıyor
+      await api.post(`/researchers/${id}/send-request/`, {
+        receiver_id: id,
+        project_id: selectedProjectId,
+        message: requestMessage,
+        request_type: requestType,
+      })
+      
       toast.success("İş birliği talebi fırlatıldı.")
       setSelectedProjectId(null)
       setRequestMessage("")
     } catch (e: any) {
-      toast.error(e.message || "İstek gönderilemedi.")
+      toast.error(e.response?.data?.detail || "İstek gönderilemedi.")
     } finally {
       setIsSending(false)
     }
@@ -132,13 +114,14 @@ export default function ResearcherDetail() {
           <ArrowLeft className="mr-2" /> Geri Dön
         </Button>
 
+        {/* Profil Kartı */}
         <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-8 shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-indigo-500/15 rounded-2xl border border-indigo-400/20">
               <Brain className="text-indigo-300" size={32} />
             </div>
             <div>
-              <h1 className="text-4xl font-black text-white">{researcher?.full_name}</h1>
+              <h1 className="text-4xl font-black text-white">{researcher?.full_name || "Bilinmeyen Araştırmacı"}</h1>
               <p className="text-indigo-300 font-bold">{researcher?.title || "Araştırmacı"}</p>
             </div>
           </div>
@@ -147,6 +130,7 @@ export default function ResearcherDetail() {
           )}
         </div>
 
+        {/* İstek Türü Seçici */}
         <div className="flex gap-4 bg-white/[0.04] border border-white/10 rounded-2xl p-2">
           <button
             onClick={() => { setRequestType("join_request"); setSelectedProjectId(null); }}
@@ -163,6 +147,7 @@ export default function ResearcherDetail() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
+          {/* Uzmanlık Alanları */}
           <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
             <h3 className="text-xl font-black mb-6 flex items-center gap-2">
               <Code className="text-indigo-400" /> Uzmanlık Alanları
@@ -186,6 +171,7 @@ export default function ResearcherDetail() {
             </div>
           </div>
 
+          {/* Proje Listesi */}
           <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
             <h3 className="text-xl font-black mb-6 flex items-center gap-2">
               <FolderGit2 className="text-emerald-400" /> 
@@ -209,6 +195,7 @@ export default function ResearcherDetail() {
           </div>
         </div>
 
+        {/* Mesaj Alanı */}
         {selectedProjectId && (
           <div className="animate-in slide-in-from-bottom-4 duration-300">
             <textarea

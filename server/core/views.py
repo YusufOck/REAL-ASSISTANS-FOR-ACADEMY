@@ -302,13 +302,15 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def projects(self, request, pk=None):
         """
-        ORM DÖNÜŞÜMÜ: memberships__researcher_id filtresi 
-        Project modelinde Researcher ile olan Many-to-Many adıdır.
+        🛡️ KRİTİK DÜZELTME: 'status' alanı 'phase' olarak güncellendi.
         """
-        # Burada 'memberships' ismini kullandığın için Project modelinde 
-        # related_name='memberships' olduğundan emin olmalısın.
+        # .values() içinde 'status' yazarsan 500 hatası alırsın.
         projs = Project.objects.filter(memberships__researcher_id=pk).values(
-            'project_id', 'title', 'status', 'start_date', 'end_date'
+            'project_id', 
+            'title', 
+            'phase',        # ✅ DOĞRU: Modeldeki alan adı budur
+            'start_date', 
+            'end_date'
         )
         return Response(list(projs))
 
