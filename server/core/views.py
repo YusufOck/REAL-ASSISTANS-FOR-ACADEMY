@@ -41,6 +41,13 @@ from .serializers import (
 # -------------------------
 #  Basit CRUD ViewSet'ler (URLs.py bağımlılıkları için tam liste)
 # -------------------------
+from rest_framework.pagination import PageNumberPagination
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10  # Her sayfada kaç kullanıcı görünsün?
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
@@ -146,11 +153,29 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"⚠️ Analiz/Eşleştirme Hatası: {str(e)}", flush=True)
             
+    pagination_class = StandardResultsSetPagination # 🚀 Sayfalama aktif!
+
     def get_queryset(self):
-        # 🛡️ Sadece departmanı JOIN yap, yetenekleri listeleme sayfasında çekme!
-        return Researcher.objects.select_related('department').all().order_by('-researcher_id')
-    
-    
+        # 🛡️ Hafifletilmiş sorgu: prefetch_related hatasını engellemek için sadece select_related
+        queryset = Researcher.objects.select_related('department').all()
+        
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(full_name__icontains=search)
+            
+        dept = self.request.query_params.get('department')
+        if dept:
+            queryset = queryset.filter(department_id=dept)
+            
+        # 🛡️ YETENEK FİLTRESİ (RE-ACTIVATE):
+        skills_raw = self.request.query_params.get('skills')
+        if skills_raw:
+            skill_ids = [int(s) for s in skills_raw.split(',')]
+            for s_id in skill_ids:
+                # AND mantığı: Seçilen tüm yeteneklere sahip olanları getirir
+                queryset = queryset.filter(researcherskill__skill_id=s_id)
+                
+        return queryset.order_by('-researcher_id').distinct()
     def get_serializer_class(self):
         # 🛰️ Eğer liste (GET /researchers/) isteniyorsa hafif olanı kullan
         if self.action == 'list':
