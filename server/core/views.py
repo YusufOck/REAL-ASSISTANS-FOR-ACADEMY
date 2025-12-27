@@ -429,11 +429,17 @@ class ProjectViewSet(viewsets.ModelViewSet):
         🛡️ GÜVENLİK KİLİDİ: Sadece kullanıcının dahil olduğu veya yönettiği projeler.
         """
         try:
+            # 1. Mevcut oturum açmış araştırmacıyı çek
             researcher = Researcher.objects.get(user=self.request.user)
+            
+            # 🚀 KRİTİK DÜZELTME: 'researcher_skills' alanı Project modelinde yok.
+            # Loglardaki ipucuna dayanarak 'memberships' üzerinden filtreleme yapıyoruz.
             return Project.objects.filter(
-                Q(pi=researcher) | Q(researcher_skills__researcher=researcher) 
+                Q(pi=researcher) | Q(memberships__researcher=researcher) 
             ).distinct().order_by('-created_at')
+            
         except Researcher.DoesNotExist:
+            # Profil bulunamazsa boş liste dönerek 500 hatasını engelle
             return Project.objects.none()
 
     def perform_create(self, serializer):
