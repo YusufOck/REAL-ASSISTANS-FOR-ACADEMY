@@ -87,14 +87,7 @@ export default function Login() {
           </div>
 
           <div className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <Label className="text-blue-300/50 text-[10px] uppercase tracking-[0.3em] font-black">Security Key</Label>
-              <Link to="/forgot-password" 
-                className="text-[9px] text-blue-400/70 hover:text-blue-300 transition-colors uppercase font-black"
-              >
-                Forgot Password?
-              </Link>
-            </div>
+            
             <div className="relative group">
               <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400/60 group-focus-within:text-blue-400 transition-colors" />
               <Input 

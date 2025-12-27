@@ -42,16 +42,13 @@ export default function Dashboard() {
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
   const isFetching = useRef(false)
 
-  // ✅ Notification dropdown is now PORTAL: position calculation
   const bellBtnRef = useRef<HTMLButtonElement | null>(null)
   const [notifPos, setNotifPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   useEffect(() => {
     fetchProfile()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ✅ Update position while dropdown is open (including nested scroll)
   useEffect(() => {
     const calc = () => {
       if (!bellBtnRef.current) return
@@ -59,7 +56,7 @@ export default function Dashboard() {
       const width = 350
       setNotifPos({
         top: r.bottom + 14,
-        left: Math.max(12, r.right - width), // prevent overflow
+        left: Math.max(12, r.right - width),
         width,
       })
     }
@@ -67,7 +64,7 @@ export default function Dashboard() {
     if (showNotifications) calc()
 
     window.addEventListener("resize", calc)
-    window.addEventListener("scroll", calc, true) // TRUE for nested scroll
+    window.addEventListener("scroll", calc, true)
     return () => {
       window.removeEventListener("resize", calc)
       window.removeEventListener("scroll", calc, true)
@@ -166,7 +163,6 @@ export default function Dashboard() {
           <nav className="flex-1 p-4 space-y-2">
             <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" to="/dashboard" active />
             <NavItem icon={<FolderKanban size={18} />} label="Project" to="/projects" />
-            {/* 🚀 Users now active! */}
             <NavItem icon={<Users size={18} />} label="Users" to="/users" /> 
             <NavItem icon={<Settings size={18} />} label="Settings" to="/profile" />
           </nav>
@@ -262,7 +258,20 @@ export default function Dashboard() {
                       <Atom size={18} className="text-indigo-400" />
                     </CardHeader>
                     <CardContent className="h-[480px] p-8">
-                      {chartData.length > 0 ? (
+                      {/* 🚀 AI ANALİZ DURUMU KONTROLÜ */}
+                      {profile?.is_analyzing ? (
+                        <div className="h-full flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-500">
+                          <Loader2 className="h-12 w-12 animate-spin text-indigo-400" />
+                          <div className="text-center space-y-1">
+                            <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-300 animate-pulse">
+                              AI is Analyzing Your Bio...
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                              Extracting skills and matching scores
+                            </p>
+                          </div>
+                        </div>
+                      ) : chartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <RadarChart data={chartData}>
                             <PolarGrid stroke="rgba(255,255,255,0.1)" />
@@ -298,12 +307,10 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* ✅ Notification Dropdown (Portal) - never sits under anything */}
       {showNotifications &&
         notifPos &&
         createPortal(
           <>
-            {/* close on outside click */}
             <div className="fixed inset-0 z-[9998]" onClick={() => setShowNotifications(false)} />
 
             <div
