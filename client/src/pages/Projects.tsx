@@ -1,6 +1,7 @@
 // src/pages/Projects.tsx
-import { useState, useEffect, useRef } from "react" // 🚀 useRef eklendi
-import { Plus, LayoutGrid, FolderKanban, Loader2 } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Plus, LayoutGrid, FolderKanban, Loader2, ArrowLeft } from "lucide-react" // 🚀 ArrowLeft eklendi
+import { useNavigate } from "react-router-dom" // 🚀 useNavigate eklendi
 import { Button } from "@/components/ui/button"
 import CreateProjectModal from "@/components/ui/CreateProjectModal"
 import ProjectDetailModal from "@/components/ui/ProjectDetailModal"
@@ -12,24 +13,24 @@ export default function Projects() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedProject, setSelectedProject] = useState<any>(null)
   
-  // 🛡️ OTONOM KİLİT: Çift istekleri (StrictMode vb.) engeller
+  const navigate = useNavigate() // 🛰️ Navigasyon motoru başlatıldı
+  
+  // 🛡️ OTONOM KİLİT: Çift istekleri engeller
   const isFetching = useRef(false);
 
   const fetchProjects = async () => {
-    // Eğer bir istek zaten yoldaysa, ikinciyi başlatma
     if (isFetching.current) return; 
     isFetching.current = true;
     setLoading(true);
 
     try {
-      // 🛰️ MÜHÜR: urls.py ile tam uyum için /api/ ön eki mühürlendi
       const res = await api.get("/projects/"); 
       setProjects(res.data.results || []);
     } catch (err) { 
       console.error("Projeler istasyona yüklenemedi:", err) 
     } finally {
       setLoading(false);
-      isFetching.current = false; // İşlem bitince kilidi otonom olarak aç
+      isFetching.current = false;
     }
   }
 
@@ -39,10 +40,30 @@ export default function Projects() {
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500 bg-[#0b1020] min-h-screen text-slate-100">
+      
+      {/* 🚀 DASHBOARD'A DÖN BUTONU (SOL ÜST) */}
+      <div className="flex justify-start">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/dashboard')}
+          className="group flex items-center gap-3 text-slate-400 hover:text-white transition-all bg-white/5 border border-white/10 rounded-2xl px-5 py-7 hover:bg-indigo-500/10 hover:border-indigo-500/50 shadow-2xl"
+        >
+          <div className="p-2 rounded-xl bg-white/5 group-hover:bg-indigo-500/20 transition-colors">
+            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-50">Sistem Hattı</span>
+            <span className="text-sm font-black tracking-tight">DASHBOARD'A DÖN</span>
+          </div>
+        </Button>
+      </div>
+
       {/* Sayfa Başlığı ve Aksiyon Butonu */}
       <div className="flex justify-between items-end border-b border-white/5 pb-8">
         <div>
-          <h2 className="text-4xl font-black text-white tracking-tighter">Proje <span className="text-indigo-400">İstasyonu</span></h2>
+          <h2 className="text-4xl font-black text-white tracking-tighter uppercase">
+            Proje <span className="text-indigo-400 font-black">İstasyonu</span>
+          </h2>
           <div className="flex items-center gap-2 mt-2">
              <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
              <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Aktif Operasyonlar</p>
@@ -50,9 +71,9 @@ export default function Projects() {
         </div>
         <Button 
           onClick={() => setShowCreateModal(true)}
-          className="h-14 px-8 rounded-[1.5rem] bg-indigo-500 hover:bg-indigo-600 text-white font-black shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95"
+          className="h-16 px-10 rounded-[1.5rem] bg-indigo-500 hover:bg-indigo-600 text-white font-black shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-indigo-700"
         >
-          <Plus size={20} className="mr-2" /> YENİ PROJE BAŞLAT
+          <Plus size={22} className="mr-2" /> YENİ PROJE BAŞLAT
         </Button>
       </div>
 

@@ -145,7 +145,31 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             print(f"⚠️ Analiz/Eşleştirme Hatası: {str(e)}", flush=True)
-
+            
+    def get_queryset(self):
+        # select_related ile N+1 problemini çözüyoruz (Performans)
+        queryset = Researcher.objects.select_related('department').prefetch_related('skills').all()
+        
+        # 1. İsimle Arama
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(full_name__icontains=search)
+            
+        # 2. Departman Filtresi
+        dept = self.request.query_params.get('department')
+        if dept:
+            queryset = queryset.filter(department_id=dept)
+            
+        # 3. Gelişmiş Skill Filtresi (AND Mantığı)
+        # Örn: ?skills=1,2,3 -> Bu 3 yeteneğe birden sahip olanları getir.
+        skills_raw = self.request.query_params.get('skills')
+        if skills_raw:
+            skill_ids = [int(s) for s in skills_raw.split(',')]
+            for s_id in skill_ids:
+                queryset = queryset.filter(skills__skill_id=s_id)
+                
+        return queryset.distinct()
+    
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
         """

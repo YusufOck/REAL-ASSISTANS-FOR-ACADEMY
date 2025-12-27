@@ -1,10 +1,10 @@
-// src/pages/Dashboard.tsx
-import { useEffect, useMemo, useState, useRef } from "react" 
+import { useEffect, useMemo, useState, useRef } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { createPortal } from "react-dom"
 
 import { authService } from "@/services/authService"
-import { api } from "@/lib/api" // 🛰️ MÜHÜR: Named import düzeltildi
-import { Button } from "@/components/ui/button" 
+import { api } from "@/lib/api"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import {
@@ -21,7 +21,7 @@ import {
   Users,
   Sparkles,
   Trash2,
-  BookOpen
+  BookOpen,
 } from "lucide-react"
 
 import { toast } from "sonner"
@@ -29,7 +29,7 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 
 // Components
 import SkillUpdateForm from "@/components/ui/SkillUpdateForm"
-import CollaborationReviewModal from "@/components/ui/CollaborationReviewModal" 
+import CollaborationReviewModal from "@/components/ui/CollaborationReviewModal"
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -38,52 +38,81 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState<any>(null)
 
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
-  const isFetching = useRef(false);
+  const isFetching = useRef(false)
+
+  // ✅ Bildirim dropdown’u artık PORTAL: pozisyon hesap
+  const bellBtnRef = useRef<HTMLButtonElement | null>(null)
+  const [notifPos, setNotifPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   useEffect(() => {
     fetchProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ✅ Dropdown açıkken konum güncelle (nested scroll dahil)
+  useEffect(() => {
+    const calc = () => {
+      if (!bellBtnRef.current) return
+      const r = bellBtnRef.current.getBoundingClientRect()
+      const width = 350
+      setNotifPos({
+        top: r.bottom + 14,
+        left: Math.max(12, r.right - width), // taşmayı engelle
+        width,
+      })
+    }
+
+    if (showNotifications) calc()
+
+    window.addEventListener("resize", calc)
+    window.addEventListener("scroll", calc, true) // nested scroll için TRUE
+    return () => {
+      window.removeEventListener("resize", calc)
+      window.removeEventListener("scroll", calc, true)
+    }
+  }, [showNotifications])
+
   const fetchProfile = async () => {
-    if (isFetching.current) return;
-    isFetching.current = true;
+    if (isFetching.current) return
+    isFetching.current = true
 
     setIsRefreshing(true)
     try {
       const data = await authService.getProfile()
       setProfile(data)
-      
+
       if (data?.skills) {
-        let cleanSkills = Array.isArray(data.skills) 
-          ? data.skills.find((i: any) => typeof i === 'object' && i !== null) || {} 
-          : data.skills;
-        setSkillsDraft(cleanSkills);
+        const cleanSkills = Array.isArray(data.skills)
+          ? data.skills.find((i: any) => typeof i === "object" && i !== null) || {}
+          : data.skills
+        setSkillsDraft(cleanSkills)
       }
-      
     } catch (error: any) {
       if (error.response?.status === 401) {
-        authService.logout(); navigate("/login"); return;
+        authService.logout()
+        navigate("/login")
+        return
       }
       toast.error("Profil senkronize edilemedi.")
     } finally {
       setLoading(false)
       setIsRefreshing(false)
-      isFetching.current = false;
+      isFetching.current = false
     }
   }
 
   const handleDeleteNotification = async (e: React.MouseEvent, notificationId: number) => {
-    e.stopPropagation();
+    e.stopPropagation()
     try {
-      await api.delete(`/api/notifications/${notificationId}/`); 
-      toast.success("Bildirim temizlendi.");
-      fetchProfile();
+      await api.delete(`/notifications/${notificationId}/`)
+      toast.success("Bildirim temizlendi.")
+      fetchProfile()
     } catch (error) {
-      toast.error("Temizlik başarısız oldu.");
+      toast.error("Temizlik başarısız oldu.")
     }
   }
 
@@ -92,13 +121,13 @@ export default function Dashboard() {
       await api.post("/researchers/respond-request/", {
         request_id: requestId,
         status: status,
-        response_message: msg
-      });
-      toast.success(status === 'accepted' ? "Onaylandı!" : "Reddedildi.");
-      fetchProfile(); 
-      setSelectedRequest(null);
+        response_message: msg,
+      })
+      toast.success(status === "accepted" ? "Onaylandı!" : "Reddedildi.")
+      fetchProfile()
+      setSelectedRequest(null)
     } catch (error: any) {
-      toast.error("İşlem başarısız: " + (error.response?.data?.detail || "Sunucu hatası"));
+      toast.error("İşlem başarısız: " + (error.response?.data?.detail || "Sunucu hatası"))
     }
   }
 
@@ -137,17 +166,23 @@ export default function Dashboard() {
           </div>
 
           <nav className="flex-1 p-4 space-y-2">
-            <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" active />
-            {/* 🚀 MÜHÜR: Project butonu artık yeni operasyon sayfasına gidiyor */}
+            <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" to="/dashboard" active />
             <NavItem icon={<FolderKanban size={18} />} label="Project" to="/projects" />
             <NavItem icon={<Trophy size={18} />} label="Accomments" />
             <NavItem icon={<BookOpen size={18} />} label="Deepgoes" />
-            <NavItem icon={<Users size={18} />} label="Users" />
+            {/* 🚀 Users artık aktif! */}
+            <NavItem icon={<Users size={18} />} label="Users" to="/users" /> 
             <NavItem icon={<Settings size={18} />} label="Settings" to="/profile" />
           </nav>
 
           <div className="p-4 border-t border-white/10">
-            <button onClick={() => { authService.logout(); navigate("/login"); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 text-slate-300/70 hover:text-red-300 transition hover:bg-red-500/5">
+            <button
+              onClick={() => {
+                authService.logout()
+                navigate("/login")
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 text-slate-300/70 hover:text-red-300 transition hover:bg-red-500/5"
+            >
               <LogOut size={18} />
               <span className="text-xs font-black uppercase tracking-widest">Sistemi Kapat</span>
             </button>
@@ -158,54 +193,52 @@ export default function Dashboard() {
           <header className="h-20 px-8 border-b border-white/10 bg-[#0b1020]/55 backdrop-blur-xl flex items-center justify-between">
             <div className="relative w-[440px] hidden sm:block">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300/60" size={18} />
-              <input type="text" placeholder="Sistemde ara..." className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-3 pl-11 text-sm outline-none placeholder:text-slate-500" />
+              <input
+                type="text"
+                placeholder="Sistemde ara..."
+                className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-3 pl-11 text-sm outline-none placeholder:text-slate-500"
+              />
             </div>
 
             <div className="flex items-center gap-6 ml-auto">
-              {/* 🚀 MÜHÜR: 'YENİLE' butonu eklendi */}
-              <Button onClick={fetchProfile} variant="secondary" className="hidden md:inline-flex rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10 hover:bg-white/[0.09] font-black text-xs uppercase tracking-widest px-6 h-11">
-                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2 text-indigo-300" />}
+              <Button
+                onClick={fetchProfile}
+                variant="secondary"
+                className="hidden md:inline-flex rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10 hover:bg-white/[0.09] font-black text-xs uppercase tracking-widest px-6 h-11"
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2 text-indigo-300" />
+                )}
                 Yenile
               </Button>
 
               <div className="relative">
-                <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-300/70 hover:text-indigo-200 transition">
+                <button
+                  ref={bellBtnRef}
+                  onClick={() => setShowNotifications((v) => !v)}
+                  className="relative p-2 text-slate-300/70 hover:text-indigo-200 transition"
+                  aria-label="Notifications"
+                >
                   <Bell size={22} />
                   {profile?.notifications?.length > 0 && (
                     <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(129,140,248,0.8)]" />
                   )}
                 </button>
-
-                {showNotifications && (
-                  <div className="absolute right-0 mt-4 w-[350px] bg-[#0f172a] border border-white/10 rounded-[2rem] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
-                    <div className="p-5 border-b border-white/10 bg-white/[0.02] font-black uppercase text-[10px] tracking-widest flex justify-between items-center">
-                      Bildirimler
-                      <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">CANLI</span>
-                    </div>
-                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                      {profile?.notifications?.length > 0 ? (
-                        profile.notifications.map((n: any) => (
-                          <div key={n.id} onClick={() => { if(n.request_id) setSelectedRequest(n); setShowNotifications(false); }} className={`p-4 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition ${n.is_actionable ? 'border-l-2 border-l-indigo-500' : ''}`}>
-                            <div className="flex justify-between items-center mb-1">
-                              <p className="text-[10px] font-black text-indigo-400 uppercase">{n.title}</p>
-                              <button onClick={(e) => handleDeleteNotification(e, n.id)} className="text-slate-500 hover:text-red-400"><Trash2 size={12} /></button>
-                            </div>
-                            <p className="text-xs text-slate-300">{n.message}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-10 text-center opacity-40 text-[10px] font-black uppercase italic">Bildirim Yok</div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-black text-white">{profile?.full_name}</p>
-                <p className="text-[10px] font-black text-indigo-200 uppercase mt-1 tracking-widest">{profile?.title || "Researcher"}</p>
+                <p className="text-[10px] font-black text-indigo-200 uppercase mt-1 tracking-widest">
+                  {profile?.title || "Researcher"}
+                </p>
               </div>
-              <Link to="/profile" className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center text-white font-black hover:scale-[1.03] transition shadow-sm">
+
+              <Link
+                to="/profile"
+                className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center text-white font-black hover:scale-[1.03] transition shadow-sm"
+              >
                 {profile?.full_name?.charAt(0) ?? "U"}
               </Link>
             </div>
@@ -214,18 +247,22 @@ export default function Dashboard() {
           <main className="flex-1 overflow-y-auto px-8 py-8">
             <div className="max-w-[1200px] mx-auto space-y-8 pb-4">
               <div>
-                <h2 className="text-4xl font-black text-white tracking-tighter">İstasyon <span className="text-indigo-300">Merkezi</span></h2>
+                <h2 className="text-4xl font-black text-white tracking-tighter">
+                  İstasyon <span className="text-indigo-300">Merkezi</span>
+                </h2>
                 <div className="text-emerald-400 text-[10px] font-black uppercase flex items-center gap-2 mt-2 tracking-widest">
                   <ShieldCheck size={16} /> Sistem: Senkronize
                 </div>
               </div>
 
               <div className="grid grid-cols-12 gap-8">
-                {/* 🚀 YETENEK MATRİSİ: Kokpitin ana odağı */}
+                {/* YETENEK MATRİSİ */}
                 <div className="col-span-12 lg:col-span-8">
                   <Card className="bg-white/[0.05] border-white/10 rounded-[3rem] overflow-hidden shadow-2xl">
                     <CardHeader className="p-8 border-b border-white/10 flex flex-row justify-between items-center bg-white/[0.01]">
-                      <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Yetenek Matrisi</CardTitle>
+                      <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+                        Yetenek Matrisi
+                      </CardTitle>
                       <Atom size={18} className="text-indigo-400" />
                     </CardHeader>
                     <CardContent className="h-[480px] p-8">
@@ -233,21 +270,30 @@ export default function Dashboard() {
                         <ResponsiveContainer width="100%" height="100%">
                           <RadarChart data={chartData}>
                             <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                            <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 900 }} />
+                            <PolarAngleAxis
+                              dataKey="subject"
+                              tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 900 }}
+                            />
                             <Radar dataKey="A" stroke="#818cf8" strokeWidth={3} fill="#818cf8" fillOpacity={0.15} />
                           </RadarChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="h-full flex items-center justify-center italic text-slate-500 font-bold text-sm">Yetenek verisi senkronize ediliyor...</div>
+                        <div className="h-full flex items-center justify-center italic text-slate-500 font-bold text-sm">
+                          Yetenek verisi senkronize ediliyor...
+                        </div>
                       )}
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* 🚀 YETENEK GÜNCELLEME: Sağ panel */}
+                {/* YETENEK GÜNCELLEME */}
                 <div className="col-span-12 lg:col-span-4">
                   <div className="rounded-[3rem] border border-white/10 bg-white/[0.05] p-2 shadow-2xl overflow-hidden">
-                    <SkillUpdateForm initialSkills={skillsDraft} onSkillsChange={setSkillsDraft} onUpdateSuccess={fetchProfile} />
+                    <SkillUpdateForm
+                      initialSkills={skillsDraft}
+                      onSkillsChange={setSkillsDraft}
+                      onUpdateSuccess={fetchProfile}
+                    />
                   </div>
                 </div>
               </div>
@@ -256,19 +302,99 @@ export default function Dashboard() {
         </section>
       </div>
 
+      {/* ✅ Bildirim Dropdown (Portal) - hiçbir şeyin altında kalmaz */}
+      {showNotifications &&
+        notifPos &&
+        createPortal(
+          <>
+            {/* dışarı tıklayınca kapat */}
+            <div className="fixed inset-0 z-[9998]" onClick={() => setShowNotifications(false)} />
+
+            <div
+              className="fixed z-[9999] w-[350px] bg-[#0f172a] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
+              style={{ top: notifPos.top, left: notifPos.left }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 border-b border-white/10 bg-white/[0.02] font-black uppercase text-[10px] tracking-widest flex justify-between items-center">
+                Bildirimler
+                <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">
+                  CANLI
+                </span>
+              </div>
+
+              <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                {profile?.notifications?.length > 0 ? (
+                  profile.notifications.map((n: any) => (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        if (n.request_id) setSelectedRequest(n)
+                        setShowNotifications(false)
+                      }}
+                      className={`p-4 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition ${
+                        n.is_actionable ? "border-l-2 border-l-indigo-500" : ""
+                      }`}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-[10px] font-black text-indigo-400 uppercase">{n.title}</p>
+                        <button onClick={(e) => handleDeleteNotification(e, n.id)} className="text-slate-500 hover:text-red-400">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-300">{n.message}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-10 text-center opacity-40 text-[10px] font-black uppercase italic">Bildirim Yok</div>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
+
       {selectedRequest && (
-        <CollaborationReviewModal 
-          request={selectedRequest} 
-          onClose={() => setSelectedRequest(null)} 
-          onRespond={handleRespond} 
+        <CollaborationReviewModal
+          request={selectedRequest}
+          onClose={() => setSelectedRequest(null)}
+          onRespond={handleRespond}
         />
       )}
     </div>
   )
 }
 
-function NavItem({ icon, label, active = false, to }: { icon: React.ReactNode; label: string; active?: boolean; to?: string }) {
-  const cls = `w-full flex items-center gap-4 px-5 py-4 rounded-[1.5rem] transition-all border ${active ? 'bg-indigo-500/15 text-white border-indigo-400/20 shadow-lg' : 'text-slate-400 border-transparent hover:border-white/10 hover:bg-white/[0.05] hover:text-white'}`;
-  const content = <><span className={active ? 'text-white' : 'text-slate-500'}>{icon}</span><span className="text-[10px] font-black uppercase tracking-[0.2em]">{label}</span></>;
-  return to ? <Link to={to} className={cls}>{content}</Link> : <button className={cls}>{content}</button>;
+function NavItem({
+  icon,
+  label,
+  active = false,
+  to,
+}: {
+  icon: React.ReactNode
+  label: string
+  active?: boolean
+  to?: string
+}) {
+  const cls = `w-full flex items-center gap-4 px-5 py-4 rounded-[1.5rem] transition-all border ${
+    active
+      ? "bg-indigo-500/15 text-white border-indigo-400/20 shadow-lg"
+      : "text-slate-400 border-transparent hover:border-white/10 hover:bg-white/[0.05] hover:text-white"
+  }`
+
+  const content = (
+    <>
+      <span className={active ? "text-white" : "text-slate-500"}>{icon}</span>
+      <span className="text-[10px] font-black uppercase tracking-[0.2em]">{label}</span>
+    </>
+  )
+
+  return to ? (
+    <Link to={to} className={cls}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" className={cls}>
+      {content}
+    </button>
+  )
 }

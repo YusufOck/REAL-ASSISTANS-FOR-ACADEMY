@@ -11,6 +11,7 @@ import Profile from "./pages/Profile"
 import ResearcherDetail from "./pages/ResearcherDetail"
 // 🚀 MÜHÜR: Yeni Proje İstasyonu sayfasını rotaya ekliyoruz
 import Projects from "./pages/Projects" 
+import UsersPage from "./pages/UsersPage"
 
 function App() {
   return (
@@ -28,7 +29,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        
+       
+        <Route path="/users" element={<UsersPage />} />
         {/* --- ÖZEL ROTALAR (Private/Protected) --- */}
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
