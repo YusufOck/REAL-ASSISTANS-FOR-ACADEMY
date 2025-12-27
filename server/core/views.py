@@ -18,7 +18,26 @@ from .models import *
 from .serializers import *
 from .services import get_collaboration_suggestions, generate_embedding, analyze_skills_with_gemini
 from .permissions import IsAcademicianOrReadOnly, IsResearcherOwnerOrReadOnly
-
+from .serializers import (
+    ProjectSerializer,
+    DepartmentSerializer,  # 🛡️ EKSİK OLAN SATIR BU
+    NotificationSerializer,
+    TagSerializer,
+    EntityTagSerializer,
+    SkillSerializer,
+    FundingAgencySerializer,
+    FundingAgencyGrantSerializer,
+    ResearcherSerializer,
+    ResearcherOnboardSerializer,
+    PublicationSerializer,
+    NetworkGraphSerializer,
+    DashboardStatsSerializer,
+    SendCollaborationRequestSerializer,
+    RespondCollaborationRequestSerializer,
+    RegisterSerializer,
+    NetworkNodeSerializer,
+    NetworkEdgeSerializer
+)
 # -------------------------
 #  Basit CRUD ViewSet'ler (URLs.py bağımlılıkları için tam liste)
 # -------------------------

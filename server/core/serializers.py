@@ -9,6 +9,8 @@ from .models import (
 )
 # ÖNEMLİ: get_collaboration_suggestions importu kalsın, views.py kullanacak.
 from .services import get_collaboration_suggestions
+from .models import Project, Department, Researcher, Publication, FundingAgency, FundingAgencyGrant, Tag, EntityTag, Skill, Notification, CollaborationRequest, ProjectResearcher, User, ResearcherSkill
+
 
 # --- 1. TEMEL MODEL SERIALIZER'LAR (DEĞİŞMEDİ) ---
 
@@ -43,6 +45,13 @@ class FundingAgencySerializer(serializers.ModelSerializer):
     class Meta:
         model = FundingAgency
         fields = ['funding_agency_id', 'name', 'country', 'website']
+
+
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = '__all__'
 
 class FundingAgencyGrantSerializer(serializers.ModelSerializer):
     class Meta:
