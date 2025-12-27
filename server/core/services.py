@@ -164,11 +164,14 @@ def calculate_cosine_similarity(vec1, vec2):
 
 def _get_all_researcher_skills_json():
     """
-    Tüm araştırmacıların yeteneklerini {id: skills_dict} şeklinde döner.
-    Döngü içinde her seferinde DB'ye gitmemek için bu veri tek seferde çekilir.
+    🚀 HIZLI ERİŞİM: Sadece gerekli kolonları çekerek belleği korur.
     """
-    from .models import Researcher # Circular import'u önlemek için içeride import ediyoruz
-    return {r.researcher_id: (r.skills or {}) for r in Researcher.objects.all()}
+    from .models import Researcher
+    # Sadece ID ve Skills kolonlarını çekiyoruz (Ağır embedding ve bio kolonlarını almıyoruz)
+    return {
+        r['researcher_id']: (r['skills'] or {}) 
+        for r in Researcher.objects.values('researcher_id', 'skills')
+    }
 
 
 def get_collaboration_suggestions(base_researcher_id: int, limit: int = 5):
@@ -290,3 +293,63 @@ def get_project_specific_suggestions(project_id, limit=5):
     except Exception as e:
         print(f"❌ Proje Öneri Hatası: {e}")
         return []
+    
+# server/core/services.py
+# server/core/services.py
+def extract_skills_from_bio_task(researcher_id, bio_text):
+    from .models import Researcher, Skill, ResearcherSkill
+    from django.db import transaction
+    import logging
+
+    logger = logging.getLogger(__name__)
+    researcher = None # 🛡️ İlk değer ataması hata önlemek için
+
+    try:
+        # 1. Önce nesneyi çekiyoruz (Buradan önce 'researcher' kullanılamaz!)
+        researcher = Researcher.objects.get(pk=researcher_id)
+        
+        # 2. ANALİZ BAŞLADI: Bayrağı mühürle
+        researcher.is_analyzing = True
+        researcher.save(update_fields=['is_analyzing'])
+        
+        # 3. AI ANALİZİ (Gemini Brain)
+        extracted_skills, raw_response = analyze_skills_with_gemini(bio_text)
+        
+        # 🔍 LOG MÜHRÜ: Ham yanıtı Render loglarında görmek için buraya ekledik
+        print(f"🔍 [AI HAM YANIT]: {raw_response}", flush=True)
+
+        if not extracted_skills:
+            return
+
+        # 4. VEKTÖR ÜRETİMİ
+        new_embedding = generate_embedding(bio_text)
+        
+        with transaction.atomic():
+            # 5. VERİ GÜNCELLEME (Radar grafiği çözümü)
+            researcher.skills = extracted_skills
+            if new_embedding:
+                researcher.embedding = new_embedding
+            researcher.save()
+
+            # 6. İLİŞKİSEL TABLO GÜNCELLEME
+            for s_name, score in extracted_skills.items():
+                skill, _ = Skill.objects.get_or_create(
+                    name__iexact=s_name,
+                    defaults={'name': s_name}
+                )
+                ResearcherSkill.objects.update_or_create(
+                    researcher=researcher,
+                    skill=skill,
+                    defaults={'proficiency_level': score}
+                )
+
+        print(f"✅ AI Analizi Tamamlandi: {researcher.full_name}")
+
+    except Exception as e:
+        print(f"❌ AI Analiz Hatasi: {str(e)}")
+    
+    finally:
+        # 🛡️ KRİTİK MÜHÜR: Hata olsa da olmasa da analiz bittiğinde bayrağı kapat
+        if researcher:
+            researcher.is_analyzing = False
+            researcher.save(update_fields=['is_analyzing'])

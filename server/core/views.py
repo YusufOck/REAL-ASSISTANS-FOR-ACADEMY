@@ -12,7 +12,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
-
+import threading
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from .models import Researcher
+from .serializers import ResearcherMeSerializer, ResearcherSerializer # 🛡️ Hafif ve Tam Serializer
 # Modeller ve Serializerlar (TÜMÜ KORUNDU)
 from .models import *
 from .serializers import *
@@ -204,26 +208,40 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
         """
-        🚀 HIZLI HAT: GET isteği milisaniyeler içinde yanıt verir.
+        🚀 PERFORMANS MÜHRÜ: 
+        - GET: Hafif veri paketi ve optimize edilmiş DB sorgusu (Hızlı).
+        - PATCH: Arka plan AI analizi ve güncel profil (Güvenli).
         """
         try:
-            researcher = Researcher.objects.get(user=request.user)
+            # 1. DB Sorgu Optimizasyonu: Tüm ilişkileri tek seferde getir (N+1 Çözümü)
+            queryset = Researcher.objects.select_related('department').prefetch_related(
+                'researcher_skills__skill',
+                'notifications'
+            )
+            researcher = queryset.get(user=request.user)
             
+            # 🏁 PATCH DURUMU: Veri güncelleme ve AI tetikleme
             if request.method == 'PATCH':
                 old_bio = researcher.bio 
-                serializer = self.get_serializer(researcher, data=request.data, partial=True)
+                serializer = ResearcherSerializer(researcher, data=request.data, partial=True)
                 serializer.is_valid(raise_exception=True)
                 instance = serializer.save()
                 
-                # Ağır işleri arka planda mühürleyen fonksiyonu çağır
-                self._trigger_ai_analysis(instance, old_bio, serializer.validated_data)
+                # 🛰️ ASENKRON TETİKLEME: Threading ile UI kilidini açıyoruz
+                if 'bio' in serializer.validated_data and serializer.validated_data['bio'] != old_bio:
+                    from .services import extract_skills_from_bio_task
+                    thread = threading.Thread(
+                        target=extract_skills_from_bio_task, 
+                        args=(instance.researcher_id, instance.bio)
+                    )
+                    thread.start()
                 
-                # Serializer veritabanındaki yeniSuggestions'ları yakalaması için instance'ı yenile
                 instance.refresh_from_db()
-                return Response(self.get_serializer(instance).data)
+                return Response(ResearcherSerializer(instance).data)
             
-            # 🏁 GET DURUMU: Doğrudan DB'deki hazır 'suggestions_json' döner. AI çalışmaz!
-            return Response(self.get_serializer(researcher).data)
+            # 🏁 GET DURUMU: Dashboard hızı için sadece hafif paketi dön
+            # edited-image.png'deki 5s bekleme bu noktada milisaniyelere düşer.
+            return Response(ResearcherMeSerializer(researcher).data)
             
         except Researcher.DoesNotExist: 
             return Response({"detail": "Profil bulunamadı."}, status=404)
