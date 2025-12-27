@@ -84,16 +84,17 @@ class ResearcherSerializer(serializers.ModelSerializer):
     received_requests = serializers.SerializerMethodField()
     projects = serializers.SerializerMethodField()
     notifications = serializers.SerializerMethodField() 
+    # 🛡️ MÜHÜR: Profil detayında yeteneklerin görünmesi için bu alan şart
+    skills_list = serializers.SerializerMethodField()
+    department_name = serializers.CharField(source='department.name', read_only=True)
 
     class Meta:
         model = Researcher
-        fields = [
-            'researcher_id', 'full_name', 'email', 'title',
-            'department', 'department_name', 'bio',
-            'created_at', 'skills', 'suggestions',
-            'received_requests', 'projects',
-            'notifications'
-        ]
+        fields = '__all__'
+
+    def get_skills_list(self, obj):
+        # Araştırmacının yetenek isimlerini döndürür
+        return [rs.skill.name for rs in obj.researcher_skills.all()]
 
     # core/serializers.py içindeki get_notifications metodunu güncelle:
 

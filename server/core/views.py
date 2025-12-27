@@ -155,30 +155,44 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             
     pagination_class = StandardResultsSetPagination # 🚀 Sayfalama aktif!
 
+    # server/core/views.py
+
+
+
     def get_queryset(self):
-        # 🛡️ Hafifletilmiş sorgu
-        queryset = Researcher.objects.select_related('department').all()
+        """
+        🛡️ Hız ve Veri Bütünlüğü Mührü: 
+        'select_related' departman verilerini JOIN yapar.
+        'prefetch_related' ise profil sayfasındaki boşlukları doldurmak için 
+        yetenekleri tek bir ek sorguyla paketler.
+        """
+        queryset = Researcher.objects.select_related('department').prefetch_related(
+            'researcher_skills__skill'
+        ).all()
         
+        # 1. Metin Bazlı Arama (İsim/Email)
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(full_name__icontains=search)
             
+        # 2. Departman Filtresi
         dept = self.request.query_params.get('department')
         if dept:
             queryset = queryset.filter(department_id=dept)
             
-        # 🔥 HATALI KISIM DÜZELTİLDİ:
-        # image_595600.jpg hata mesajına göre 'researcher_skills' kullanılmalı.
+        # 3. Yetenek Filtresi (Fix: image_595600.jpg)
+        # Hata raporuna göre 'researcherskill' değil 'researcher_skills' kullanılmalı.
         skills_raw = self.request.query_params.get('skills')
         if skills_raw:
             try:
                 skill_ids = [int(s) for s in skills_raw.split(',')]
                 for s_id in skill_ids:
-                    # 'researcherskill' yerine 'researcher_skills' mühürlendi
+                    # AND Mantığı: Seçilen TÜM yeteneklere sahip kişileri getirir.
                     queryset = queryset.filter(researcher_skills__skill_id=s_id)
             except (ValueError, TypeError):
                 pass
                 
+        # 🚀 Sayfalama (Pagination) kararlılığı için sıralama şart.
         return queryset.order_by('-researcher_id').distinct()
     def get_serializer_class(self):
         # 🛰️ Eğer liste (GET /researchers/) isteniyorsa hafif olanı kullan

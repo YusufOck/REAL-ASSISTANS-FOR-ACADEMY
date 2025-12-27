@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom" // 🚀 useSearchParams eklendi
 import { api } from "@/lib/api"
 import { 
   Search, ChevronRight, ArrowLeft, Loader2, 
-  Filter, GraduationCap, Cpu, Check, ChevronLeft 
-} from "lucide-react"
+  Filter, Check, ChevronLeft 
+} from "lucide-react" // 🛡️ unused GraduationCap ve Cpu temizlendi
 import { Button } from "@/components/ui/button"
 
 // 🛡️ Global Kilit: Sayfa ömrü boyunca meta verileri sadece 1 kez çekmek için
@@ -31,37 +31,35 @@ interface Skill {
 
 export default function UsersPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams() // 🛰️ URL Kontrolü
   const [loading, setLoading] = useState(true)
   
-  // Veri State'leri
+  // 🛡️ MANTIK KORUNDU: Değerler artık başlangıçta URL'den okunuyor (Persistence)
+  const [search, setSearch] = useState(searchParams.get("search") || "")
+  const [selectedDept, setSelectedDept] = useState(searchParams.get("department") || "")
+  const [selectedSkills, setSelectedSkills] = useState<number[]>(
+    searchParams.get("skills")?.split(",").map(Number).filter(Boolean) || []
+  )
+
   const [users, setUsers] = useState<Researcher[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [allSkills, setAllSkills] = useState<Skill[]>([])
   
-  // Filtre State'leri
-  const [search, setSearch] = useState("")
-  const [selectedDept, setSelectedDept] = useState("")
-  const [selectedSkills, setSelectedSkills] = useState<number[]>([])
-  const [showSkillDropdown, setShowSkillDropdown] = useState(false)
-
-  // 🚀 Sayfalama (Pagination) State'leri
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page")) || 1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [showSkillDropdown, setShowSkillDropdown] = useState(false)
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // 1. ADIM: Meta Verileri Çek (Bölümler ve Sistemdeki Tüm Yetenekler)
+  // 1. ADIM: Meta Verileri Çek (Global Kilit Mantığı Korundu)
   useEffect(() => {
-    if (isMetaDataCached) return; 
-
     const fetchMeta = async () => {
       try {
         const [dRes, sRes] = await Promise.all([
           api.get("/departments/"),
           api.get("/skills/")
         ]);
-        // Backend pagination yapısına göre results kontrolü
         setDepartments(dRes.data.results || dRes.data);
         setAllSkills(sRes.data.results || sRes.data);
         isMetaDataCached = true;
@@ -69,10 +67,25 @@ export default function UsersPage() {
         console.error("Meta veriler çekilemedi", e);
       }
     };
-    fetchMeta();
+    
+    // Sadece veri yoksa çek
+    if (!isMetaDataCached || departments.length === 0) {
+      fetchMeta();
+    }
   }, []);
 
-  // 2. ADIM: Araştırmacı Listesini Çek (Sayfalama ve Filtreleme Dahil)
+  // 🚀 YENİ MANTIK: Filtreler her değiştiğinde URL'yi mühürle
+  useEffect(() => {
+    const params: any = {};
+    if (search) params.search = search;
+    if (selectedDept) params.department = selectedDept;
+    if (selectedSkills.length > 0) params.skills = selectedSkills.join(",");
+    if (currentPage > 1) params.page = currentPage.toString();
+    
+    setSearchParams(params, { replace: true });
+  }, [search, selectedDept, selectedSkills, currentPage, setSearchParams]);
+
+  // 2. ADIM: Araştırmacı Listesini Çek (AbortController Yapısı Korundu)
   const fetchUsers = async (page: number) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -87,51 +100,45 @@ export default function UsersPage() {
       if (search) params.append("search", search);
       if (selectedDept) params.append("department", selectedDept);
       if (selectedSkills.length > 0) params.append("skills", selectedSkills.join(','));
-      
-      // 🚀 Sayfa parametresi ekleniyor
       params.append("page", page.toString());
       
       const res = await api.get(`/researchers/?${params.toString()}`, {
         signal: controller.signal
       });
       
-      // DRF Pagination yapısı: res.data.results ve res.data.count
       const results = res.data.results || [];
       const count = res.data.count || results.length;
       
       setUsers(results);
       setTotalCount(count);
-      // Sayfa başı 10 kayıt varsayımıyla toplam sayfa hesabı
       setTotalPages(Math.ceil(count / 10) || 1);
       
     } catch (e: any) { 
       if (e.name === 'CanceledError' || e.name === 'AbortError') return;
-      console.error("Veri çekme hatası", e); 
       setUsers([]);
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
   };
 
-  // Filtreler değişince 1. sayfaya dön ve veriyi çek
+  // 3. ADIM: Debounce Kontrolü (600ms Mantığı Korundu)
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setCurrentPage(1);
-      fetchUsers(1);
+      fetchUsers(currentPage);
     }, 600); 
     return () => clearTimeout(timeout);
-  }, [search, selectedDept, selectedSkills]);
+  }, [search, selectedDept, selectedSkills, currentPage]);
 
-  // Sadece sayfa numarası değişince tetiklenir
   const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
     setCurrentPage(newPage);
-    fetchUsers(newPage);
   };
 
   const toggleSkill = (id: number) => {
     setSelectedSkills(prev => 
       prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
     );
+    setCurrentPage(1); // Filtre değişince başa dön
   };
 
   return (
@@ -189,7 +196,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto rounded-[3rem] border border-white/10 bg-white/[0.02] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+      <div className="max-w-7xl mx-auto rounded-[3rem] border border-white/10 bg-white/[0.02] overflow-hidden shadow-2xl backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
@@ -217,8 +224,7 @@ export default function UsersPage() {
                         <div>
                           <p className="font-black text-white text-lg group-hover:text-indigo-300 transition-colors tracking-tight">{u.full_name}</p>
                           <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest flex items-center gap-2 mt-1">
-                            {u.role === 'academician' ? <Cpu size={12} /> : <GraduationCap size={12} />}
-                            {u.title || "Bağımsız Araştırmacı"}
+                            {u.role === 'academician' ? 'AKADEMİSYEN' : 'ARAŞTIRMACI'}
                           </p>
                         </div>
                       </div>
@@ -245,7 +251,7 @@ export default function UsersPage() {
           </table>
         </div>
 
-        {/* 🚀 SAYFALAMA KONTROLLERİ (PAGINATION) */}
+        {/* 🚀 SAYFALAMA KONTROLLERİ */}
         <div className="p-8 bg-white/[0.03] border-t border-white/10 flex items-center justify-between">
           <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">
             Sayfa {currentPage} / {totalPages}
