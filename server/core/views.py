@@ -318,29 +318,27 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    
     # 🔄 MÜHÜR: 'status' yerine 'phase' (aşama) üzerinden filtreleme yapılır
     filterset_fields = {'department': ['exact'], 'phase': ['exact']}
     search_fields = ['title', 'summary', 'requirements']
 
     def perform_create(self, serializer):
-        """
-        🚀 OTONOM MÜHÜR: Proje kaydedilirken AI motorunu uyandırır.
-        """
-        from .services import generate_embedding
+        """🚀 OTONOM MÜHÜR: Proje kaydedilirken AI motorunu uyandırır."""
+        from .services import generate_embedding # 🛰️ Yerel import ile bağımlılık hatası önlendi
         
         # 1. Proje yöneticisini (PI) otonom olarak mevcut kullanıcıya mühürle
         researcher = Researcher.objects.get(user=self.request.user)
         instance = serializer.save(pi=researcher)
         
         # 2. AI ANALİZİ: Başlık, Konu ve Gereksinimlerden anlamsal vektör üret
-        # Bu vektör, projenin 'DNA'sıdır ve katılımcı eşleşmesinde kullanılır.
         combined_text = f"{instance.title}. {instance.summary or ''}. Needs: {instance.requirements or ''}"
         vector = generate_embedding(combined_text)
         
         if vector:
             instance.embedding = vector
             instance.save(update_fields=['embedding'])
-            print(f"✅ AI MÜHÜRÜ: '{instance.title}' projesi için semantik vektör üretildi.")
+            print(f"✅ AI MÜHÜRÜ: '{instance.title}' projesi için semantik vektör üretildi.", flush=True)
 
     @action(detail=True, methods=['get'])
     def suggestions(self, request, pk=None):
@@ -381,6 +379,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         """Projenin finansal destek ve grant bilgilerini döner."""
         grants = FundingAgencyGrant.objects.filter(project_id=pk).select_related('funding_agency')
         return Response(FundingAgencyGrantSerializer(grants, many=True).data)
+    
+
+
 class PublicationViewSet(viewsets.ModelViewSet):
     queryset = Publication.objects.all().order_by('publication_id')
     serializer_class = PublicationSerializer

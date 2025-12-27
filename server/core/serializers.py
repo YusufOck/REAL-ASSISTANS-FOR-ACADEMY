@@ -17,10 +17,18 @@ class DepartmentSerializer(serializers.ModelSerializer):
         model = Department
         fields = ['department_id', 'name', 'code', 'faculty']
 
+
+# --- 1. PROJE SERIALIZER GÜNCELLEMESİ ---
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ['project_id', 'title', 'summary', 'status', 'start_date', 'end_date', 'pi', 'department', 'created_at']
+        # 🚀 MÜHÜR: 'status' alanı 'phase' olarak güncellendi. 
+        # Gereksinimler ve bütçe alanları listeye eklendi.
+        fields = [
+            'project_id', 'title', 'summary', 'requirements', 
+            'estimated_budget', 'phase', 'start_date', 'end_date', 
+            'pi', 'department', 'created_at'
+        ]
 
 class PublicationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,13 +71,12 @@ class NotificationSerializer(serializers.ModelSerializer):
 # --- 2. ANA ARAŞTIRMACI MOTORU (DASHBOARD VERİSİ) ---
 
 # core/serializers.py
-
+# --- 2. ARAŞTIRMACI MOTORU GÜNCELLEMESİ ---
 class ResearcherSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     suggestions = serializers.SerializerMethodField()
     received_requests = serializers.SerializerMethodField()
     projects = serializers.SerializerMethodField()
-    # 🚀 YENİ MÜHÜR: Bildirimler bu kapıdan Dashboard'a akacak
     notifications = serializers.SerializerMethodField() 
 
     class Meta:
@@ -79,7 +86,7 @@ class ResearcherSerializer(serializers.ModelSerializer):
             'department', 'department_name', 'bio',
             'created_at', 'skills', 'suggestions',
             'received_requests', 'projects',
-            'notifications' # 🛰️ Listeye eklendi
+            'notifications'
         ]
 
     # core/serializers.py içindeki get_notifications metodunu güncelle:
@@ -117,7 +124,7 @@ class ResearcherSerializer(serializers.ModelSerializer):
             result.append(note_data)
         return result
 
-    # server/core/serializers.py içindeki ResearcherSerializer kısmını bul:
+   
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
@@ -139,8 +146,9 @@ class ResearcherSerializer(serializers.ModelSerializer):
             result.append({
                 'project_id': p.project_id,
                 'title': p.title,
-                # 🛰️ MÜHÜR: 'status' yerine 'phase' kullanıldı. Hata otonom olarak giderildi.
-                'phase': p.phase, 
+                # 🛰️ MÜHÜR: Modeldeki 'phase' alanı JSON'da 'status' anahtarına mühürlendi.
+                # Bu sayede Frontend tarafında kod değişikliği yapmana gerek kalmaz.
+                'status': p.phase, 
                 'my_role': 'PI (Lider)' if p.pi == obj else 'Member (Mürettebat)',
                 'group_members': group_members
             })
@@ -161,11 +169,9 @@ class ResearcherSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))    
     def get_suggestions(self, obj):
-        """
-        🚀 MÜHÜRLÜ HIZLI HAT: Veritabanındaki hazır JSON'u döner.
-        """
-        return obj.suggestions_json if obj.suggestions_json else []
-
+        # 🛡️ OTONOM KARAR: Dashboard performansını korumak için 
+        # genel öneriler artık hesaplanmaz, boş döner.
+        return []
 # --- 3. AKSİYON VE KAYIT SERIALIZER'LARI (DEĞİŞMEDİ) ---
 
 class ResearcherOnboardSerializer(serializers.Serializer):
