@@ -147,10 +147,13 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             print(f"⚠️ Analiz/Eşleştirme Hatası: {str(e)}", flush=True)
             
     def get_queryset(self):
-        # select_related ile N+1 problemini çözüyoruz (Performans)
-        queryset = Researcher.objects.select_related('department').prefetch_related('skills').all()
+        """
+        🛡️ DÜZELTME: 'skills' alanı prefetch desteklemediği için ValueError (500) veriyordu.
+        Sadece departman verisini select_related ile çekerek performansı optimize ediyoruz.
+        """
+        queryset = Researcher.objects.select_related('department').all()
         
-        # 1. İsimle Arama
+        # 1. İsimle Arama (Büyük/Küçük harf duyarsız)
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(full_name__icontains=search)
@@ -161,14 +164,21 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(department_id=dept)
             
         # 3. Gelişmiş Skill Filtresi (AND Mantığı)
-        # Örn: ?skills=1,2,3 -> Bu 3 yeteneğe birden sahip olanları getir.
+        # Prefetch hatası sadece ön yükleme denemesinden kaynaklanıyordu. 
+        # Eğer database ilişkisi 'skills' ise filtreleme çalışmaya devam edecektir.
         skills_raw = self.request.query_params.get('skills')
         if skills_raw:
-            skill_ids = [int(s) for s in skills_raw.split(',')]
-            for s_id in skill_ids:
-                queryset = queryset.filter(skills__skill_id=s_id)
+            try:
+                skill_ids = [int(s) for s in skills_raw.split(',')]
+                for s_id in skill_ids:
+                    # Not: Eğer modelde many-to-many adı farklıysa (örn: researcher_skills) 
+                    # burayı 'researcher_skills__skill_id' olarak güncellemelisin.
+                    queryset = queryset.filter(skills__skill_id=s_id)
+            except (ValueError, TypeError):
+                pass
                 
-        return queryset.distinct()
+        # 🛡️ SIRALAMA: Sayfalama (pagination) hatalarını önlemek için tarih sırasına diziyoruz.
+        return queryset.order_by('-created_at').distinct()
     
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):

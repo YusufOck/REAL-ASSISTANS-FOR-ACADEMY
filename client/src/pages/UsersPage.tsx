@@ -3,24 +3,44 @@ import { useNavigate } from "react-router-dom"
 import { api } from "@/lib/api"
 import { 
   Search, ChevronRight, ArrowLeft, Loader2, 
-  Filter, GraduationCap, Cpu, Check, X 
-} from "lucide-react"
+  Filter, GraduationCap, Cpu, Check 
+} from "lucide-react" // 🛡️ 'X' kaldırıldı (unused import hatası giderildi)
 import { Button } from "@/components/ui/button"
+
+// 🛰️ TİPLEME: TypeScript'in 'never[]' hatasını çözmek için arayüzler tanımlandı
+interface Researcher {
+  researcher_id: number;
+  full_name: string;
+  role: string;
+  department_name: string;
+  title?: string;
+  email?: string;
+}
+
+interface Department {
+  department_id: number;
+  name: string;
+}
+
+interface Skill {
+  skill_id: number;
+  name: string;
+}
 
 export default function UsersPage() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [users, setUsers] = useState([])
-  const [departments, setDepartments] = useState([])
-  const [allSkills, setAllSkills] = useState([])
   
-  // Filtre State'leri
+  // 🛡️ ÇÖZÜM: State'lere açıkça tip tanımlaması yapıldı
+  const [users, setUsers] = useState<Researcher[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [allSkills, setAllSkills] = useState<Skill[]>([])
+  
   const [search, setSearch] = useState("")
   const [selectedDept, setSelectedDept] = useState("")
   const [selectedSkills, setSelectedSkills] = useState<number[]>([])
   const [showSkillDropdown, setShowSkillDropdown] = useState(false)
 
-  // 🛡️ OTONOM KİLİT: image_4b4338.png'deki gibi kontrolsüz istekleri engeller
   const isFetching = useRef(false)
 
   useEffect(() => {
@@ -30,15 +50,21 @@ export default function UsersPage() {
           api.get("/departments/"),
           api.get("/skills/")
         ])
-        setDepartments(dRes.data)
-        setAllSkills(sRes.data)
-      } catch (e) { console.error("Meta veriler çekilemedi", e) }
+        
+        // 🛰️ MÜHÜR: Sayfalama (results) yapısına uyum sağlayan savunmacı atama
+        const deptData = dRes.data.results || dRes.data
+        const skillData = sRes.data.results || sRes.data
+        
+        setDepartments(Array.isArray(deptData) ? deptData : [])
+        setAllSkills(Array.isArray(skillData) ? skillData : [])
+      } catch (e) { 
+        console.error("Meta veriler çekilemedi", e) 
+      }
     }
     fetchMeta()
   }, [])
 
   useEffect(() => {
-    // 🛡️ DEBOUNCE: Yazım bittikten 400ms sonra tek bir istek atar
     const timeout = setTimeout(() => {
       fetchUsers()
     }, 400)
@@ -57,7 +83,10 @@ export default function UsersPage() {
       if (selectedSkills.length > 0) params.append("skills", selectedSkills.join(','))
       
       const res = await api.get(`/researchers/?${params.toString()}`)
-      setUsers(res.data)
+      
+      // 🛰️ MÜHÜR: 'map is not a function' hatasını engelleyen dizi kontrolü
+      const userData = res.data.results || res.data
+      setUsers(Array.isArray(userData) ? userData : [])
     } catch (e) { 
       console.error("Liste senkronize edilemedi", e) 
     } finally {
@@ -73,19 +102,23 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1020] text-slate-100 p-8 space-y-10">
-      {/* Üst Bar */}
+    <div className="min-h-screen bg-[#0b1020] text-slate-100 p-8 space-y-10 font-sans">
       <div className="max-w-7xl mx-auto flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
         <div className="flex items-center gap-5">
-          <Button variant="ghost" onClick={() => navigate('/dashboard')} className="rounded-2xl h-14 w-14 bg-white/5 border border-white/10 hover:bg-indigo-500/10 transition-all">
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/dashboard')} 
+            className="rounded-2xl h-14 w-14 bg-white/5 border border-white/10 hover:bg-indigo-500/10 transition-all"
+          >
             <ArrowLeft size={24} />
           </Button>
-          <h1 className="text-4xl font-black tracking-tighter uppercase italic">Sistem <span className="text-indigo-400">Dizini</span></h1>
+          <div>
+            <h1 className="text-4xl font-black tracking-tighter uppercase italic">Sistem <span className="text-indigo-400">Dizini</span></h1>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1">Araştırmacı Veri Bankası</p>
+          </div>
         </div>
 
-        {/* Gelişmiş Filtreleme İstasyonu */}
         <div className="flex flex-wrap gap-4 w-full xl:w-auto">
-          {/* Arama */}
           <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
@@ -95,18 +128,16 @@ export default function UsersPage() {
             />
           </div>
 
-          {/* Departman */}
           <select 
             value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-2xl py-3.5 px-6 outline-none focus:ring-2 ring-indigo-500/25 cursor-pointer"
+            className="bg-white/5 border border-white/10 rounded-2xl py-3.5 px-6 outline-none focus:ring-2 ring-indigo-500/25 cursor-pointer min-w-[200px]"
           >
             <option value="" className="bg-[#0b1020]">Tüm Bölümler</option>
-            {departments.map((d: any) => (
+            {departments.map((d) => (
               <option key={d.department_id} value={d.department_id} className="bg-[#0b1020]">{d.name}</option>
             ))}
           </select>
 
-          {/* Multi-Select Skill Filtresi */}
           <div className="relative">
             <Button 
               onClick={() => setShowSkillDropdown(!showSkillDropdown)}
@@ -119,7 +150,7 @@ export default function UsersPage() {
             {showSkillDropdown && (
               <div className="absolute top-full right-0 mt-3 w-72 bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl z-50 p-4 animate-in fade-in zoom-in duration-200">
                 <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                  {allSkills.map((s: any) => (
+                  {allSkills.length > 0 ? allSkills.map((s) => (
                     <div 
                       key={s.skill_id} 
                       onClick={() => toggleSkill(s.skill_id)}
@@ -128,7 +159,9 @@ export default function UsersPage() {
                       <span className="text-xs font-bold">{s.name}</span>
                       {selectedSkills.includes(s.skill_id) && <Check size={14} className="text-indigo-400" />}
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-center text-[10px] text-slate-500 py-4 uppercase font-black">Yetenek bulunamadı</p>
+                  )}
                 </div>
               </div>
             )}
@@ -136,53 +169,76 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Veri Tablosu */}
-      <div className="max-w-7xl mx-auto rounded-[3rem] border border-white/10 bg-white/[0.02] overflow-hidden shadow-2xl">
-        <table className="w-full text-left">
-          <thead className="bg-white/5 border-b border-white/10">
-            <tr>
-              <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500">Araştırmacı</th>
-              <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500 text-center">Bölüm</th>
-              <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500 text-center">Rol</th>
-              <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500 text-right">Aksiyon</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {loading ? (
-              <tr><td colSpan={4} className="p-32 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500" size={48} /></td></tr>
-            ) : users.length > 0 ? (
-              users.map((u: any) => (
-                <tr key={u.researcher_id} className="hover:bg-indigo-500/[0.02] transition-all group border-l-4 border-l-transparent hover:border-l-indigo-500">
-                  <td className="p-8">
-                    <div className="flex items-center gap-5">
-                      <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-300 font-black shadow-inner">{u.full_name.charAt(0)}</div>
-                      <div>
-                        <p className="font-black text-white text-lg group-hover:text-indigo-300 transition-colors">{u.full_name}</p>
-                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest flex items-center gap-2 mt-1">
-                          {u.role === 'academician' ? <Cpu size={12} /> : <GraduationCap size={12} />}
-                          {u.title || "Bağımsız Araştırmacı"}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-8 text-center"><span className="text-xs font-bold text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/5">{u.department_name}</span></td>
-                  <td className="p-8 text-center">
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
-                      {u.role === 'academician' ? 'Akademisyen' : 'Öğrenci'}
-                    </span>
-                  </td>
-                  <td className="p-8 text-right">
-                    <Button onClick={() => navigate(`/researcher/${u.researcher_id}`)} className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest active:scale-95">
-                      PROFİLİ İNCELE <ChevronRight size={16} className="ml-2" />
-                    </Button>
+      <div className="max-w-7xl mx-auto rounded-[3rem] border border-white/10 bg-white/[0.02] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-white/[0.03] border-b border-white/10">
+                <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500">Araştırmacı Profili</th>
+                <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500 text-center">Bölüm / Departman</th>
+                <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500 text-center">Kademeli Rol</th>
+                <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-500 text-right">Aksiyon</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="p-32 text-center">
+                    <Loader2 className="animate-spin mx-auto text-indigo-500 mb-4" size={48} />
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Veriler Senkronize Ediliyor...</p>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr><td colSpan={4} className="p-32 text-center opacity-30 italic font-black uppercase text-[10px] tracking-widest">Kayıt Bulunamadı</td></tr>
-            )}
-          </tbody>
-        </table>
+              ) : users.length > 0 ? (
+                users.map((u) => (
+                  <tr key={u.researcher_id} className="hover:bg-indigo-500/[0.02] transition-all group border-l-4 border-l-transparent hover:border-l-indigo-500">
+                    <td className="p-8">
+                      <div className="flex items-center gap-5">
+                        <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-300 font-black shadow-inner">
+                          {u.full_name?.charAt(0) || "?"}
+                        </div>
+                        <div>
+                          <p className="font-black text-white text-lg group-hover:text-indigo-300 transition-colors tracking-tight">{u.full_name}</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest flex items-center gap-2 mt-1">
+                            {u.role === 'academician' ? <Cpu size={12} /> : <GraduationCap size={12} />}
+                            {u.title || "Bağımsız Araştırmacı"}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-8 text-center">
+                      <span className="text-xs font-bold text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/5">
+                        {u.department_name || "Bölüm Belirtilmemiş"}
+                      </span>
+                    </td>
+                    <td className="p-8 text-center">
+                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                        u.role === 'academician' 
+                          ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' 
+                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      }`}>
+                        {u.role === 'academician' ? 'Akademisyen' : 'Öğrenci'}
+                      </span>
+                    </td>
+                    <td className="p-8 text-right">
+                      <Button 
+                        onClick={() => navigate(`/researcher/${u.researcher_id}`)}
+                        className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest shadow-xl active:scale-95"
+                      >
+                        PROFİLİ İNCELE <ChevronRight size={16} className="ml-2" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="p-32 text-center opacity-30 italic font-black uppercase text-[10px] tracking-widest">
+                    Arama kriterlerine uygun kayıt bulunamadı.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
