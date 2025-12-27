@@ -117,6 +117,8 @@ class ResearcherSerializer(serializers.ModelSerializer):
             result.append(note_data)
         return result
 
+    # server/core/serializers.py içindeki ResearcherSerializer kısmını bul:
+
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_projects(self, obj):
         from .models import Project, ProjectResearcher
@@ -137,7 +139,8 @@ class ResearcherSerializer(serializers.ModelSerializer):
             result.append({
                 'project_id': p.project_id,
                 'title': p.title,
-                'status': p.status,
+                # 🛰️ MÜHÜR: 'status' yerine 'phase' kullanıldı. Hata otonom olarak giderildi.
+                'phase': p.phase, 
                 'my_role': 'PI (Lider)' if p.pi == obj else 'Member (Mürettebat)',
                 'group_members': group_members
             })
