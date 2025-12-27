@@ -156,7 +156,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     pagination_class = StandardResultsSetPagination # 🚀 Sayfalama aktif!
 
     def get_queryset(self):
-        # 🛡️ Hafifletilmiş sorgu: prefetch_related hatasını engellemek için sadece select_related
+        # 🛡️ Hafifletilmiş sorgu
         queryset = Researcher.objects.select_related('department').all()
         
         search = self.request.query_params.get('search')
@@ -167,13 +167,17 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         if dept:
             queryset = queryset.filter(department_id=dept)
             
-        # 🛡️ YETENEK FİLTRESİ (RE-ACTIVATE):
+        # 🔥 HATALI KISIM DÜZELTİLDİ:
+        # image_595600.jpg hata mesajına göre 'researcher_skills' kullanılmalı.
         skills_raw = self.request.query_params.get('skills')
         if skills_raw:
-            skill_ids = [int(s) for s in skills_raw.split(',')]
-            for s_id in skill_ids:
-                # AND mantığı: Seçilen tüm yeteneklere sahip olanları getirir
-                queryset = queryset.filter(researcherskill__skill_id=s_id)
+            try:
+                skill_ids = [int(s) for s in skills_raw.split(',')]
+                for s_id in skill_ids:
+                    # 'researcherskill' yerine 'researcher_skills' mühürlendi
+                    queryset = queryset.filter(researcher_skills__skill_id=s_id)
+            except (ValueError, TypeError):
+                pass
                 
         return queryset.order_by('-researcher_id').distinct()
     def get_serializer_class(self):
