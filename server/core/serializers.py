@@ -65,7 +65,17 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ['notification_id', 'title', 'message', 'is_read', 'created_at', 'request_id']
 # --- 2. ANA ARAŞTIRMACI MOTORU (DASHBOARD VERİSİ) ---
+# Mevcut ResearcherSerializer'ın ÜSTÜNE ekle
+class ResearcherListSerializer(serializers.ModelSerializer):
+    """
+    ⚡ HIZ MÜHÜRÜ: Sadece liste için gereken alanlar. 
+    Ağır 'suggestions' veya 'notifications' hesaplamalarını içermez.
+    """
+    department_name = serializers.CharField(source='department.name', read_only=True)
 
+    class Meta:
+        model = Researcher
+        fields = ['researcher_id', 'full_name', 'email', 'role', 'title', 'department_name']
 # core/serializers.py
 # --- 2. ARAŞTIRMACI MOTORU GÜNCELLEMESİ ---
 class ResearcherSerializer(serializers.ModelSerializer):

@@ -7,7 +7,9 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-// 🛰️ TİPLEME
+// 🛡️ KESİN KİLİT: Bileşenin dışında tanımlandığı için remount olsa bile tekrar çekmez.
+let isMetaDataCached = false;
+
 interface Researcher {
   researcher_id: number;
   full_name: string;
@@ -39,14 +41,12 @@ export default function UsersPage() {
   const [selectedSkills, setSelectedSkills] = useState<number[]>([])
   const [showSkillDropdown, setShowSkillDropdown] = useState(false)
 
-  // 🔒 KONTROL MERKEZİ
   const abortControllerRef = useRef<AbortController | null>(null);
-  const metaLoaded = useRef(false); // Meta verileri (departman/skill) 1 kez çekmek için kilit
 
-  // 1. İŞLEM: Meta Verileri Mühürle (Departments & Skills)
+  // 1. İŞLEM: Meta Verileri Global Kilit ile Çek
   useEffect(() => {
-    if (metaLoaded.current) return; // Zaten çekildiyse dur.
-    
+    if (isMetaDataCached) return; 
+
     const fetchMeta = async () => {
       try {
         const [dRes, sRes] = await Promise.all([
@@ -55,7 +55,7 @@ export default function UsersPage() {
         ]);
         setDepartments(dRes.data.results || dRes.data);
         setAllSkills(sRes.data.results || sRes.data);
-        metaLoaded.current = true; // 🔒 Kapıyı sonsuza dek kapat
+        isMetaDataCached = true; // 🔒 Kapıyı sonsuza dek mühürle
       } catch (e) { 
         console.error("Meta veriler senkronize edilemedi", e);
       }
@@ -63,9 +63,9 @@ export default function UsersPage() {
     fetchMeta();
   }, []);
 
-  // 2. İŞLEM: Filtreleme ve Arama (Tek Hat Üzerinden)
+  // 2. İŞLEM: Araştırmacı Listesi (AbortController Barikatlı)
   const fetchUsers = async () => {
-    // 🛡️ ESKİ İSTEĞİ İPTAL ET: Sunucunun 25 saniye boşuna çalışmasını engeller
+    // 🛡️ Önceki bekleyen yavaş isteği anında öldür
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -80,7 +80,6 @@ export default function UsersPage() {
       if (selectedDept) params.append("department", selectedDept);
       if (selectedSkills.length > 0) params.append("skills", selectedSkills.join(','));
       
-      // 🛰️ SİNYAL GÖNDER: Bu istek artık "iptal edilebilir" bir istektir.
       const res = await api.get(`/researchers/?${params.toString()}`, {
         signal: controller.signal
       });
@@ -88,25 +87,20 @@ export default function UsersPage() {
       const userData = res.data.results || res.data;
       setUsers(Array.isArray(userData) ? userData : []);
     } catch (e: any) { 
-      // İptal edilen istekleri hata olarak gösterme
       if (e.name === 'CanceledError' || e.name === 'AbortError') return;
       console.error("Dizin senkronizasyon hatası", e); 
     } finally {
-      // Eğer bu istek iptal edilmediyse yükleme durumunu bitir
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
-  // 3. İŞLEM: Debounce Kontrolü (600ms)
+  // 3. İŞLEM: Debounce (600ms)
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchUsers();
     }, 600); 
     return () => {
       clearTimeout(timeout);
-      // Sayfadan çıkınca bekleyen isteği öldür
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, [search, selectedDept, selectedSkills]);
@@ -119,24 +113,26 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-[#0b1020] text-slate-100 p-8 space-y-10 font-sans animate-in fade-in duration-500">
+      {/* Header */}
       <div className="max-w-7xl mx-auto flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
         <div className="flex items-center gap-5">
-          <Button variant="ghost" onClick={() => navigate('/dashboard')} className="rounded-2xl h-14 w-14 bg-white/5 border border-white/10 hover:bg-indigo-500/10 transition-all">
+          <Button variant="ghost" onClick={() => navigate('/dashboard')} className="rounded-2xl h-14 w-14 bg-white/5 border border-white/10 hover:bg-indigo-500/10 transition-all shadow-xl">
             <ArrowLeft size={24} />
           </Button>
           <div>
-            <h1 className="text-4xl font-black tracking-tighter uppercase italic">Sistem <span className="text-indigo-400">Dizini</span></h1>
+            <h1 className="text-4xl font-black tracking-tighter uppercase italic ">Sistem <span className="text-indigo-400">Dizini</span></h1>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1">Araştırmacı Veri Bankası</p>
           </div>
         </div>
 
+        {/* Filtreler */}
         <div className="flex flex-wrap gap-4 w-full xl:w-auto">
           <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Araştırmacı ara..." 
-              className="bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-6 outline-none focus:ring-2 ring-indigo-500/25 w-full sm:w-64 transition-all"
+              className="bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-6 outline-none focus:ring-2 ring-indigo-500/25 w-full sm:w-64 transition-all shadow-inner"
             />
           </div>
 
@@ -151,7 +147,7 @@ export default function UsersPage() {
           </select>
 
           <div className="relative">
-            <Button onClick={() => setShowSkillDropdown(!showSkillDropdown)} className="bg-white/5 border border-white/10 rounded-2xl py-7 px-6 hover:bg-white/10 flex gap-2 h-auto shadow-2xl">
+            <Button onClick={() => setShowSkillDropdown(!showSkillDropdown)} className="bg-white/5 border border-white/10 rounded-2xl py-7 px-6 hover:bg-white/10 flex gap-2 h-auto shadow-2xl transition-transform active:scale-95">
               <Filter size={16} className="text-indigo-400" />
               <span className="text-xs font-black uppercase">Yetenekler ({selectedSkills.length})</span>
             </Button>
@@ -160,7 +156,7 @@ export default function UsersPage() {
               <div className="absolute top-full right-0 mt-3 w-72 bg-[#0f172a] border border-white/10 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 p-4 animate-in zoom-in duration-200 backdrop-blur-xl">
                 <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
                   {allSkills.length > 0 ? allSkills.map((s) => (
-                    <div key={s.skill_id} onClick={() => toggleSkill(s.skill_id)} className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition ${selectedSkills.includes(s.skill_id) ? 'bg-indigo-500/20 text-white' : 'hover:bg-white/5 text-slate-400'}`}>
+                    <div key={s.skill_id} onClick={() => toggleSkill(s.skill_id)} className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition ${selectedSkills.includes(s.skill_id) ? 'bg-indigo-500/20 text-white border border-indigo-500/20' : 'hover:bg-white/5 text-slate-400 border border-transparent'}`}>
                       <span className="text-xs font-bold">{s.name}</span>
                       {selectedSkills.includes(s.skill_id) && <Check size={14} className="text-indigo-400" />}
                     </div>
@@ -172,7 +168,8 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto rounded-[3rem] border border-white/10 bg-white/[0.02] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+      {/* Tablo */}
+      <div className="max-w-7xl mx-auto rounded-[3rem] border border-white/10 bg-white/[0.02] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
@@ -210,12 +207,12 @@ export default function UsersPage() {
                       <span className="bg-white/5 px-4 py-2 rounded-xl border border-white/5">{u.department_name || "Bölüm Yok"}</span>
                     </td>
                     <td className="p-8 text-center">
-                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'}`}>
+                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
                         {u.role === 'academician' ? 'Akademisyen' : 'Öğrenci'}
                       </span>
                     </td>
                     <td className="p-8 text-right">
-                      <Button onClick={() => navigate(`/researcher/${u.researcher_id}`)} className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest active:scale-95">
+                      <Button onClick={() => navigate(`/researcher/${u.researcher_id}`)} className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest active:scale-95 shadow-xl">
                         PROFİLİ İNCELE <ChevronRight size={16} className="ml-2" />
                       </Button>
                     </td>

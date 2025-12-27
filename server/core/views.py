@@ -147,30 +147,15 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             print(f"⚠️ Analiz/Eşleştirme Hatası: {str(e)}", flush=True)
             
     def get_queryset(self):
-        # 🛡️ CERRAHİ DÜZELTME: Hata veren prefetch_related('skills') kaldırıldı.
-        # Sadece departman verisini (Foreign Key) JOIN ile çekiyoruz.
-        queryset = Researcher.objects.select_related('department').all()
-        
-        # 🛰️ Dinamik Filtreleme (Hız için optimize edildi)
-        search = self.request.query_params.get('search')
-        if search:
-            queryset = queryset.filter(full_name__icontains=search)
-            
-        dept = self.request.query_params.get('department')
-        if dept:
-            queryset = queryset.filter(department_id=dept)
-            
-        skills_raw = self.request.query_params.get('skills')
-        if skills_raw:
-            # 🛡️ Filtreleme mantığı ilişkisel değilse bile 
-            # query bazlı çalışmaya devam edecektir.
-            skill_ids = [int(s) for s in skills_raw.split(',')]
-            for s_id in skill_ids:
-                queryset = queryset.filter(skills__skill_id=s_id)
-                
-        # Performans için sıralama ve mühürleme
-        return queryset.order_by('-researcher_id').distinct()
-                
+        # 🛡️ Sadece departmanı JOIN yap, yetenekleri listeleme sayfasında çekme!
+        return Researcher.objects.select_related('department').all().order_by('-researcher_id')
+    
+    
+    def get_serializer_class(self):
+        # 🛰️ Eğer liste (GET /researchers/) isteniyorsa hafif olanı kullan
+        if self.action == 'list':
+            return ResearcherListSerializer
+        return ResearcherSerializer            
         
     
     @action(detail=False, methods=['get', 'patch'], url_path='me')
