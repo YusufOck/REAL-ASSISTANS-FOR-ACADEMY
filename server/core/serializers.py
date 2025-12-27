@@ -10,38 +10,14 @@ from .models import (
 # ÖNEMLİ: get_collaboration_suggestions importu kalsın, views.py kullanacak.
 from .services import get_collaboration_suggestions
 from .models import Project, Department, Researcher, Publication, FundingAgency, FundingAgencyGrant, Tag, EntityTag, Skill, Notification, CollaborationRequest, ProjectResearcher, User, ResearcherSkill
-from .serializers import (ResearcherSerializer, FundingSerializer)
+
 
 # --- 1. TEMEL MODEL SERIALIZER'LAR (DEĞİŞMEDİ) ---
 
 # serializers.py
 # server/core/serializers.py
 
-class ProjectSerializer(serializers.ModelSerializer):
-    # Mürettebat ve finans verilerini iç içe (nested) almak için bunları ekle
-    # Bu ekleme, modalda mürettebatın görünmemesi sorununu da çözer.
-    members = ResearcherSerializer(many=True, read_only=True)
-    funding = FundingSerializer(many=True, read_only=True)
 
-    class Meta:
-        model = Project
-        fields = '__all__'
-        # 🛡️ KRİTİK: pi alanını buraya eklemezsen 400 hatası düzelmez
-        read_only_fields = ['pi', 'embedding', 'created_at', 'members', 'funding']
-
-
-# --- 1. PROJE SERIALIZER GÜNCELLEMESİ ---
-# server/core/serializers.py
-
-class ProjectSerializer(serializers.ModelSerializer):
-    # Mürettabat ve bütçe verilerini tek istekte almak için bunları ekle (404'leri çözer)
-    members = ResearcherSerializer(many=True, read_only=True) 
-
-    class Meta:
-        model = Project
-        fields = '__all__'
-        # 🛡️ KRİTİK: pi alanını read_only yapmazsan 400 hatası düzelmez
-        read_only_fields = ['pi', 'embedding', 'created_at']
 
 class PublicationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -237,6 +213,24 @@ class NetworkNodeSerializer(serializers.Serializer):
 
 class NetworkEdgeSerializer(serializers.Serializer):
     from_id = serializers.IntegerField(source='from'); to = serializers.IntegerField(); value = serializers.IntegerField(); type = serializers.CharField()
+class FundingSerializer(serializers.ModelSerializer):
+    funding_agency = FundingAgencySerializer(read_only=True)
+
+    class Meta:
+        model = FundingAgencyGrant
+        fields = '__all__'
 
 class NetworkGraphSerializer(serializers.Serializer):
     nodes = NetworkNodeSerializer(many=True); edges = NetworkEdgeSerializer(many=True)
+
+class ProjectSerializer(serializers.ModelSerializer):
+    # Mürettebat ve finans verilerini iç içe (nested) almak için bunları ekle
+    # Bu ekleme, modalda mürettebatın görünmemesi sorununu da çözer.
+    members = ResearcherSerializer(many=True, read_only=True)
+    funding = FundingSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Project
+        fields = '__all__'
+        # 🛡️ KRİTİK: pi alanını buraya eklemezsen 400 hatası düzelmez
+        read_only_fields = ['pi', 'embedding', 'created_at', 'members', 'funding']    
