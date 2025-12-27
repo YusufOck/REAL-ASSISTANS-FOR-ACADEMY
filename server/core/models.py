@@ -70,10 +70,10 @@ class Researcher(models.Model):
 # core/models.py içindeki Project sınıfını güncelle:
 class Project(models.Model):
     PHASE_CHOICES = [
-        ('planning', 'Planning'),
-        ('active', 'Active'),
-        ('completed', 'Completed'),
-    ]
+    ('PLANNING', 'Planning'),
+    ('ACTIVE', 'Active'),
+    ('COMPLETED', 'Completed'),
+    ]   
 
     project_id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)

@@ -1,52 +1,51 @@
 import { api } from '@/lib/api';
-import type { AuthResponse, LoginCredentials, RegisterCredentials } from '@/types';
+import type { AuthResponse, RegisterCredentials } from '@/types';
 
 export const authService = {
-  // Giriş Yapma Fonksiyonu
+  // 🛰️ Giriş Yapma: /api/api/token/ hatasını engellemek için /api/ kaldırıldı
   login: async (credentials: { email: string; password: string }): Promise<AuthResponse> => {
-    // Backend Django 'username' bekler, biz 'email' gönderiyoruz.
-    // Eşlemeyi burada yapıyoruz ki Login.tsx temiz kalsın.
     const payload = {
       username: credentials.email,
       password: credentials.password
     };
-    const response = await api.post<AuthResponse>('/api/token/', payload);
+    // baseURL'de /api olduğu için sadece /token/ yeterli
+    const response = await api.post<AuthResponse>('/token/', payload);
     return response.data;
   },
 
-  // Kayıt Olma (Standart - Kullanılmıyor olabilir ama kalsın)
+  // 🛰️ Kayıt Olma
   register: async (data: RegisterCredentials) => {
-    const response = await api.post('/api/register/', data);
+    const response = await api.post('/register/', data);
     return response.data;
   },
 
-  // ONBOARD (Gerçek Kayıt): Hem User hem Researcher oluşturur.
+  // 🛰️ ONBOARD: Hem User hem Researcher oluşturur
   onboard: async (data: any) => {
-    const response = await api.post('/api/researchers/onboard/', data);
+    const response = await api.post('/researchers/onboard/', data);
     return response.data;
   },
 
-  // Profil Getir (Token ile)
+  // 🛰️ Profil Getir (Token ile)
   getProfile: async () => {
-    const response = await api.get('/api/researchers/me/');
+    const response = await api.get('/researchers/me/');
     return response.data;
   },
 
-  // Token Yenileme
+  // 🛰️ Token Yenileme
   refreshToken: async (refresh: string) => {
-    const response = await api.post('/api/token/refresh/', { refresh });
+    const response = await api.post('/token/refresh/', { refresh });
+    return response.data;
+  },
+
+  // 🛰️ Profil Güncelleme
+  updateProfile: async (id: number, data: any) => {
+    // PATCH kullanarak sadece değişen alanları gönderiyoruz
+    const response = await api.patch(`/researchers/${id}/`, data);
     return response.data;
   },
 
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-  },
-  // client/src/services/authService.ts içine ekle:
-
-  updateProfile: async (id: number, data: any) => {
-      // PATCH kullanarak sadece değişen alanları gönderiyoruz
-      const response = await api.patch(`/api/researchers/${id}/`, data);
-      return response.data;
   },
 };
