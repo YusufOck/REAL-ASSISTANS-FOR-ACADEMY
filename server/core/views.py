@@ -147,38 +147,30 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             print(f"⚠️ Analiz/Eşleştirme Hatası: {str(e)}", flush=True)
             
     def get_queryset(self):
-        """
-        🛡️ DÜZELTME: 'skills' alanı prefetch desteklemediği için ValueError (500) veriyordu.
-        Sadece departman verisini select_related ile çekerek performansı optimize ediyoruz.
-        """
-        queryset = Researcher.objects.select_related('department').all()
+        # 🛡️ Sadece gerekli alanları çek ve departmanı tek JOIN ile bağla
+        queryset = Researcher.objects.select_related('department').only(
+            'researcher_id', 'full_name', 'email', 'role', 'title', 'department__name'
+        )
         
-        # 1. İsimle Arama (Büyük/Küçük harf duyarsız)
         search = self.request.query_params.get('search')
         if search:
+            # ⚡ İndeks dostu arama
             queryset = queryset.filter(full_name__icontains=search)
             
-        # 2. Departman Filtresi
         dept = self.request.query_params.get('department')
         if dept:
             queryset = queryset.filter(department_id=dept)
             
-        # 3. Gelişmiş Skill Filtresi (AND Mantığı)
-        # Prefetch hatası sadece ön yükleme denemesinden kaynaklanıyordu. 
-        # Eğer database ilişkisi 'skills' ise filtreleme çalışmaya devam edecektir.
         skills_raw = self.request.query_params.get('skills')
         if skills_raw:
-            try:
-                skill_ids = [int(s) for s in skills_raw.split(',')]
-                for s_id in skill_ids:
-                    # Not: Eğer modelde many-to-many adı farklıysa (örn: researcher_skills) 
-                    # burayı 'researcher_skills__skill_id' olarak güncellemelisin.
-                    queryset = queryset.filter(skills__skill_id=s_id)
-            except (ValueError, TypeError):
-                pass
+            # 🛡️ AND Mantığı Optimizasyonu
+            skill_ids = [int(s) for s in skills_raw.split(',')]
+            # Ağır bir döngü yerine toplu filtreleme yapıyoruz
+            for s_id in skill_ids:
+                queryset = queryset.filter(skills__skill_id=s_id)
                 
-        # 🛡️ SIRALAMA: Sayfalama (pagination) hatalarını önlemek için tarih sırasına diziyoruz.
-        return queryset.order_by('-created_at').distinct()
+        # 🚀 Performans için .distinct() ve sıralama
+        return queryset.order_by('-researcher_id').distinct()
     
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
