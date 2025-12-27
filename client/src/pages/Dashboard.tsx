@@ -89,7 +89,7 @@ export default function Dashboard() {
 
   const handleRespond = async (requestId: number, status: string, msg: string) => {
     try {
-      await api.post("/api/researchers/respond-request/", {
+      await api.post("/researchers/respond-request/", {
         request_id: requestId,
         status: status,
         response_message: msg

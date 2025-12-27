@@ -213,23 +213,31 @@ class NetworkNodeSerializer(serializers.Serializer):
 
 class NetworkEdgeSerializer(serializers.Serializer):
     from_id = serializers.IntegerField(source='from'); to = serializers.IntegerField(); value = serializers.IntegerField(); type = serializers.CharField()
-class FundingSerializer(serializers.ModelSerializer):
-    funding_agency = FundingAgencySerializer(read_only=True)
 
+class FundingSerializer(serializers.ModelSerializer):
+    agency_name = serializers.CharField(source='funding_agency.name', read_only=True)
     class Meta:
         model = FundingAgencyGrant
-        fields = '__all__'
+        fields = ['grant_id', 'agency_name', 'amount', 'currency', 'start_date', 'end_date']
 
 class NetworkGraphSerializer(serializers.Serializer):
     nodes = NetworkNodeSerializer(many=True); edges = NetworkEdgeSerializer(many=True)
 
+class ProjectMemberSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source='researcher.full_name', read_only=True)
+    researcher_id = serializers.IntegerField(source='researcher.researcher_id', read_only=True)
+    # 'role' alanı ProjectResearcher (ara tablo) üzerinden gelir.
+
+    class Meta:
+        model = ProjectResearcher
+        fields = ['researcher_id', 'full_name', 'role']
+
 class ProjectSerializer(serializers.ModelSerializer):
-    # 🛰️ Mürettebat ve Finans verilerini nested (iç içe) gönderiyoruz
-    members = ResearcherSerializer(many=True, read_only=True, source='memberships__researcher')
+    # 🛰️ Mürettebat verisini artık 'memberships' ara tablosu üzerinden tam paket alıyoruz.
+    members = ProjectMemberSerializer(many=True, read_only=True, source='memberships')
     funding = FundingSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = '__all__'
-        # 🛡️ pi alanını mutlaka read_only yap
-        read_only_fields = ['pi', 'embedding', 'created_at', 'search_vector']    
+        read_only_fields = ['pi', 'embedding', 'created_at', 'search_vector']  
