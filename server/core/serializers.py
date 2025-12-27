@@ -88,14 +88,14 @@ class ResearcherSerializer(serializers.ModelSerializer):
     skills_list = serializers.SerializerMethodField()
     department_name = serializers.CharField(source='department.name', read_only=True)
 
+
     class Meta:
         model = Researcher
         fields = '__all__'
 
     def get_skills_list(self, obj):
-        # Araştırmacının yetenek isimlerini döndürür
+        # 🛡️ Profil sayfasındaki boşlukları dolduran veri motoru
         return [rs.skill.name for rs in obj.researcher_skills.all()]
-
     # core/serializers.py içindeki get_notifications metodunu güncelle:
 
     # core/serializers.py içindeki get_notifications metodu

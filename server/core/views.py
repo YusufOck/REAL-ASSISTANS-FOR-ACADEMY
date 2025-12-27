@@ -159,40 +159,40 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
 
 
+
     def get_queryset(self):
-        """
-        🛡️ Hız ve Veri Bütünlüğü Mührü: 
-        'select_related' departman verilerini JOIN yapar.
-        'prefetch_related' ise profil sayfasındaki boşlukları doldurmak için 
-        yetenekleri tek bir ek sorguyla paketler.
-        """
+        # 🛡️ VERİ MÜHRÜ: 'prefetch_related' profil sayfasındaki boşlukları doldurur.
+        # 'select_related' ise departman verisini JOIN ile tek seferde çeker.
         queryset = Researcher.objects.select_related('department').prefetch_related(
             'researcher_skills__skill'
         ).all()
         
-        # 1. Metin Bazlı Arama (İsim/Email)
+        # 🛰️ Metin Bazlı Arama
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(full_name__icontains=search)
             
-        # 2. Departman Filtresi
+        # 🛰️ Departman Filtresi
         dept = self.request.query_params.get('department')
         if dept:
             queryset = queryset.filter(department_id=dept)
             
-        # 3. Yetenek Filtresi (Fix: image_595600.jpg)
-        # Hata raporuna göre 'researcherskill' değil 'researcher_skills' kullanılmalı.
+        # 🔥 ESNEK YETENEK FİLTRESİ (C++ vs C++ Programming Çözümü)
         skills_raw = self.request.query_params.get('skills')
         if skills_raw:
             try:
                 skill_ids = [int(s) for s in skills_raw.split(',')]
-                for s_id in skill_ids:
-                    # AND Mantığı: Seçilen TÜM yeteneklere sahip kişileri getirir.
-                    queryset = queryset.filter(researcher_skills__skill_id=s_id)
+                # 1. Seçilen ID'lerin gerçek metin karşılıklarını (isimlerini) alıyoruz
+                selected_skill_names = Skill.objects.filter(skill_id__in=skill_ids).values_list('name', flat=True)
+                
+                # 2. Her bir isim için kısmi eşleşme (icontains) uyguluyoruz
+                for name in selected_skill_names:
+                    # 'researcher_skills' mühürlendi (image_595600.jpg hatası giderildi)
+                    queryset = queryset.filter(researcher_skills__skill__name__icontains=name)
             except (ValueError, TypeError):
                 pass
                 
-        # 🚀 Sayfalama (Pagination) kararlılığı için sıralama şart.
+        # 🚀 Performans ve Doğruluk: distinct() mükerrer kayıtları engeller.
         return queryset.order_by('-researcher_id').distinct()
     def get_serializer_class(self):
         # 🛰️ Eğer liste (GET /researchers/) isteniyorsa hafif olanı kullan

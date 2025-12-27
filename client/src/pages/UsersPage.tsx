@@ -4,7 +4,7 @@ import { api } from "@/lib/api"
 import { 
   Search, ChevronRight, ArrowLeft, Loader2, 
   Filter, Check, ChevronLeft 
-} from "lucide-react" // 🛡️ unused GraduationCap ve Cpu temizlendi
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 // 🛡️ Global Kilit: Sayfa ömrü boyunca meta verileri sadece 1 kez çekmek için
@@ -31,10 +31,10 @@ interface Skill {
 
 export default function UsersPage() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams() // 🛰️ URL Kontrolü
+  const [searchParams, setSearchParams] = useSearchParams() // 🛰️ URL Kontrolü eklendi
   const [loading, setLoading] = useState(true)
   
-  // 🛡️ MANTIK KORUNDU: Değerler artık başlangıçta URL'den okunuyor (Persistence)
+  // 🛡️ MANTIK KORUNDU: Başlangıç değerleri artık URL'den alınıyor (Persistence)
   const [search, setSearch] = useState(searchParams.get("search") || "")
   const [selectedDept, setSelectedDept] = useState(searchParams.get("department") || "")
   const [selectedSkills, setSelectedSkills] = useState<number[]>(
@@ -52,6 +52,17 @@ export default function UsersPage() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // 🚀 YENİ MANTIK: Filtreler veya sayfa değiştikçe URL'yi mühürle
+  useEffect(() => {
+    const params: any = {};
+    if (search) params.search = search;
+    if (selectedDept) params.department = selectedDept;
+    if (selectedSkills.length > 0) params.skills = selectedSkills.join(",");
+    if (currentPage > 1) params.page = currentPage.toString();
+    
+    setSearchParams(params, { replace: true });
+  }, [search, selectedDept, selectedSkills, currentPage, setSearchParams]);
+
   // 1. ADIM: Meta Verileri Çek (Global Kilit Mantığı Korundu)
   useEffect(() => {
     const fetchMeta = async () => {
@@ -68,22 +79,10 @@ export default function UsersPage() {
       }
     };
     
-    // Sadece veri yoksa çek
     if (!isMetaDataCached || departments.length === 0) {
       fetchMeta();
     }
   }, []);
-
-  // 🚀 YENİ MANTIK: Filtreler her değiştiğinde URL'yi mühürle
-  useEffect(() => {
-    const params: any = {};
-    if (search) params.search = search;
-    if (selectedDept) params.department = selectedDept;
-    if (selectedSkills.length > 0) params.skills = selectedSkills.join(",");
-    if (currentPage > 1) params.page = currentPage.toString();
-    
-    setSearchParams(params, { replace: true });
-  }, [search, selectedDept, selectedSkills, currentPage, setSearchParams]);
 
   // 2. ADIM: Araştırmacı Listesini Çek (AbortController Yapısı Korundu)
   const fetchUsers = async (page: number) => {
@@ -209,12 +208,7 @@ export default function UsersPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {loading ? (
-                <tr>
-                  <td colSpan={4} className="p-32 text-center">
-                    <Loader2 className="animate-spin mx-auto text-indigo-500 mb-4" size={48} />
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Veriler Senkronize Ediliyor...</p>
-                  </td>
-                </tr>
+                <tr><td colSpan={4} className="p-32 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500 mb-4" size={48} /><p className="text-[10px] font-black uppercase tracking-widest opacity-40">Veriler Senkronize Ediliyor...</p></td></tr>
               ) : users.length > 0 ? (
                 users.map((u) => (
                   <tr key={u.researcher_id} className="hover:bg-indigo-500/[0.02] transition-all group border-l-4 border-l-transparent hover:border-l-indigo-500">
@@ -229,19 +223,9 @@ export default function UsersPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-8 text-center">
-                      <span className="text-xs font-bold text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/5">{u.department_name || "Bölüm Yok"}</span>
-                    </td>
-                    <td className="p-8 text-center">
-                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'}`}>
-                        {u.role === 'academician' ? 'Akademisyen' : 'Öğrenci'}
-                      </span>
-                    </td>
-                    <td className="p-8 text-right">
-                      <Button onClick={() => navigate(`/researcher/${u.researcher_id}`)} className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest shadow-xl active:scale-95">
-                        PROFİLİ İNCELE <ChevronRight size={16} className="ml-2" />
-                      </Button>
-                    </td>
+                    <td className="p-8 text-center"><span className="text-xs font-bold text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/5">{u.department_name || "Bölüm Yok"}</span></td>
+                    <td className="p-8 text-center"><span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'}`}>{u.role === 'academician' ? 'Akademisyen' : 'Öğrenci'}</span></td>
+                    <td className="p-8 text-right"><Button onClick={() => navigate(`/researcher/${u.researcher_id}`)} className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest shadow-xl active:scale-95">PROFİLİ İNCELE <ChevronRight size={16} className="ml-2" /></Button></td>
                   </tr>
                 ))
               ) : (
@@ -251,26 +235,11 @@ export default function UsersPage() {
           </table>
         </div>
 
-        {/* 🚀 SAYFALAMA KONTROLLERİ */}
         <div className="p-8 bg-white/[0.03] border-t border-white/10 flex items-center justify-between">
-          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">
-            Sayfa {currentPage} / {totalPages}
-          </p>
+          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Sayfa {currentPage} / {totalPages}</p>
           <div className="flex gap-3">
-            <Button 
-              disabled={currentPage === 1 || loading} 
-              onClick={() => handlePageChange(currentPage - 1)}
-              className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all"
-            >
-              <ChevronLeft size={14} className="mr-2" /> Geri
-            </Button>
-            <Button 
-              disabled={currentPage >= totalPages || loading} 
-              onClick={() => handlePageChange(currentPage + 1)}
-              className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all"
-            >
-              İleri <ChevronRight size={14} className="ml-2" />
-            </Button>
+            <Button disabled={currentPage === 1 || loading} onClick={() => handlePageChange(currentPage - 1)} className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all"><ChevronLeft size={14} className="mr-2" /> Geri</Button>
+            <Button disabled={currentPage >= totalPages || loading} onClick={() => handlePageChange(currentPage + 1)} className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all">İleri <ChevronRight size={14} className="ml-2" /></Button>
           </div>
         </div>
       </div>
