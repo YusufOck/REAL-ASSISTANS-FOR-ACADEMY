@@ -405,6 +405,18 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
 # core/views.py içindeki ProjectViewSet'i bu şekilde mühürle:
 
+import threading
+from django.db.models import Q
+from django.utils import timezone
+from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
+
+from .models import Project, Researcher, ProjectResearcher, FundingAgencyGrant
+from .serializers import ProjectSerializer, FundingAgencyGrantSerializer
+
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated]
@@ -414,61 +426,63 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        🛡️ GÜVENLİK KİLİDİ: Sadece kullanıcının dahil olduğu projeleri getirir.
+        🛡️ GÜVENLİK KİLİDİ: Sadece kullanıcının dahil olduğu veya yönettiği projeler.
         """
         try:
-            # Kullanıcının researcher profilini çek
             researcher = Researcher.objects.get(user=self.request.user)
-            
-            # Filtreleme mantığını koru ama veritabanı yükünü optimize et
             return Project.objects.filter(
-                Q(pi=researcher) | Q(memberships__researcher=researcher)
+                Q(pi=researcher) | Q(researcher_skills__researcher=researcher) 
             ).distinct().order_by('-created_at')
-            
         except Researcher.DoesNotExist:
-            # Profil yoksa boş dön, tüm projeleri sızdırma!
             return Project.objects.none()
 
-    # views.py (ProjectViewSet içinde)
     def perform_create(self, serializer):
-        """🚀 OTONOM MÜHÜR: Proje kaydedilirken AI motorunu uyandırır."""
-        from .services import generate_embedding
-
+        """
+        🚀 PERFORMANS MÜHRÜ: 
+        Proje anında oluşturulur, AI analizi arka planda sessizce çalışır.
+        """
         try:
-            # 1. Kullanıcının araştırmacı profilini çek
+            # 1. PI Ataması: Projeyi oluşturan kişiyi Yürütücü olarak mühürle
             researcher = Researcher.objects.get(user=self.request.user)
-            
-            # 2. İLK KAYIT: instance'ı oluştururken pi'yi mühürle (Tek save yeterli)
             instance = serializer.save(pi=researcher)
+            
+            # 2. ASENKRON AI TETİKLEME: 
+            # loglarda görülen 30 saniyelik kilitlenmeyi (SIGKILL) engeller.
+            from .services import generate_embedding
+            
+            def run_project_ai_task(project_id, text_to_embed):
+                try:
+                    vector = generate_embedding(text_to_embed)
+                    if vector:
+                        # update_fields kullanarak sonsuz döngüyü kırıyoruz
+                        Project.objects.filter(pk=project_id).update(embedding=vector)
+                        print(f"✅ AI MÜHÜRÜ: '{instance.title}' vektörü üretildi.")
+                except Exception as e:
+                    print(f"❌ AI Arka Plan Hatası: {e}")
 
-            # 3. AI ANALİZİ: Başlık, Konu ve Gereksinimlerden anlamsal vektör üret
             combined_text = f"{instance.title}. {instance.summary or ''}. Needs: {instance.requirements or ''}"
-            vector = generate_embedding(combined_text)
-
-            if vector:
-                instance.embedding = vector
-                # 4. GÜNCELLEME: Sadece 'embedding' alanını kaydet (Tüm satırı değil)
-                instance.save(update_fields=['embedding'])
-                print(f"✅ AI MÜHÜRÜ: '{instance.title}' projesi için semantik vektör üretildi.", flush=True)
+            
+            # Thread başlatılıyor (Ateşle ve Unut)
+            task_thread = threading.Thread(
+                target=run_project_ai_task, 
+                args=(instance.project_id, combined_text)
+            )
+            task_thread.start()
 
         except Researcher.DoesNotExist:
             from rest_framework.exceptions import ValidationError
-            raise ValidationError({"detail": "İşlem başarısız: Sisteme kayıtlı bir Araştırmacı profiliniz bulunamadı."})
+            raise ValidationError({"detail": "Araştırmacı profiliniz bulunamadı."})
 
     @action(detail=True, methods=['get'])
     def suggestions(self, request, pk=None):
-        """
-        🧠 AI MATCHING ENGINE: Bu projeye özel en uygun araştırmacıları otonom bulur.
-        Frontend'deki yüzen adada (Modal) listelenen akıllı önerileri bu fonksiyon fırlatır.
-        """
+        """🧠 AI MATCHING ENGINE: Hibrit skorlama motoru."""
         from .services import get_project_specific_suggestions
-        # Hibrit skorlamayı (%50 Semantik + %40 Skill + %10 Dept) çalıştırır
         suggestions = get_project_specific_suggestions(pk, limit=5)
         return Response(suggestions)
 
     @action(detail=True, methods=['get'])
     def researchers(self, request, pk=None):
-        """Proje mürettebatını (üyeleri) listeler."""
+        """Proje mürettebatını listeler."""
         ms = ProjectResearcher.objects.filter(project_id=pk).select_related('researcher')
         return Response([
             {
@@ -491,7 +505,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def funding(self, request, pk=None):
-        """Projenin finansal destek ve grant bilgilerini döner."""
+        """Finansal destek bilgilerini döner."""
         grants = FundingAgencyGrant.objects.filter(project_id=pk).select_related('funding_agency')
         return Response(FundingAgencyGrantSerializer(grants, many=True).data)
     
