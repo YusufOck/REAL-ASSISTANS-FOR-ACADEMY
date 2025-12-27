@@ -293,29 +293,25 @@ def get_project_specific_suggestions(project_id, limit=5):
     except Exception as e:
         print(f"❌ Proje Öneri Hatası: {e}")
         return []
-    
-# server/core/services.py
-# server/core/services.py
+  # server/core/services.py
 def extract_skills_from_bio_task(researcher_id, bio_text):
     from .models import Researcher, Skill, ResearcherSkill
     from django.db import transaction
     import logging
 
     logger = logging.getLogger(__name__)
-    researcher = None # 🛡️ İlk değer ataması hata önlemek için
+    researcher = None 
 
     try:
-        # 1. Önce nesneyi çekiyoruz (Buradan önce 'researcher' kullanılamaz!)
+        # 1. Önce nesneyi çekiyoruz
         researcher = Researcher.objects.get(pk=researcher_id)
         
-        # 2. ANALİZ BAŞLADI: Bayrağı mühürle
+        # 2. ANALİZ BAŞLADI: Sadece 'is_analyzing' alanını güncelle (Döngüye girmez)
         researcher.is_analyzing = True
         researcher.save(update_fields=['is_analyzing'])
         
         # 3. AI ANALİZİ (Gemini Brain)
         extracted_skills, raw_response = analyze_skills_with_gemini(bio_text)
-        
-        # 🔍 LOG MÜHRÜ: Ham yanıtı Render loglarında görmek için buraya ekledik
         print(f"🔍 [AI HAM YANIT]: {raw_response}", flush=True)
 
         if not extracted_skills:
@@ -325,11 +321,17 @@ def extract_skills_from_bio_task(researcher_id, bio_text):
         new_embedding = generate_embedding(bio_text)
         
         with transaction.atomic():
-            # 5. VERİ GÜNCELLEME (Radar grafiği çözümü)
+            # 5. VERİ GÜNCELLEME: Sadece gerekli alanları mühürle
+            # 🚀 KRİTİK: update_fields kullanarak sonsuz döngüyü (SIGKILL) durduruyoruz.
             researcher.skills = extracted_skills
+            update_list = ['skills']
+            
             if new_embedding:
                 researcher.embedding = new_embedding
-            researcher.save()
+                update_list.append('embedding')
+            
+            # Tüm modeli değil, sadece AI sonuçlarını kaydet
+            researcher.save(update_fields=update_list)
 
             # 6. İLİŞKİSEL TABLO GÜNCELLEME
             for s_name, score in extracted_skills.items():
@@ -349,7 +351,10 @@ def extract_skills_from_bio_task(researcher_id, bio_text):
         print(f"❌ AI Analiz Hatasi: {str(e)}")
     
     finally:
-        # 🛡️ KRİTİK MÜHÜR: Hata olsa da olmasa da analiz bittiğinde bayrağı kapat
+        # 🛡️ KRİTİK MÜHÜR: İşlem bitince (başarılı veya hatalı) bayrağı kapat
         if researcher:
-            researcher.is_analyzing = False
-            researcher.save(update_fields=['is_analyzing'])
+            try:
+                researcher.is_analyzing = False
+                researcher.save(update_fields=['is_analyzing'])
+            except Exception as final_err:
+                print(f"❌ Final Flag Kapatma Hatasi: {final_err}")
