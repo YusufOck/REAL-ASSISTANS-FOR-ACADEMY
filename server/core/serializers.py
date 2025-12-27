@@ -253,19 +253,32 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['pi', 'embedding', 'created_at', 'search_vector']  
 # server/core/serializers.py
-
 class ResearcherMeSerializer(serializers.ModelSerializer):
+    """
+    ⚡ SİSTEMİN KALBİ: 
+    Dashboard ve Profil sayfalarının tüm veri ihtiyacını tek seferde, 
+    hızlı bir paket olarak sunar.
+    """
     department_name = serializers.CharField(source='department.name', read_only=True)
-    # 🛰️ Radar grafiği için bu alan şart!
+    notif_count = serializers.SerializerMethodField()
+    # 🛰️ Radar grafiği için şart
     skills = serializers.JSONField(read_only=True) 
 
     class Meta:
         model = Researcher
         fields = [
-            'researcher_id', 'full_name', 'role', 'title', 
-            'department_name', 'skills', 'is_analyzing' # 🛡️ Bayrağı da ekledik
+            'researcher_id', 
+            'full_name', 
+            'role', 
+            'title', 
+            'bio',           # 🚀 MÜHÜR: Sıfırlanma sorununu çözen alan
+            'department',    # 🚀 MÜHÜR: Select input'un seçili gelmesini sağlar
+            'department_name', 
+            'skills', 
+            'is_analyzing',  # 🛡️ Spinner kontrolü için
+            'notif_count'    # 🔔 Bildirim sayacı
         ]
 
     def get_notif_count(self, obj):
-        # Tüm bildirimleri çekmek yerine sadece sayısını döndürmek hızı katlar.
+        """Okunmamış bildirim sayısını optimize bir sorguyla döner."""
         return obj.notifications.filter(is_read=False).count()
