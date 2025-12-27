@@ -20,40 +20,40 @@ export default function Login() {
       const response = await authService.login({ email, password })
       localStorage.setItem("accessToken", response.access)
       localStorage.setItem("refreshToken", response.refresh)
-      toast.success("Erişim Onaylandı!", { description: "Sisteme mühürlendiniz.", duration: 2000 })
+      toast.success("Access Approved!", { description: "You have been sealed into the system.", duration: 2000 })
       setTimeout(() => navigate("/dashboard"), 1000)
     } catch (error: any) {
-      toast.error("Giriş Başarısız", { description: "Kimlik doğrulanamadı.", duration: 4000 })
+      toast.error("Login Failed", { description: "Authentication failed.", duration: 4000 })
     } finally { setIsLoading(false) }
   }
 
   return (
     <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center p-6 relative overflow-hidden font-sans">
       
-      {/* 🌌 ARKA PLAN "SHOW" ALANI: Siber Yörünge & Enerji Akışı */}
+      {/* 🌌 BACKGROUND "SHOW" AREA: Cyber Orbit & Energy Flow */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         
-        {/* 1. Derinlik Katan Temel Gradyan */}
+        {/* 1. Base Gradient That Adds Depth */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-950/50 via-[#020617] to-[#020617]" />
         
-        {/* 2. Dönen Devasa Enerji Halkaları (Yörüngeler) */}
+        {/* 2. Rotating Giant Energy Rings (Orbits) */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] border-[1px] border-blue-500/30 rounded-[50%] skew-y-12 animate-[spin_20s_linear_infinite] blur-[2px] opacity-40" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] border-[1px] border-purple-500/30 rounded-[50%] -skew-x-12 animate-[spin_15s_linear_reverse_infinite] blur-[2px] opacity-40" />
 
-        {/* 3. Ana Işık Kaynakları (Nebula Efekti) */}
+        {/* 3. Main Light Sources (Nebula Effect) */}
         <div className="absolute top-[-20%] -left-[10%] w-[800px] h-[800px] bg-blue-600/20 rounded-full blur-[150px] animate-pulse-slow mix-blend-screen" />
         <div className="absolute bottom-[-20%] -right-[10%] w-[800px] h-[800px] bg-purple-600/20 rounded-full blur-[150px] animate-pulse-slow animation-delay-2000 mix-blend-screen" />
         
-        {/* 4. Kayan Veri Akış Çizgileri (Data Streams) */}
+        {/* 4. Sliding Data Stream Lines */}
         <div className="absolute inset-0 bg-[url('/assets/grid-pattern.png')] opacity-[0.05] bg-repeat mix-blend-overlay animate-[pulse_4s_ease-in-out_infinite]"></div>
         <div className="absolute h-px w-full top-1/4 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-30 animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]" />
         <div className="absolute h-px w-full bottom-1/4 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent opacity-30 animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite_1.5s]" />
       </div>
 
-      {/* 🏝️ GLASS ISLAND: Giriş Paneli (Arka planla etkileşimde) */}
+      {/* 🏝️ GLASS ISLAND: Login Panel (Interacts with the background) */}
       <div className="relative z-10 w-full max-w-[480px] bg-white/[0.02] backdrop-blur-3xl rounded-[3rem] border border-white/10 shadow-[0_0_100px_rgba(59,130,246,0.25)] p-12 animate-in zoom-in-95 duration-1000">
         
-        {/* Panel Kenar Parlaması */}
+        {/* Panel Edge Glow */}
         <div className="absolute -inset-[1px] bg-gradient-to-br from-blue-500/30 via-transparent to-purple-500/30 rounded-[3rem] -z-10 blur-sm opacity-70" />
 
         <div className="text-center mb-12">
@@ -77,7 +77,7 @@ export default function Login() {
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400/60 group-focus-within:text-blue-400 transition-colors" />
               <Input 
                 type="email" 
-                placeholder="E-posta Adresi" 
+                placeholder="Email Address" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -92,7 +92,7 @@ export default function Login() {
               <Link to="/forgot-password" 
                 className="text-[9px] text-blue-400/70 hover:text-blue-300 transition-colors uppercase font-black"
               >
-                Şifremi Unuttum?
+                Forgot Password?
               </Link>
             </div>
             <div className="relative group">
@@ -119,7 +119,7 @@ export default function Login() {
               <>
                 <div className="absolute inset-0 bg-white/20 skew-x-12 -translate-x-full group-hover:translate-x-[200%] transition-transform duration-1000" />
                 <div className="flex items-center justify-center gap-3 relative z-10">
-                  <span className="text-lg tracking-tight">Sisteme Bağlan</span>
+                  <span className="text-lg tracking-tight">Connect to the System</span>
                   <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
                 </div>
               </>
@@ -129,15 +129,15 @@ export default function Login() {
 
         <div className="mt-12 text-center">
           <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest">
-            Henüz üye değil misiniz?{" "}
+            Not a member yet?{" "}
             <Link to="/register" className="text-blue-400 hover:text-white transition-all ml-1 underline-offset-8 decoration-blue-500/30 underline">
-              Kaydı Başlat
+              Start Registration
             </Link>
           </p>
         </div>
       </div>
 
-      {/* Köşe Süsü */}
+      {/* Corner Ornament */}
       <div className="absolute bottom-12 right-12 opacity-50 animate-pulse">
         <Sparkles className="w-12 h-12 text-blue-400/50" />
       </div>

@@ -31,7 +31,7 @@ export default function Register() {
     department_id: "",
   });
 
-  // 🛡️ BACKEND MANTIĞI: Departmanları Çekme (Aynen Korundu)
+  // 🛡️ BACKEND LOGIC: Fetch Departments (Kept Exactly)
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
@@ -40,9 +40,9 @@ export default function Register() {
         const list = Array.isArray(rawData) ? rawData : rawData?.results || [];
         setDepartments(list);
       } catch (error) {
-        console.error("Departmanlar yüklenemedi:", error);
+        console.error("Departments could not be loaded:", error);
         setDepartments([]);
-        toast.error("Bölüm listesi alınamadı.");
+        toast.error("Could not retrieve department list.");
       }
     };
     fetchDepartments();
@@ -52,16 +52,16 @@ export default function Register() {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  // 🛡️ BACKEND MANTIĞI: Kayıt İşlemi (Aynen Korundu)
+  // 🛡️ BACKEND LOGIC: Registration Process (Kept Exactly)
   const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!formData.full_name || !formData.email || !formData.password || !formData.department_id) {
-      toast.warning("Lütfen tüm alanları doldurun.");
+      toast.warning("Please fill in all fields.");
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      toast.error("Şifreler birbirini tutmuyor!");
+      toast.error("Passwords do not match!");
       return;
     }
 
@@ -75,15 +75,15 @@ export default function Register() {
         role: "student",
       });
 
-      toast.success("Kayıt Başarılı!", {
-        description: "Profiliniz ve hesabınız oluşturuldu. Giriş yapabilirsiniz.",
+      toast.success("Registration Successful!", {
+        description: "Your profile and account have been created. You can sign in now.",
       });
 
       setTimeout(() => navigate("/login"), 1500);
     } catch (error: any) {
-      console.error("Kayıt Hatası:", error);
-      const errorMsg = error.response?.data?.detail || "Kayıt işlemi başarısız.";
-      toast.error("Hata Oluştu", { description: errorMsg });
+      console.error("Registration Error:", error);
+      const errorMsg = error.response?.data?.detail || "Registration failed.";
+      toast.error("An Error Occurred", { description: errorMsg });
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +91,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center p-6 relative overflow-x-hidden font-sans">
-      {/* 🌌 ARKA PLAN "SHOW" ALANI: Login sayfası ile aynı tema */}
+      {/* 🌌 BACKGROUND "SHOW" AREA: Same theme as the Login page */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-950/50 via-[#020617] to-[#020617]" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] border-[1px] border-blue-500/30 rounded-[50%] skew-y-12 animate-[spin_20s_linear_infinite] blur-[2px] opacity-40" />
@@ -101,9 +101,9 @@ export default function Register() {
         <div className="absolute inset-0 bg-[url('/assets/grid-pattern.png')] opacity-[0.05] bg-repeat mix-blend-overlay animate-[pulse_4s_ease-in-out_infinite]"></div>
       </div>
 
-      {/* 🏝️ GLASS ISLAND: Kayıt Paneli */}
+      {/* 🏝️ GLASS ISLAND: Registration Panel */}
       <div className="relative z-10 w-full max-w-[550px] bg-white/[0.02] backdrop-blur-3xl rounded-[3rem] border border-white/10 shadow-[0_0_100px_rgba(168,85,247,0.25)] p-10 animate-in zoom-in-95 duration-1000">
-        {/* Panel Kenar Parlaması (Mor Vurgu) */}
+        {/* Panel Edge Glow (Purple Accent) */}
         <div className="absolute -inset-[1px] bg-gradient-to-br from-purple-500/30 via-transparent to-blue-500/30 rounded-[3rem] -z-10 blur-sm opacity-70" />
 
         <div className="text-center mb-10">
@@ -123,16 +123,16 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleRegister} className="space-y-6">
-          {/* AD SOYAD */}
+          {/* FULL NAME */}
           <div className="space-y-2">
             <Label htmlFor="full_name" className="text-purple-300/50 ml-1 text-[10px] uppercase tracking-[0.3em] font-black">
-              Kimlik Bilgisi
+              Identity Information
             </Label>
             <div className="relative group">
               <User className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400/60 group-focus-within:text-purple-400 transition-colors" />
               <Input
                 id="full_name"
-                placeholder="Ad Soyad"
+                placeholder="Full Name"
                 required
                 onChange={handleChange}
                 className="h-14 pl-14 bg-black/30 border-white/5 rounded-2xl focus:ring-purple-500/30 focus:border-purple-500/50 transition-all placeholder:text-slate-600 text-white shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]"
@@ -140,17 +140,17 @@ export default function Register() {
             </div>
           </div>
 
-          {/* E-POSTA */}
+          {/* EMAIL */}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-purple-300/50 ml-1 text-[10px] uppercase tracking-[0.3em] font-black">
-              İletişim Kanalı
+              Contact Channel
             </Label>
             <div className="relative group">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400/60 group-focus-within:text-purple-400 transition-colors" />
               <Input
                 id="email"
                 type="email"
-                placeholder="ornek@mail.com"
+                placeholder="example@mail.com"
                 required
                 onChange={handleChange}
                 className="h-14 pl-14 bg-black/30 border-white/5 rounded-2xl focus:ring-purple-500/30 focus:border-purple-500/50 transition-all placeholder:text-slate-600 text-white shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]"
@@ -158,10 +158,10 @@ export default function Register() {
             </div>
           </div>
 
-          {/* DEPARTMAN SEÇİMİ */}
+          {/* DEPARTMENT SELECTION */}
           <div className="space-y-2">
             <Label htmlFor="department_id" className="text-purple-300/50 ml-1 text-[10px] uppercase tracking-[0.3em] font-black">
-              Akademik Birim
+              Academic Unit
             </Label>
             <div className="relative group">
               <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400/60 group-focus-within:text-purple-400 transition-colors z-10" />
@@ -172,7 +172,7 @@ export default function Register() {
                 required
               >
                 <option value="" className="bg-slate-900 text-slate-400">
-                  Bölüm Seçiniz...
+                  Select Department...
                 </option>
                 {departments.map((dep) => (
                   <option key={dep.department_id} value={dep.department_id} className="bg-slate-900 text-white">
@@ -188,11 +188,11 @@ export default function Register() {
             </div>
           </div>
 
-          {/* ŞİFRELER */}
+          {/* PASSWORDS */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="password" className="text-purple-300/50 ml-1 text-[10px] uppercase tracking-[0.3em] font-black">
-                Şifre
+                Password
               </Label>
               <Input
                 id="password"
@@ -205,7 +205,7 @@ export default function Register() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword" className="text-purple-300/50 ml-1 text-[10px] uppercase tracking-[0.3em] font-black">
-                Tekrar
+                Confirm
               </Label>
               <Input
                 id="confirmPassword"
@@ -230,7 +230,7 @@ export default function Register() {
                 <div className="absolute inset-0 bg-white/20 skew-x-12 -translate-x-full group-hover:translate-x-[200%] transition-transform duration-1000" />
                 <div className="flex items-center justify-center gap-3 relative z-10">
                   <UserPlus className="w-6 h-6" />
-                  <span className="text-lg tracking-tight">Kaydı Tamamla</span>
+                  <span className="text-lg tracking-tight">Complete Registration</span>
                   <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
                 </div>
               </>
@@ -240,18 +240,18 @@ export default function Register() {
 
         <div className="mt-10 text-center border-t border-white/5 pt-8">
           <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest">
-            Zaten bir hesabınız var mı?{" "}
+            Already have an account?{" "}
             <Link
               to="/login"
               className="text-purple-400 hover:text-white transition-all ml-1 underline-offset-8 decoration-purple-500/30 underline"
             >
-              Giriş Yap
+              Sign In
             </Link>
           </p>
         </div>
       </div>
 
-      {/* Köşe Süsü */}
+      {/* Corner Ornament */}
       <div className="absolute bottom-12 left-12 opacity-50 animate-pulse">
         <Sparkles className="w-12 h-12 text-purple-400/50" />
       </div>

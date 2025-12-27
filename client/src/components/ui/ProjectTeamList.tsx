@@ -27,13 +27,13 @@ const ProjectTeamList: React.FC<ProjectTeamListProps> = ({ projects }) => {
   return (
     <div className="space-y-6">
       <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2 mb-4">
-        <Users className="text-blue-600" /> Aktif Proje Gruplarım
+        <Users className="text-blue-600" /> My Active Project Groups
       </h3>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {projects.map((project) => (
           <div key={project.project_id} className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all">
-            {/* Grup Başlığı */}
+            {/* Group Header */}
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h4 className="font-black text-slate-800 text-lg leading-tight">{project.title}</h4>
@@ -41,14 +41,14 @@ const ProjectTeamList: React.FC<ProjectTeamListProps> = ({ projects }) => {
                   {project.status}
                 </span>
               </div>
-              <span className={`text-[10px] px-3 py-1 rounded-full font-bold ${project.my_role.includes('PI') ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+              <span className={`text-[10px] px-3 py-1 rounded-full font-bold ${project.my_role.includes('PI') ? 'bg-amber-100 text-igid-700' : 'bg-blue-100 text-blue-700'}`}>
                 {project.my_role}
               </span>
             </div>
 
-            {/* Mürettebat Listesi */}
+            {/* Crew List */}
             <div className="space-y-2 border-t border-slate-50 pt-4">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Görevli Mürettebat</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Assigned Crew</p>
               {project.group_members && project.group_members.length > 0 ? (
                 project.group_members.map((member) => (
                   <div key={member.id} className="flex items-center justify-between bg-slate-50 p-2 rounded-xl">
@@ -63,7 +63,7 @@ const ProjectTeamList: React.FC<ProjectTeamListProps> = ({ projects }) => {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-slate-400 italic">Bu grupta henüz başka mürettebat yok.</p>
+                <p className="text-xs text-slate-400 italic">There are no other crew members in this group yet.</p>
               )}
             </div>
           </div>

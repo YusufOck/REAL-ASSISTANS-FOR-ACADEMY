@@ -11,17 +11,17 @@ interface IncomingRequestsProps {
 }
 
 const IncomingRequests: React.FC<IncomingRequestsProps> = ({ requests, onRefresh }) => {
-  // Birden fazla istek olduğunda hangi ID'nin işlendiğini takip etmek için
+  // To track which ID is being processed when there are multiple requests
   const [processingId, setProcessingId] = useState<number | null>(null);
 
   const handleResponse = async (requestId: number, status: 'accepted' | 'rejected') => {
     setProcessingId(requestId);
-    console.log(`📡 Sinyal fırlatılıyor: ID ${requestId}, Durum: ${status}`);
+    console.log(`📡 Signal launched: ID ${requestId}, Status: ${status}`);
 
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
-        toast.error("Otonom sistem kimlik hatası: Token bulunamadı!");
+        toast.error("Autonomous system authentication error: Token not found!");
         return;
       }
 
@@ -35,30 +35,30 @@ const IncomingRequests: React.FC<IncomingRequestsProps> = ({ requests, onRefresh
           request_id: requestId,
           status: status,
           response_message: status === 'accepted' 
-            ? "İş birliğini kabul ettim, uçağı piste çıkaralım!" 
-            : "Şu an başka bir otonom görevdeyim."
+            ? "I accepted the collaboration, let's roll the plane to the runway!" 
+            : "I'm currently on another autonomous mission."
         })
       });
 
       const data = await response.json();
-      console.log("📥 Backend Yanıtı:", data);
+      console.log("📥 Backend Response:", data);
 
       if (response.ok) {
-        toast.success(status === 'accepted' ? "İş birliği mühürlendi!" : "Talep başarıyla reddedildi.");
-        onRefresh(); // Dashboard'u otonom olarak tazele
+        toast.success(status === 'accepted' ? "Collaboration sealed!" : "Request successfully rejected.");
+        onRefresh(); // Refresh the dashboard autonomously
       } else {
-        // Backend'in gönderdiği hata mesajını (detail) ekrana mühürle
-        toast.error(data.detail || "Backend bu otonom işlemi reddetti!");
+        // Seal the error message (detail) sent by the backend to the screen
+        toast.error(data.detail || "The backend rejected this autonomous operation!");
       }
     } catch (error) {
-      console.error("❌ Kritik İletişim Hatası:", error);
-      toast.error("Bağlantı hatası: Sunucu kulesine ulaşılamıyor!");
+      console.error("❌ Critical Communication Error:", error);
+      toast.error("Connection error: Unable to reach the server tower!");
     } finally {
       setProcessingId(null);
     }
   };
 
-  // Sadece bekleyen (pending) ve geçerli olan istekleri mühürle
+  // Seal only pending and valid requests
   const pendingRequests = requests?.filter(r => r.status === 'pending' || r.status === 'Beklemede') || [];
 
   if (pendingRequests.length === 0) return null;
@@ -66,7 +66,7 @@ const IncomingRequests: React.FC<IncomingRequestsProps> = ({ requests, onRefresh
   return (
     <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
       <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-        <Clock className="text-amber-500 animate-pulse" /> Gelen İş Birliği Talepleri
+        <Clock className="text-amber-500 animate-pulse" /> Incoming Collaboration Requests
       </h3>
       
       <div className="space-y-4">
@@ -84,7 +84,7 @@ const IncomingRequests: React.FC<IncomingRequestsProps> = ({ requests, onRefresh
               </div>
               <p className="text-sm text-slate-600 flex items-start gap-1 italic bg-white/50 p-2 rounded-xl">
                 <MessageSquare size={16} className="text-slate-400 mt-0.5 shrink-0" /> 
-                "{req.message || "Mesaj bırakılmamış."}"
+                "{req.message || "No message left."}"
               </p>
             </div>
 
@@ -95,7 +95,7 @@ const IncomingRequests: React.FC<IncomingRequestsProps> = ({ requests, onRefresh
                 className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl h-12 px-6 font-bold active:scale-95 transition-all"
               >
                 {processingId === req.request_id ? <Loader2 className="animate-spin" /> : <Check size={18} />}
-                Kabul Et
+                Accept
               </Button>
               <Button 
                 onClick={() => handleResponse(req.request_id, 'rejected')}
@@ -104,7 +104,7 @@ const IncomingRequests: React.FC<IncomingRequestsProps> = ({ requests, onRefresh
                 className="flex-1 md:flex-none border-red-100 text-red-600 hover:bg-red-50 gap-2 rounded-xl h-12 px-6 font-bold active:scale-95 transition-all"
               >
                 {processingId === req.request_id ? <Loader2 className="animate-spin" /> : <X size={18} />}
-                Reddet
+                Reject
               </Button>
             </div>
           </div>

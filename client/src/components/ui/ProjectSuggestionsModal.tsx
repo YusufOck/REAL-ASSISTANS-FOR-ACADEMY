@@ -11,24 +11,24 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
   const fetchSuggestions = async () => {
     setLoading(true)
     try {
-      // 🛰️ VERİ TRANSFERİ: Backend'deki AI eşleştirme algoritmasını tetikler
+      // 🛰️ DATA TRANSFER: Triggers the AI matching algorithm on the backend
       const res = await api.get(`/projects/${project.project_id}/suggestions/`)
       setSuggestions(res.data)
     } catch (err) { 
-      console.error("Öneriler çekilemedi", err) 
+      console.error("Could not fetch suggestions", err) 
     }
     setLoading(false)
   }
 
   useEffect(() => { 
-    // 🛡️ OTONOM KONTROL: image_4b4338.png'deki sonsuz döngüyü engellemek için
-    // Bağımlılık dizisine sadece ID eklendi.
+    // 🛡️ AUTONOMOUS CHECK: To prevent the infinite loop in image_4b4338.png
+    // Only the ID was added to the dependency array.
     if (project?.project_id) {
       fetchSuggestions(); 
     }
   }, [project.project_id]); 
 
-  // 🚀 NAVİGASYON: Modalı kapatır ve araştırmacı detayına ışınlar
+  // 🚀 NAVIGATION: Closes the modal and warps to the researcher detail
   const handleViewProfile = (rid: number) => {
     onClose() 
     navigate(`/researcher/${rid}`) 
@@ -50,18 +50,18 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Analiz Odağı */}
+          {/* Analysis Focus */}
           <div className="p-4 bg-white/5 border border-white/5 rounded-2xl text-center">
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">Analiz Odağı</p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">Analysis Focus</p>
             <p className="text-xs text-indigo-300 font-bold italic">"{project.title}"</p>
           </div>
 
-          {/* Liste Alanı */}
+          {/* List Area */}
           <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
             {loading ? (
               <div className="py-20 flex flex-col items-center gap-3">
                 <Sparkles className="animate-spin text-indigo-500" />
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Algoritma Analiz Ediyor...</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Algorithm Analyzing...</p>
               </div>
             ) : suggestions.length > 0 ? (
               suggestions.map((s: any) => (
@@ -70,19 +70,19 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
                     <p className="font-black text-white text-sm tracking-tight">{s.full_name}</p>
                     <div className="flex items-center gap-2">
                       <div className="px-2 py-0.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-black text-indigo-400 uppercase">
-                        %{s.score || s.match_score} Uyum
+                        %{s.score || s.match_score} Match
                       </div>
                       <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
-                        {s.department_name || "Mühendislik"}
+                        {s.department_name || "Engineering"}
                       </span>
                     </div>
                   </div>
 
-                  {/* 🛡️ AKSİYON: Profili İncele Butonu */}
+                  {/* 🛡️ ACTION: View Profile Button */}
                   <button 
                     onClick={() => handleViewProfile(s.researcher_id)}
                     className="h-10 w-10 rounded-xl bg-white/5 hover:bg-indigo-500 text-slate-400 hover:text-white flex items-center justify-center transition-all group-hover:scale-110 shadow-lg"
-                    title="Profili İncele"
+                    title="View Profile"
                   >
                     <UserSearch size={18} />
                   </button>
@@ -90,7 +90,7 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
               ))
             ) : (
               <div className="py-10 text-center">
-                <p className="text-[10px] text-slate-500 font-black uppercase">Uygun aday bulunamadı.</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">No suitable candidate found.</p>
               </div>
             )}
           </div>

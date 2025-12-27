@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { api } from "@/lib/api" // 🛰️ API Instance entegre edildi
+import { api } from "@/lib/api" // 🛰️ API Instance integrated
 
 export default function ResearcherDetail() {
   const { id } = useParams()
@@ -30,7 +30,7 @@ export default function ResearcherDetail() {
   const [requestMessage, setRequestMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
 
-  // 🛡️ OTONOM KİLİT: image_b03ca5.png'deki çift istekleri engeller
+  // 🛡️ AUTONOMOUS LOCK: Prevents duplicate requests in image_b03ca5.png
   const isFetching = useRef(false)
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function ResearcherDetail() {
 
       setLoading(true)
       try {
-        // 🛰️ VERİ İSTASYONU: api.get kullanılarak headers ve prefix yönetimi otonomlaştırıldı
+        // 🛰️ DATA STATION: Using api.get automates headers and prefix handling
         const [resProfile, resProjects, resMe] = await Promise.all([
           api.get(`/researchers/${id}/`),
           api.get(`/researchers/${id}/projects/`),
@@ -51,7 +51,7 @@ export default function ResearcherDetail() {
         const projectsData = resProjects.data
         const meData = resMe.data
 
-        // 🛡️ VERİ SENKRONİZASYONU: "Uzmanlık Alanları" mühürleme bloğu
+        // 🛡️ DATA SYNC: "Expertise Areas" sealing block
         let cleanProfile = Array.isArray(profileRaw) ? profileRaw.find(i => typeof i === 'object') : profileRaw;
         
         if (cleanProfile && cleanProfile.skills && Array.isArray(cleanProfile.skills)) {
@@ -62,8 +62,8 @@ export default function ResearcherDetail() {
         setOtherProjects(projectsData)
         setMyProjects(meData.projects || [])
       } catch (error: any) {
-        // 500 hatası alındığında (image_4b4600.png) kullanıcıyı bilgilendirir
-        toast.error("Veriler senkronize edilemedi. Sistem hatası (500).")
+        // Informs the user when a 500 error occurs (image_4b4600.png)
+        toast.error("Data could not be synchronized. System error (500).")
       } finally {
         setLoading(false)
         isFetching.current = false
@@ -77,7 +77,7 @@ export default function ResearcherDetail() {
     if (!selectedProjectId) return
     setIsSending(true)
     try {
-      // 🚀 İŞ BİRLİĞİ TRANSFERİ: POST isteği api instance üzerinden atılıyor
+      // 🚀 COLLABORATION TRANSFER: POST request sent via api instance
       await api.post(`/researchers/${id}/send-request/`, {
         receiver_id: id,
         project_id: selectedProjectId,
@@ -85,11 +85,11 @@ export default function ResearcherDetail() {
         request_type: requestType,
       })
       
-      toast.success("İş birliği talebi fırlatıldı.")
+      toast.success("Collaboration request launched.")
       setSelectedProjectId(null)
       setRequestMessage("")
     } catch (e: any) {
-      toast.error(e.response?.data?.detail || "İstek gönderilemedi.")
+      toast.error(e.response?.data?.detail || "Request could not be sent.")
     } finally {
       setIsSending(false)
     }
@@ -111,18 +111,18 @@ export default function ResearcherDetail() {
           onClick={() => navigate(-1)}
           className="text-slate-300 hover:text-white hover:bg-white/[0.05] rounded-xl"
         >
-          <ArrowLeft className="mr-2" /> Geri Dön
+          <ArrowLeft className="mr-2" /> Go Back
         </Button>
 
-        {/* Profil Kartı */}
+        {/* Profile Card */}
         <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-8 shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-indigo-500/15 rounded-2xl border border-indigo-400/20">
               <Brain className="text-indigo-300" size={32} />
             </div>
             <div>
-              <h1 className="text-4xl font-black text-white">{researcher?.full_name || "Bilinmeyen Araştırmacı"}</h1>
-              <p className="text-indigo-300 font-bold">{researcher?.title || "Araştırmacı"}</p>
+              <h1 className="text-4xl font-black text-white">{researcher?.full_name || "Unknown Researcher"}</h1>
+              <p className="text-indigo-300 font-bold">{researcher?.title || "Researcher"}</p>
             </div>
           </div>
           {researcher?.bio && (
@@ -130,27 +130,27 @@ export default function ResearcherDetail() {
           )}
         </div>
 
-        {/* İstek Türü Seçici */}
+        {/* Request Type Selector */}
         <div className="flex gap-4 bg-white/[0.04] border border-white/10 rounded-2xl p-2">
           <button
             onClick={() => { setRequestType("join_request"); setSelectedProjectId(null); }}
             className={`flex-1 py-3 rounded-xl font-black transition ${requestType === "join_request" ? "bg-indigo-500/20 text-indigo-300 shadow-lg shadow-indigo-500/10" : "text-slate-400 hover:text-white"}`}
           >
-            <Users className="inline mr-2" size={18} /> Projesine Katıl
+            <Users className="inline mr-2" size={18} /> Join Their Project
           </button>
           <button
             onClick={() => { setRequestType("invite"); setSelectedProjectId(null); }}
             className={`flex-1 py-3 rounded-xl font-black transition ${requestType === "invite" ? "bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/10" : "text-slate-400 hover:text-white"}`}
           >
-            <UserPlus className="inline mr-2" size={18} /> Projeme Davet Et
+            <UserPlus className="inline mr-2" size={18} /> Invite to My Project
           </button>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Uzmanlık Alanları */}
+          {/* Expertise Areas */}
           <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
             <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-              <Code className="text-indigo-400" /> Uzmanlık Alanları
+              <Code className="text-indigo-400" /> Expertise Areas
             </h3>
             <div className="space-y-5">
               {researcher?.skills && Object.entries(researcher.skills).length > 0 ? (
@@ -166,16 +166,16 @@ export default function ResearcherDetail() {
                   </div>
                 ))
               ) : (
-                <p className="text-slate-500 italic text-sm text-center py-4">Bu araştırmacı henüz yeteneklerini mühürlememiş.</p>
+                <p className="text-slate-500 italic text-sm text-center py-4">This researcher hasn't sealed their skills yet.</p>
               )}
             </div>
           </div>
 
-          {/* Proje Listesi */}
+          {/* Project List */}
           <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
             <h3 className="text-xl font-black mb-6 flex items-center gap-2">
               <FolderGit2 className="text-emerald-400" /> 
-              {requestType === "join_request" ? "Katılabileceğin Projeleri" : "Onu Davet Edebileceğin Projelerin"}
+              {requestType === "join_request" ? "Projects You Can Join" : "Projects You Can Invite Them To"}
             </h3>
             <div className="space-y-3 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
               {(requestType === "join_request" ? otherProjects : myProjects).map((p: any) => (
@@ -189,20 +189,20 @@ export default function ResearcherDetail() {
                 </div>
               ))}
               {(requestType === "join_request" ? otherProjects : myProjects).length === 0 && (
-                <p className="text-slate-500 italic text-sm text-center py-10">Görüntülenecek proje bulunamadı.</p>
+                <p className="text-slate-500 italic text-sm text-center py-10">No projects available to display.</p>
               )}
             </div>
           </div>
         </div>
 
-        {/* Mesaj Alanı */}
+        {/* Message Area */}
         {selectedProjectId && (
           <div className="animate-in slide-in-from-bottom-4 duration-300">
             <textarea
               value={requestMessage}
               onChange={(e) => setRequestMessage(e.target.value)}
               className="w-full min-h-[140px] bg-white/[0.05] border border-white/10 rounded-3xl p-6 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 transition-all"
-              placeholder="İş birliği için bir not ekleyin..."
+              placeholder="Add a note for the collaboration..."
             />
           </div>
         )}
@@ -212,7 +212,7 @@ export default function ResearcherDetail() {
           disabled={!selectedProjectId || isSending}
           className="w-full h-16 rounded-[1.5rem] bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-black text-lg shadow-2xl transition-all active:scale-[0.98] disabled:opacity-30"
         >
-          {isSending ? <Loader2 className="animate-spin" /> : <><Send className="mr-2" size={20} /> İŞ BİRLİĞİ TALEBİ GÖNDER</>}
+          {isSending ? <Loader2 className="animate-spin" /> : <><Send className="mr-2" size={20} /> SEND COLLABORATION REQUEST</>}
         </Button>
       </div>
     </div>

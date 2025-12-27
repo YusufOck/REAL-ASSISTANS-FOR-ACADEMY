@@ -17,11 +17,9 @@ import {
   Search,
   Settings,
   ShieldCheck,
-  Trophy,
   Users,
   Sparkles,
   Trash2,
-  BookOpen,
 } from "lucide-react"
 
 import { toast } from "sonner"
@@ -44,7 +42,7 @@ export default function Dashboard() {
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
   const isFetching = useRef(false)
 
-  // ✅ Bildirim dropdown’u artık PORTAL: pozisyon hesap
+  // ✅ Notification dropdown is now PORTAL: position calculation
   const bellBtnRef = useRef<HTMLButtonElement | null>(null)
   const [notifPos, setNotifPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
@@ -53,7 +51,7 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ✅ Dropdown açıkken konum güncelle (nested scroll dahil)
+  // ✅ Update position while dropdown is open (including nested scroll)
   useEffect(() => {
     const calc = () => {
       if (!bellBtnRef.current) return
@@ -61,7 +59,7 @@ export default function Dashboard() {
       const width = 350
       setNotifPos({
         top: r.bottom + 14,
-        left: Math.max(12, r.right - width), // taşmayı engelle
+        left: Math.max(12, r.right - width), // prevent overflow
         width,
       })
     }
@@ -69,7 +67,7 @@ export default function Dashboard() {
     if (showNotifications) calc()
 
     window.addEventListener("resize", calc)
-    window.addEventListener("scroll", calc, true) // nested scroll için TRUE
+    window.addEventListener("scroll", calc, true) // TRUE for nested scroll
     return () => {
       window.removeEventListener("resize", calc)
       window.removeEventListener("scroll", calc, true)
@@ -97,7 +95,7 @@ export default function Dashboard() {
         navigate("/login")
         return
       }
-      toast.error("Profil senkronize edilemedi.")
+      toast.error("Profile could not be synchronized.")
     } finally {
       setLoading(false)
       setIsRefreshing(false)
@@ -109,10 +107,10 @@ export default function Dashboard() {
     e.stopPropagation()
     try {
       await api.delete(`/notifications/${notificationId}/`)
-      toast.success("Bildirim temizlendi.")
+      toast.success("Notification cleared.")
       fetchProfile()
     } catch (error) {
-      toast.error("Temizlik başarısız oldu.")
+      toast.error("Cleanup failed.")
     }
   }
 
@@ -123,11 +121,11 @@ export default function Dashboard() {
         status: status,
         response_message: msg,
       })
-      toast.success(status === "accepted" ? "Onaylandı!" : "Reddedildi.")
+      toast.success(status === "accepted" ? "Approved!" : "Rejected.")
       fetchProfile()
       setSelectedRequest(null)
     } catch (error: any) {
-      toast.error("İşlem başarısız: " + (error.response?.data?.detail || "Sunucu hatası"))
+      toast.error("Operation failed: " + (error.response?.data?.detail || "Server error"))
     }
   }
 
@@ -168,9 +166,7 @@ export default function Dashboard() {
           <nav className="flex-1 p-4 space-y-2">
             <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" to="/dashboard" active />
             <NavItem icon={<FolderKanban size={18} />} label="Project" to="/projects" />
-            <NavItem icon={<Trophy size={18} />} label="Accomments" />
-            <NavItem icon={<BookOpen size={18} />} label="Deepgoes" />
-            {/* 🚀 Users artık aktif! */}
+            {/* 🚀 Users now active! */}
             <NavItem icon={<Users size={18} />} label="Users" to="/users" /> 
             <NavItem icon={<Settings size={18} />} label="Settings" to="/profile" />
           </nav>
@@ -184,7 +180,7 @@ export default function Dashboard() {
               className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 text-slate-300/70 hover:text-red-300 transition hover:bg-red-500/5"
             >
               <LogOut size={18} />
-              <span className="text-xs font-black uppercase tracking-widest">Sistemi Kapat</span>
+              <span className="text-xs font-black uppercase tracking-widest">Shut Down System</span>
             </button>
           </div>
         </aside>
@@ -195,7 +191,7 @@ export default function Dashboard() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300/60" size={18} />
               <input
                 type="text"
-                placeholder="Sistemde ara..."
+                placeholder="Search the system..."
                 className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-3 pl-11 text-sm outline-none placeholder:text-slate-500"
               />
             </div>
@@ -211,7 +207,7 @@ export default function Dashboard() {
                 ) : (
                   <Sparkles className="h-4 w-4 mr-2 text-indigo-300" />
                 )}
-                Yenile
+                Refresh
               </Button>
 
               <div className="relative">
@@ -248,20 +244,20 @@ export default function Dashboard() {
             <div className="max-w-[1200px] mx-auto space-y-8 pb-4">
               <div>
                 <h2 className="text-4xl font-black text-white tracking-tighter">
-                  İstasyon <span className="text-indigo-300">Merkezi</span>
+                  Station <span className="text-indigo-300">Center</span>
                 </h2>
                 <div className="text-emerald-400 text-[10px] font-black uppercase flex items-center gap-2 mt-2 tracking-widest">
-                  <ShieldCheck size={16} /> Sistem: Senkronize
+                  <ShieldCheck size={16} /> System: Synchronized
                 </div>
               </div>
 
               <div className="grid grid-cols-12 gap-8">
-                {/* YETENEK MATRİSİ */}
+                {/* SKILL MATRIX */}
                 <div className="col-span-12 lg:col-span-8">
                   <Card className="bg-white/[0.05] border-white/10 rounded-[3rem] overflow-hidden shadow-2xl">
                     <CardHeader className="p-8 border-b border-white/10 flex flex-row justify-between items-center bg-white/[0.01]">
                       <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
-                        Yetenek Matrisi
+                        Skill Matrix
                       </CardTitle>
                       <Atom size={18} className="text-indigo-400" />
                     </CardHeader>
@@ -279,14 +275,14 @@ export default function Dashboard() {
                         </ResponsiveContainer>
                       ) : (
                         <div className="h-full flex items-center justify-center italic text-slate-500 font-bold text-sm">
-                          Yetenek verisi senkronize ediliyor...
+                          Skill data is being synchronized...
                         </div>
                       )}
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* YETENEK GÜNCELLEME */}
+                {/* SKILL UPDATE */}
                 <div className="col-span-12 lg:col-span-4">
                   <div className="rounded-[3rem] border border-white/10 bg-white/[0.05] p-2 shadow-2xl overflow-hidden">
                     <SkillUpdateForm
@@ -302,12 +298,12 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* ✅ Bildirim Dropdown (Portal) - hiçbir şeyin altında kalmaz */}
+      {/* ✅ Notification Dropdown (Portal) - never sits under anything */}
       {showNotifications &&
         notifPos &&
         createPortal(
           <>
-            {/* dışarı tıklayınca kapat */}
+            {/* close on outside click */}
             <div className="fixed inset-0 z-[9998]" onClick={() => setShowNotifications(false)} />
 
             <div
@@ -316,9 +312,9 @@ export default function Dashboard() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-5 border-b border-white/10 bg-white/[0.02] font-black uppercase text-[10px] tracking-widest flex justify-between items-center">
-                Bildirimler
+                Notifications
                 <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">
-                  CANLI
+                  LIVE
                 </span>
               </div>
 
@@ -345,7 +341,7 @@ export default function Dashboard() {
                     </div>
                   ))
                 ) : (
-                  <div className="p-10 text-center opacity-40 text-[10px] font-black uppercase italic">Bildirim Yok</div>
+                  <div className="p-10 text-center opacity-40 text-[10px] font-black uppercase italic">No Notifications</div>
                 )}
               </div>
             </div>

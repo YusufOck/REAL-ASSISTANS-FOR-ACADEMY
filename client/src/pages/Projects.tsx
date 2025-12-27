@@ -1,7 +1,7 @@
 // src/pages/Projects.tsx
 import { useState, useEffect, useRef } from "react"
-import { Plus, LayoutGrid, FolderKanban, Loader2, ArrowLeft } from "lucide-react" // 🚀 ArrowLeft eklendi
-import { useNavigate } from "react-router-dom" // 🚀 useNavigate eklendi
+import { Plus, LayoutGrid, FolderKanban, Loader2, ArrowLeft } from "lucide-react" // 🚀 ArrowLeft added
+import { useNavigate } from "react-router-dom" // 🚀 useNavigate added
 import { Button } from "@/components/ui/button"
 import CreateProjectModal from "@/components/ui/CreateProjectModal"
 import ProjectDetailModal from "@/components/ui/ProjectDetailModal"
@@ -13,9 +13,9 @@ export default function Projects() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedProject, setSelectedProject] = useState<any>(null)
   
-  const navigate = useNavigate() // 🛰️ Navigasyon motoru başlatıldı
+  const navigate = useNavigate() // 🛰️ Navigation engine initialized
   
-  // 🛡️ OTONOM KİLİT: Çift istekleri engeller
+  // 🛡️ AUTONOMOUS LOCK: Prevents duplicate requests
   const isFetching = useRef(false);
 
   const fetchProjects = async () => {
@@ -27,7 +27,7 @@ export default function Projects() {
       const res = await api.get("/projects/"); 
       setProjects(res.data.results || []);
     } catch (err) { 
-      console.error("Projeler istasyona yüklenemedi:", err) 
+      console.error("Projects could not be loaded to the station:", err) 
     } finally {
       setLoading(false);
       isFetching.current = false;
@@ -41,7 +41,7 @@ export default function Projects() {
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500 bg-[#0b1020] min-h-screen text-slate-100">
       
-      {/* 🚀 DASHBOARD'A DÖN BUTONU (SOL ÜST) */}
+      {/* 🚀 BACK TO DASHBOARD BUTTON (TOP LEFT) */}
       <div className="flex justify-start">
         <Button
           variant="ghost"
@@ -52,36 +52,36 @@ export default function Projects() {
             <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
           </div>
           <div className="flex flex-col items-start">
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-50">Sistem Hattı</span>
-            <span className="text-sm font-black tracking-tight">DASHBOARD'A DÖN</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-50">System Line</span>
+            <span className="text-sm font-black tracking-tight">BACK TO DASHBOARD</span>
           </div>
         </Button>
       </div>
 
-      {/* Sayfa Başlığı ve Aksiyon Butonu */}
+      {/* Page Title and Action Button */}
       <div className="flex justify-between items-end border-b border-white/5 pb-8">
         <div>
           <h2 className="text-4xl font-black text-white tracking-tighter uppercase">
-            Proje <span className="text-indigo-400 font-black">İstasyonu</span>
+            Project <span className="text-indigo-400 font-black">Station</span>
           </h2>
           <div className="flex items-center gap-2 mt-2">
              <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
-             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Aktif Operasyonlar</p>
+             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Active Operations</p>
           </div>
         </div>
         <Button 
           onClick={() => setShowCreateModal(true)}
           className="h-16 px-10 rounded-[1.5rem] bg-indigo-500 hover:bg-indigo-600 text-white font-black shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-indigo-700"
         >
-          <Plus size={22} className="mr-2" /> YENİ PROJE BAŞLAT
+          <Plus size={22} className="mr-2" /> START NEW PROJECT
         </Button>
       </div>
 
-      {/* Proje Kartları Listesi */}
+      {/* Project Card List */}
       {loading ? (
         <div className="py-40 flex flex-col items-center justify-center gap-4 opacity-50">
           <Loader2 className="animate-spin text-indigo-500" size={40} />
-          <p className="text-[10px] font-black uppercase tracking-[0.3em]">Veriler Senkronize Ediliyor...</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em]">Synchronizing Data...</p>
         </div>
       ) : projects.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -113,11 +113,11 @@ export default function Projects() {
       ) : (
         <div className="py-40 text-center border-2 border-dashed border-white/5 rounded-[3rem] bg-white/[0.01]">
           <FolderKanban className="mx-auto mb-4 text-slate-700" size={48} />
-          <p className="text-sm text-slate-500 font-bold italic">Henüz bir operasyon başlatılmadı.</p>
+          <p className="text-sm text-slate-500 font-bold italic">No operation has been started yet.</p>
         </div>
       )}
 
-      {/* Yüzen Adalar (Modallar) */}
+      {/* Floating Islands (Modals) */}
       {showCreateModal && (
         <CreateProjectModal 
           onClose={() => { setShowCreateModal(false); fetchProjects(); }} 

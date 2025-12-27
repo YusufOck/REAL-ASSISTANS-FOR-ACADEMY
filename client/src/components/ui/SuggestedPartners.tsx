@@ -32,7 +32,7 @@ const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) =>
             </span>
           </div>
           <h3 className="text-xl font-black text-slate-100 tracking-tight">
-            Önerilen Partnerler
+            Suggested Partners
           </h3>
         </div>
 
@@ -40,7 +40,7 @@ const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) =>
           type="button"
           className="text-xs font-black text-slate-200/70 hover:text-indigo-200 flex items-center gap-1 transition-colors"
         >
-          Tümünü Gör <ChevronRight size={14} />
+          View All <ChevronRight size={14} />
         </button>
       </div>
 
@@ -65,7 +65,7 @@ const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) =>
               {/* Complementary badge */}
               {partner.is_complementary && (
                 <div className="absolute -top-2.5 left-6 bg-amber-500 text-white text-[9px] font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1 z-10">
-                  <Star size={10} fill="currentColor" /> TAMAMLAYICI
+                  <Star size={10} fill="currentColor" /> COMPLEMENTARY
                 </div>
               )}
 
@@ -83,7 +83,7 @@ const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) =>
               <div className="bg-white/[0.04] rounded-2xl p-3 mb-5 border border-white/10">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-[10px] font-black text-slate-200/60 uppercase tracking-widest">
-                    Eşleşme Oranı
+                    Match Rate
                   </span>
                   <span className="text-indigo-200 text-xs font-black italic">
                     %{pct.toFixed(1)}
@@ -112,7 +112,7 @@ const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) =>
 
                 {partner.match_reasons.length === 0 && (
                   <span className="text-slate-200/50 text-[10px] italic font-semibold">
-                    Semantik Veri Eşleşmesi
+                    Semantic Data Matching
                   </span>
                 )}
               </div>
@@ -128,7 +128,7 @@ const SuggestedPartners: React.FC<SuggestedPartnersProps> = ({ suggestions }) =>
                            shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
               >
                 <UserPlus size={16} />
-                Profili İncele
+                View Profile
               </button>
             </div>
           );

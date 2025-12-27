@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
 
-// 🚀 Varlık Importları
+// 🚀 Asset Imports
 import slider1 from "../assets/landing-slider/slider1.png";
 import slider2 from "../assets/landing-slider/slider2.png";
 import slider3 from "../assets/landing-slider/slider3.png";
@@ -35,7 +35,7 @@ const LandingPage = () => {
   const [isMuted, setIsMuted] = useState(true);
   const [isMinimized, setIsMinimized] = useState(false);
 
-  // 🤖 Kesintisiz Otomasyon: Fare gelse de durmaz
+  // 🤖 Continuous Automation: Won't stop even if the mouse enters
   const plugin = useRef(
     Autoplay({ delay: 3000, stopOnInteraction: false, stopOnMouseEnter: false })
   );
@@ -69,7 +69,7 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white overflow-x-hidden font-sans">
-      {/* 📹 PROMO VIDEO OVERLAY (Sıfır Blur, Sadece Netlik) */}
+      {/* 📹 PROMO VIDEO OVERLAY (Zero Blur, Only Clarity) */}
       {showPromo && (
         <div
           className={`fixed z-[100] transition-all duration-700 ease-in-out ${
@@ -78,7 +78,7 @@ const LandingPage = () => {
               : "inset-0 flex items-center justify-center p-4 md:p-10"
           }`}
         >
-          {/* ✅ BLUR KALDIRILDI: Video arkasında sayfa net görünüyor */}
+          {/* ✅ BLUR REMOVED: The page behind the video is clearly visible */}
           {!isMinimized && (
             <div
               className="absolute inset-0 bg-slate-950/85 animate-in fade-in duration-700 cursor-pointer"
@@ -129,7 +129,7 @@ const LandingPage = () => {
         </div>
       )}
 
-      {/* --- NAVBAR (Net Görüntü) --- */}
+      {/* --- NAVBAR (Clear View) --- */}
       <header
         className={`fixed top-0 w-full z-50 transition-all duration-500 ${
           showPromo && !isMinimized ? "opacity-0" : "opacity-100"
@@ -144,11 +144,11 @@ const LandingPage = () => {
           </div>
           <div className="flex items-center gap-6">
             <Link to="/login" className="text-slate-400 hover:text-white transition-colors">
-              Giriş Yap
+              Sign In
             </Link>
             <Link to="/register">
               <Button className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold px-8 py-6 rounded-full shadow-lg border border-white/10 hover:scale-105 transition-all">
-                <Sparkles size={18} className="mr-2" /> Kayıt Ol
+                <Sparkles size={18} className="mr-2" /> Sign Up
               </Button>
             </Link>
           </div>
@@ -171,18 +171,17 @@ const LandingPage = () => {
                   </span>
                 </h1>
                 <p className="text-xl text-slate-400 max-w-lg mb-12 leading-relaxed border-l-2 border-purple-500/30 pl-6">
-                  ResearchOS, anlamsal AI analizi ile projeleri yöneten ve otonom partner eşleşmesi sağlayan yeni nesil
-                  araştırma platformudur.
+                  ResearchOS is a next-generation research platform that manages projects with semantic AI analysis and provides autonomous partner matching.
                 </p>
                 <Button
                   onClick={() => navigate("/register")}
                   className="h-16 px-12 bg-white text-slate-950 rounded-full font-black text-lg shadow-2xl hover:bg-slate-200 transition-all flex items-center gap-4"
                 >
-                  Hemen Başla <ArrowRight size={24} />
+                  Get Started <ArrowRight size={24} />
                 </Button>
               </div>
 
-              {/* ✅ pointer-events-none kaldırıldı: manuel swipe da çalışsın */}
+              {/* ✅ pointer-events-none removed: manual swipe works too */}
               <div className="relative">
                 <Carousel
                   plugins={[plugin.current]}
@@ -205,13 +204,13 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* --- NEDEN RESEARCHOS? (Afilli & Canlı Kartlar) --- */}
+        {/* --- WHY RESEARCHOS? (Stylish & Lively Cards) --- */}
         <section className="py-32 bg-slate-950 relative z-10 border-t border-white/5">
           <div className="container mx-auto px-4 text-center">
             <div className="mb-24 relative inline-block">
               <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter relative z-10">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-white to-indigo-400 animate-pulse">
-                  Neden ResearchOS?
+                  Why ResearchOS?
                 </span>
               </h2>
               <div className="absolute -bottom-4 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50 blur-sm"></div>
@@ -221,20 +220,20 @@ const LandingPage = () => {
               {[
                 {
                   icon: BrainCircuit,
-                  title: "AI Semantik Eşleşme",
-                  desc: "Gemini AI destekli otonom partner bulma ekosistemi.",
+                  title: "AI Semantic Matching",
+                  desc: "A Gemini AI-powered autonomous partner-finding ecosystem.",
                   color: "from-purple-500/20",
                 },
                 {
                   icon: Users,
-                  title: "Dinamik İş Birliği",
-                  desc: "Gerçek zamanlı proje yönetimi ve otonom ekip kurma araçları.",
+                  title: "Dynamic Collaboration",
+                  desc: "Real-time project management and autonomous team-building tools.",
                   color: "from-indigo-500/20",
                 },
                 {
                   icon: Atom,
-                  title: "Global Akademik Ağ",
-                  desc: "Dünya çapındaki araştırmacılarla anlık ve akıllı bağlantılar.",
+                  title: "Global Academic Network",
+                  desc: "Instant and intelligent connections with researchers worldwide.",
                   color: "from-blue-500/20",
                 },
               ].map((feature, idx) => (
@@ -268,7 +267,7 @@ const LandingPage = () => {
         <div className="mb-4 flex justify-center gap-2 items-center opacity-50">
           <Atom size={16} className="animate-spin-slow" /> <span>ResearchOS 2025</span>
         </div>
-        <p>© Milli Teknoloji Hamlesi Vizyonuyla.</p>
+        <p>© With the vision of the National Technology Initiative.</p>
       </footer>
     </div>
   );

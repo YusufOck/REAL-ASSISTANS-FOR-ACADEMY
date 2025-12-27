@@ -65,13 +65,13 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
       );
 
       if (response.ok) {
-        toast.success("Yetenekler güncellendi. Radar senkronize edildi.");
+        toast.success("Skills updated. Radar synchronized.");
         onUpdateSuccess();
       } else {
-        toast.error("Sunucu güncellemeyi reddetti.");
+        toast.error("Server rejected the update.");
       }
     } catch {
-      toast.error("Güncelleme başarısız oldu.");
+      toast.error("Update failed.");
     } finally {
       setIsUpdating(false);
     }
@@ -83,7 +83,7 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
       <div className="flex items-center justify-between pb-3 border-b border-white/10">
         <h3 className="text-sm font-black text-slate-100 flex items-center gap-2 uppercase tracking-widest">
           <RefreshCw size={16} className="text-purple-300 animate-spin-slow" />
-          Yetenek Kumanda
+          Skill Command
         </h3>
 
         <button
@@ -96,11 +96,11 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
         >
           {isUpdating ? (
             <span className="flex items-center gap-2">
-              <Loader2 size={14} className="animate-spin" /> Kaydediliyor
+              <Loader2 size={14} className="animate-spin" /> Saving
             </span>
           ) : (
             <span className="flex items-center gap-2">
-              <Save size={14} /> Kaydet
+              <Save size={14} /> Save
             </span>
           )}
         </button>
@@ -125,13 +125,13 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
                   </div>
                 </div>
 
-                {/* Controls (slider yok) */}
+                {/* Controls (no slider) */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => updateSkill(name, Number(level) - 5)}
                     className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/[0.08] text-slate-100 transition active:scale-95 flex items-center justify-center"
-                    aria-label="Azalt"
+                    aria-label="Decrease"
                   >
                     <Minus size={16} />
                   </button>
@@ -150,7 +150,7 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
                     type="button"
                     onClick={() => updateSkill(name, Number(level) + 5)}
                     className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/[0.08] text-slate-100 transition active:scale-95 flex items-center justify-center"
-                    aria-label="Arttır"
+                    aria-label="Increase"
                   >
                     <Plus size={16} />
                   </button>
@@ -162,9 +162,9 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
           <div className="flex flex-col items-center justify-center py-8 text-center opacity-70">
             <AlertCircle size={28} className="text-slate-400" />
             <p className="text-[10px] font-black text-slate-300/70 uppercase tracking-widest mt-3 leading-relaxed">
-              Yetenek verisi yok.
+              No skill data.
               <br />
-              Profilini güncelle.
+              Update your profile.
             </p>
           </div>
         )}

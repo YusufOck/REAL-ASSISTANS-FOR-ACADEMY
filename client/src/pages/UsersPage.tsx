@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom" // 🚀 useSearchParams eklendi
+import { useNavigate, useSearchParams } from "react-router-dom" // 🚀 useSearchParams added
 import { api } from "@/lib/api"
 import { 
   Search, ChevronRight, ArrowLeft, Loader2, 
@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-// 🛡️ Global Kilit: Sayfa ömrü boyunca meta verileri sadece 1 kez çekmek için
+// 🛡️ Global Lock: Fetch metadata only once during the page lifetime
 let isMetaDataCached = false;
 
 interface Researcher {
@@ -31,10 +31,10 @@ interface Skill {
 
 export default function UsersPage() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams() // 🛰️ URL Kontrolü eklendi
+  const [searchParams, setSearchParams] = useSearchParams() // 🛰️ URL Control added
   const [loading, setLoading] = useState(true)
   
-  // 🛡️ MANTIK KORUNDU: Başlangıç değerleri artık URL'den alınıyor (Persistence)
+  // 🛡️ LOGIC PRESERVED: Initial values are now taken from URL (Persistence)
   const [search, setSearch] = useState(searchParams.get("search") || "")
   const [selectedDept, setSelectedDept] = useState(searchParams.get("department") || "")
   const [selectedSkills, setSelectedSkills] = useState<number[]>(
@@ -52,7 +52,7 @@ export default function UsersPage() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // 🚀 YENİ MANTIK: Filtreler veya sayfa değiştikçe URL'yi mühürle
+  // 🚀 NEW LOGIC: Seal the URL as filters or page changes
   useEffect(() => {
     const params: any = {};
     if (search) params.search = search;
@@ -63,7 +63,7 @@ export default function UsersPage() {
     setSearchParams(params, { replace: true });
   }, [search, selectedDept, selectedSkills, currentPage, setSearchParams]);
 
-  // 1. ADIM: Meta Verileri Çek (Global Kilit Mantığı Korundu)
+  // STEP 1: Fetch Meta Data (Global Lock logic preserved)
   useEffect(() => {
     const fetchMeta = async () => {
       try {
@@ -75,7 +75,7 @@ export default function UsersPage() {
         setAllSkills(sRes.data.results || sRes.data);
         isMetaDataCached = true;
       } catch (e) { 
-        console.error("Meta veriler çekilemedi", e);
+        console.error("Meta data could not be fetched", e);
       }
     };
     
@@ -84,7 +84,7 @@ export default function UsersPage() {
     }
   }, []);
 
-  // 2. ADIM: Araştırmacı Listesini Çek (AbortController Yapısı Korundu)
+  // STEP 2: Fetch Researcher List (AbortController structure preserved)
   const fetchUsers = async (page: number) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -120,7 +120,7 @@ export default function UsersPage() {
     }
   };
 
-  // 3. ADIM: Debounce Kontrolü (600ms Mantığı Korundu)
+  // STEP 3: Debounce Control (600ms logic preserved)
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchUsers(currentPage);
@@ -137,7 +137,7 @@ export default function UsersPage() {
     setSelectedSkills(prev => 
       prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
     );
-    setCurrentPage(1); // Filtre değişince başa dön
+    setCurrentPage(1); // Go back to first page when filter changes
   };
 
   return (
@@ -148,8 +148,8 @@ export default function UsersPage() {
             <ArrowLeft size={24} />
           </Button>
           <div>
-            <h1 className="text-4xl font-black tracking-tighter uppercase italic">Sistem <span className="text-indigo-400">Dizini</span></h1>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1">Toplam {totalCount} Araştırmacı Kayıtlı</p>
+            <h1 className="text-4xl font-black tracking-tighter uppercase italic">System <span className="text-indigo-400">Directory</span></h1>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1">Total {totalCount} Researchers Registered</p>
           </div>
         </div>
 
@@ -158,7 +158,7 @@ export default function UsersPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Araştırmacı ara..." 
+              placeholder="Search researcher..." 
               className="bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-6 outline-none focus:ring-2 ring-indigo-500/25 w-full sm:w-64 transition-all shadow-inner"
             />
           </div>
@@ -167,7 +167,7 @@ export default function UsersPage() {
             value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}
             className="bg-white/5 border border-white/10 rounded-2xl py-3.5 px-6 outline-none focus:ring-2 ring-indigo-500/25 cursor-pointer min-w-[200px]"
           >
-            <option value="" className="bg-[#0b1020]">Tüm Bölümler</option>
+            <option value="" className="bg-[#0b1020]">All Departments</option>
             {departments.map((d) => (
               <option key={d.department_id} value={d.department_id} className="bg-[#0b1020]">{d.name}</option>
             ))}
@@ -176,7 +176,7 @@ export default function UsersPage() {
           <div className="relative">
             <Button onClick={() => setShowSkillDropdown(!showSkillDropdown)} className="bg-white/5 border border-white/10 rounded-2xl py-7 px-6 hover:bg-white/10 flex gap-2 h-auto shadow-2xl transition-transform active:scale-95">
               <Filter size={16} className="text-indigo-400" />
-              <span className="text-xs font-black uppercase tracking-widest">Yetenekler ({selectedSkills.length})</span>
+              <span className="text-xs font-black uppercase tracking-widest">Skills ({selectedSkills.length})</span>
             </Button>
             
             {showSkillDropdown && (
@@ -187,7 +187,7 @@ export default function UsersPage() {
                       <span className="text-xs font-bold">{s.name}</span>
                       {selectedSkills.includes(s.skill_id) && <Check size={14} className="text-indigo-400" />}
                     </div>
-                  )) : <p className="text-center text-[10px] text-slate-500 py-4 font-black uppercase">Yetenek bulunamadı</p>}
+                  )) : <p className="text-center text-[10px] text-slate-500 py-4 font-black uppercase">No skills found</p>}
                 </div>
               </div>
             )}
@@ -200,15 +200,15 @@ export default function UsersPage() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="bg-white/[0.03] border-b border-white/10 text-slate-500 text-[11px] font-black uppercase tracking-widest">
-                <th className="p-8">Araştırmacı Profili</th>
-                <th className="p-8 text-center">Bölüm / Departman</th>
-                <th className="p-8 text-center">Kademeli Rol</th>
-                <th className="p-8 text-right">Aksiyon</th>
+                <th className="p-8">Researcher Profile</th>
+                <th className="p-8 text-center">Department</th>
+                <th className="p-8 text-center">Role Tier</th>
+                <th className="p-8 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {loading ? (
-                <tr><td colSpan={4} className="p-32 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500 mb-4" size={48} /><p className="text-[10px] font-black uppercase tracking-widest opacity-40">Veriler Senkronize Ediliyor...</p></td></tr>
+                <tr><td colSpan={4} className="p-32 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500 mb-4" size={48} /><p className="text-[10px] font-black uppercase tracking-widest opacity-40">Synchronizing Data...</p></td></tr>
               ) : users.length > 0 ? (
                 users.map((u) => (
                   <tr key={u.researcher_id} className="hover:bg-indigo-500/[0.02] transition-all group border-l-4 border-l-transparent hover:border-l-indigo-500">
@@ -218,28 +218,28 @@ export default function UsersPage() {
                         <div>
                           <p className="font-black text-white text-lg group-hover:text-indigo-300 transition-colors tracking-tight">{u.full_name}</p>
                           <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest flex items-center gap-2 mt-1">
-                            {u.role === 'academician' ? 'AKADEMİSYEN' : 'ARAŞTIRMACI'}
+                            {u.role === 'academician' ? 'ACADEMICIAN' : 'RESEARCHER'}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="p-8 text-center"><span className="text-xs font-bold text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/5">{u.department_name || "Bölüm Yok"}</span></td>
-                    <td className="p-8 text-center"><span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'}`}>{u.role === 'academician' ? 'Akademisyen' : 'Öğrenci'}</span></td>
-                    <td className="p-8 text-right"><Button onClick={() => navigate(`/researcher/${u.researcher_id}`)} className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest shadow-xl active:scale-95">PROFİLİ İNCELE <ChevronRight size={16} className="ml-2" /></Button></td>
+                    <td className="p-8 text-center"><span className="text-xs font-bold text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/5">{u.department_name || "No Department"}</span></td>
+                    <td className="p-8 text-center"><span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'}`}>{u.role === 'academician' ? 'Academician' : 'Student'}</span></td>
+                    <td className="p-8 text-right"><Button onClick={() => navigate(`/researcher/${u.researcher_id}`)} className="h-12 px-6 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 transition-all font-black text-[10px] tracking-widest shadow-xl active:scale-95">VIEW PROFILE <ChevronRight size={16} className="ml-2" /></Button></td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={4} className="p-32 text-center opacity-30 italic font-black uppercase text-[10px] tracking-widest">Kayıt Bulunamadı</td></tr>
+                <tr><td colSpan={4} className="p-32 text-center opacity-30 italic font-black uppercase text-[10px] tracking-widest">No Records Found</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
         <div className="p-8 bg-white/[0.03] border-t border-white/10 flex items-center justify-between">
-          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Sayfa {currentPage} / {totalPages}</p>
+          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Page {currentPage} / {totalPages}</p>
           <div className="flex gap-3">
-            <Button disabled={currentPage === 1 || loading} onClick={() => handlePageChange(currentPage - 1)} className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all"><ChevronLeft size={14} className="mr-2" /> Geri</Button>
-            <Button disabled={currentPage >= totalPages || loading} onClick={() => handlePageChange(currentPage + 1)} className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all">İleri <ChevronRight size={14} className="ml-2" /></Button>
+            <Button disabled={currentPage === 1 || loading} onClick={() => handlePageChange(currentPage - 1)} className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all"><ChevronLeft size={14} className="mr-2" /> Back</Button>
+            <Button disabled={currentPage >= totalPages || loading} onClick={() => handlePageChange(currentPage + 1)} className="bg-white/5 hover:bg-indigo-500/20 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-white/10 disabled:opacity-20 transition-all">Next <ChevronRight size={14} className="ml-2" /></Button>
           </div>
         </div>
       </div>
