@@ -23,8 +23,8 @@ export default function Projects() {
 
     try {
       // 🛰️ MÜHÜR: urls.py ile tam uyum için /api/ ön eki mühürlendi
-      const res = await api.get("/api/projects/") 
-      setProjects(res.data)
+      const res = await api.get("/projects/"); 
+      setProjects(res.data.results || []);
     } catch (err) { 
       console.error("Projeler istasyona yüklenemedi:", err) 
     } finally {

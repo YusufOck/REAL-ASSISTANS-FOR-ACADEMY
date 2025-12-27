@@ -309,19 +309,31 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 #  PROJE VE YAYIN VIEWSETLER
 # -------------------------
 
+# core/views.py içindeki ProjectViewSet'i bu şekilde mühürle:
+
 class ProjectViewSet(viewsets.ModelViewSet):
-    """
-    🛰️ PROJE İSTASYONU:
-    Proje yönetimi, bütçe takibi ve projeye özel AI eşleşme motorunu mühürler.
-    """
-    queryset = Project.objects.all().order_by('-created_at') # En yeni projeler en üstte
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    
-    # 🔄 MÜHÜR: 'status' yerine 'phase' (aşama) üzerinden filtreleme yapılır
     filterset_fields = {'department': ['exact'], 'phase': ['exact']}
     search_fields = ['title', 'summary', 'requirements']
+
+    def get_queryset(self):
+        """
+        🛡️ GÜVENLİK KİLİDİ: Sadece kullanıcının dahil olduğu projeleri getirir.
+        """
+        try:
+            # Kullanıcının researcher profilini çek
+            researcher = Researcher.objects.get(user=self.request.user)
+            
+            # Filtreleme mantığını koru ama veritabanı yükünü optimize et
+            return Project.objects.filter(
+                Q(pi=researcher) | Q(memberships__researcher=researcher)
+            ).distinct().order_by('-created_at')
+            
+        except Researcher.DoesNotExist:
+            # Profil yoksa boş dön, tüm projeleri sızdırma!
+            return Project.objects.none()
 
     def perform_create(self, serializer):
         """🚀 OTONOM MÜHÜR: Proje kaydedilirken AI motorunu uyandırır."""
@@ -330,7 +342,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # 1. Proje yöneticisini (PI) otonom olarak mevcut kullanıcıya mühürle
         researcher = Researcher.objects.get(user=self.request.user)
         instance = serializer.save(pi=researcher)
-        
+        serializer.save(pi=researcher)
         # 2. AI ANALİZİ: Başlık, Konu ve Gereksinimlerden anlamsal vektör üret
         combined_text = f"{instance.title}. {instance.summary or ''}. Needs: {instance.requirements or ''}"
         vector = generate_embedding(combined_text)
@@ -422,7 +434,7 @@ class RegisterView(generics.CreateAPIView):
 # core/views.py (En alta ekle)
 
 class NotificationViewSet(viewsets.ModelViewSet):
-    queryset = Notification.objects.all().order_by('-created_at')
+    
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 

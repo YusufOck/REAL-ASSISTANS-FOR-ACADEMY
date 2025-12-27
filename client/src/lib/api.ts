@@ -1,13 +1,14 @@
 import axios from 'axios';
 
 // .env dosyasından URL'i alıyoruz
-const baseURL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// src/lib/api.ts
+const baseURL = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL}/api` // URL varsa sonuna /api ekle
+  : 'http://127.0.0.1:8000/api';          // Local için /api ekle
 
 export const api = axios.create({ 
   baseURL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
 // 1. REQUEST INTERCEPTOR (Aynı kalıyor)
