@@ -372,19 +372,31 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             return Response({"status": d['status']})
         except Exception as e: return Response({"detail": str(e)}, status=500)
 
+    # server/core/views.py -> ResearcherViewSet içindeki projects aksiyonu
+
     @action(detail=True, methods=['get'])
     def projects(self, request, pk=None):
         """
-        🛡️ KRİTİK DÜZELTME: 'status' alanı 'phase' olarak güncellendi.
+        🛰️ DATA STATION: Hedef araştırmacının yönettiği veya dahil olduğu projeleri mühürler.
+        'status' yerine modeldeki 'phase' alanı kullanılarak 500 hatası engellenmiştir.
         """
-        # .values() içinde 'status' yazarsan 500 hatası alırsın.
-        projs = Project.objects.filter(memberships__researcher_id=pk).values(
+        from django.db.models import Q
+        
+        # Hedef araştırmacıyı bul (pk = URL'deki ID)
+        researcher = self.get_object()
+
+        # Filtreleme: Araştırmacının PI olduğu projeler VEYA üye olduğu projeler
+        # 'memberships__researcher' ilişkisi üzerinden gidiyoruz
+        projs = Project.objects.filter(
+            Q(pi=researcher) | Q(memberships__researcher=researcher)
+        ).distinct().values(
             'project_id', 
             'title', 
-            'phase',        # ✅ DOĞRU: Modeldeki alan adı budur
+            'phase',        # ✅ DOĞRU: 'status' yazılırsa FieldError (500) fırlatır
             'start_date', 
             'end_date'
         )
+        
         return Response(list(projs))
 
     @action(detail=True, methods=['get'])

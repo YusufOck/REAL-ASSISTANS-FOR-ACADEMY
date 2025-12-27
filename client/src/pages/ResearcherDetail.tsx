@@ -30,7 +30,7 @@ export default function ResearcherDetail() {
   const [requestMessage, setRequestMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
 
-  // 🛡️ AUTONOMOUS LOCK: Prevents duplicate requests in image_b03ca5.png
+  // 🛡️ AUTONOMOUS LOCK: Prevents duplicate requests
   const isFetching = useRef(false)
 
   useEffect(() => {
@@ -40,16 +40,16 @@ export default function ResearcherDetail() {
 
       setLoading(true)
       try {
-        // 🛰️ DATA STATION: Using api.get automates headers and prefix handling
-        const [resProfile, resProjects, resMe] = await Promise.all([
+        // 🛰️ DATA STATION: /researchers/me/ yerine direkt /projects/ endpoint'ini mühürledik.
+        const [resProfile, resProjects, resMeProjects] = await Promise.all([
           api.get(`/researchers/${id}/`),
           api.get(`/researchers/${id}/projects/`),
-          api.get(`/researchers/me/`),
+          api.get(`/projects/`), // 🚀 GÜNCELLEME: Kendi projelerini tam liste olarak buradan çekiyoruz
         ])
 
         const profileRaw = resProfile.data
         const projectsData = resProjects.data
-        const meData = resMe.data
+        const meProjectsData = resMeProjects.data // 🛡️ Bu veri artık tüm projelerini içerir
 
         // 🛡️ DATA SYNC: "Expertise Areas" sealing block
         let cleanProfile = Array.isArray(profileRaw) ? profileRaw.find(i => typeof i === 'object') : profileRaw;
@@ -60,9 +60,9 @@ export default function ResearcherDetail() {
 
         setResearcher(cleanProfile)
         setOtherProjects(projectsData)
-        setMyProjects(meData.projects || [])
+        // 🚀 GÜNCELLEME: meData.projects yerine direkt gelen projeler listesini mühürle
+        setMyProjects(meProjectsData || [])
       } catch (error: any) {
-        // Informs the user when a 500 error occurs (image_4b4600.png)
         toast.error("Data could not be synchronized. System error (500).")
       } finally {
         setLoading(false)
@@ -77,7 +77,6 @@ export default function ResearcherDetail() {
     if (!selectedProjectId) return
     setIsSending(true)
     try {
-      // 🚀 COLLABORATION TRANSFER: POST request sent via api instance
       await api.post(`/researchers/${id}/send-request/`, {
         receiver_id: id,
         project_id: selectedProjectId,
