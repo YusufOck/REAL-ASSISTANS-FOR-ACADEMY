@@ -67,32 +67,34 @@ class Researcher(models.Model):
         return self.full_name
 
 
+# core/models.py içindeki Project sınıfını güncelle:
 class Project(models.Model):
+    PHASE_CHOICES = [
+        ('planning', 'Planning'),
+        ('active', 'Active'),
+        ('completed', 'Completed'),
+    ]
+
     project_id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)
     summary = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=20)  # planned, active, completed
+    
+    # 🚀 YENİ: Profesyonel Gereksinimler ve Bütçe
+    requirements = models.TextField(null=True, blank=True) 
+    estimated_budget = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+
+    # 🔄 GÜNCELLEME: Status yerine dinamik Phase
+    phase = models.CharField(max_length=20, choices=PHASE_CHOICES, default='planning')
+    
+    # 🛰️ AI MÜHÜRÜ: Proje gereksinimlerinin vektör karşılığı
+    embedding = models.JSONField(null=True, blank=True) 
+
+    # Diğer alanlar (pi, department, dates...) aynı kalıyor
+    pi = models.ForeignKey('Researcher', on_delete=models.PROTECT, db_column='pi_id', related_name='projects_as_pi')
+    department = models.ForeignKey('Department', on_delete=models.SET_NULL, db_column='department_id', null=True, blank=True, related_name='projects')
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-
-    pi = models.ForeignKey(
-        Researcher,
-        models.PROTECT,
-        db_column='pi_id',
-        related_name='projects_as_pi',
-    )
-
-    department = models.ForeignKey(
-        Department,
-        models.SET_NULL,
-        db_column='department_id',
-        null=True,
-        blank=True,
-        related_name='projects',
-    )
-
     created_at = models.DateTimeField(default=timezone.now)
-    search_vector = SearchVectorField(null=True, blank=True)
 
     class Meta:
         db_table = 'project'

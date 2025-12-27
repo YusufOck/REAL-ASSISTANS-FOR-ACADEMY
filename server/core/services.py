@@ -228,3 +228,65 @@ def get_collaboration_suggestions(base_researcher_id: int, limit: int = 5):
     except Exception as e:
         print(f"❌ Eşleştirme Hatası: {e}")
         return []
+    
+
+
+# core/services.py içine ekle:
+
+def get_project_specific_suggestions(project_id, limit=5):
+    """
+    🧠 PROJE ODAKLI HİBRİT ALGORİTMA:
+    Proje gereksinimlerini aday araştırmacıların yetenek ve biyografileriyle kıyaslar.
+    """
+    from .models import Project, Researcher
+    
+    try:
+        project = Project.objects.get(pk=project_id)
+        candidates = Researcher.objects.exclude(researcher_id=project.pi_id)
+        
+        # Proje gereksinim metnini analiz için küçük harfe çevir
+        req_text = (project.requirements or "").lower()
+        scored_results = []
+
+        for cand in candidates:
+            # 1. SEMANTİK UYUM (%50): Proje vektörü ile Araştırmacı vektörü kıyaslanır
+            vector_score = calculate_cosine_similarity(project.embedding, cand.embedding)
+            # Normalizasyon: 0.5-1.0 aralığını 0-1 arasına çekerek farkı keskinleştir
+            norm_vector = max(0, (vector_score - 0.5) * 2) 
+
+            # 2. YETENEK UYUMU (%40): Gereksinimlerde geçen kelimelerin yeteneklerle eşleşmesi
+            skill_overlap = 0
+            cand_skills = (cand.skills or {})
+            for skill_name in cand_skills.keys():
+                if skill_name.lower() in req_text:
+                    skill_overlap += 1
+            skill_score = min(1.0, skill_overlap / 3) # En az 3 yetenek eşleşirse tam puan
+
+            # 3. AKADEMİK/DEPARTMAN UYUMU (%10): Aynı uzmanlık alanındalarsa bonus
+            dept_bonus = 1.0 if project.department_id == cand.department_id else 0.0
+
+            # TOPLAM SKOR HESAPLAMA
+            total_score = (norm_vector * 50) + (skill_score * 40) + (dept_bonus * 10)
+            final_score = round(max(0, min(99.8, total_score)), 1)
+
+            if final_score > 20: # Barajı biraz yükselttik
+                scored_results.append({
+                    "researcher_id": cand.researcher_id,
+                    "full_name": cand.full_name,
+                    "department_name": cand.department.name if cand.department else "General",
+                    "score": final_score,
+                    "match_reasons": [
+                        "Yüksek Teknik Uyumluluk" if norm_vector > 0.7 else None,
+                        f"{skill_overlap} Kritik Yetenek Eşleşmesi" if skill_overlap > 0 else None,
+                        "Alan Uzmanlığı Benzerliği" if dept_bonus > 0 else None
+                    ]
+                })
+
+        # Match reasons temizliği ve sıralama
+        for r in scored_results:
+            r["match_reasons"] = [m for m in r["match_reasons"] if m]
+
+        return sorted(scored_results, key=lambda x: x["score"], reverse=True)[:limit]
+    except Exception as e:
+        print(f"❌ Proje Öneri Hatası: {e}")
+        return []

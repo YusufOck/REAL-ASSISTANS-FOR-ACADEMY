@@ -310,30 +310,77 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 # -------------------------
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    queryset = Project.objects.all().order_by('project_id')
+    """
+    🛰️ PROJE İSTASYONU:
+    Proje yönetimi, bütçe takibi ve projeye özel AI eşleşme motorunu mühürler.
+    """
+    queryset = Project.objects.all().order_by('-created_at') # En yeni projeler en üstte
     serializer_class = ProjectSerializer
-    permission_classes = [IsAcademicianOrReadOnly]
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = {'department': ['exact'], 'status': ['icontains']}
+    # 🔄 MÜHÜR: 'status' yerine 'phase' (aşama) üzerinden filtreleme yapılır
+    filterset_fields = {'department': ['exact'], 'phase': ['exact']}
+    search_fields = ['title', 'summary', 'requirements']
+
+    def perform_create(self, serializer):
+        """
+        🚀 OTONOM MÜHÜR: Proje kaydedilirken AI motorunu uyandırır.
+        """
+        from .services import generate_embedding
+        
+        # 1. Proje yöneticisini (PI) otonom olarak mevcut kullanıcıya mühürle
+        researcher = Researcher.objects.get(user=self.request.user)
+        instance = serializer.save(pi=researcher)
+        
+        # 2. AI ANALİZİ: Başlık, Konu ve Gereksinimlerden anlamsal vektör üret
+        # Bu vektör, projenin 'DNA'sıdır ve katılımcı eşleşmesinde kullanılır.
+        combined_text = f"{instance.title}. {instance.summary or ''}. Needs: {instance.requirements or ''}"
+        vector = generate_embedding(combined_text)
+        
+        if vector:
+            instance.embedding = vector
+            instance.save(update_fields=['embedding'])
+            print(f"✅ AI MÜHÜRÜ: '{instance.title}' projesi için semantik vektör üretildi.")
+
+    @action(detail=True, methods=['get'])
+    def suggestions(self, request, pk=None):
+        """
+        🧠 AI MATCHING ENGINE: Bu projeye özel en uygun araştırmacıları otonom bulur.
+        Frontend'deki yüzen adada (Modal) listelenen akıllı önerileri bu fonksiyon fırlatır.
+        """
+        from .services import get_project_specific_suggestions
+        # Hibrit skorlamayı (%50 Semantik + %40 Skill + %10 Dept) çalıştırır
+        suggestions = get_project_specific_suggestions(pk, limit=5)
+        return Response(suggestions)
 
     @action(detail=True, methods=['get'])
     def researchers(self, request, pk=None):
-        # ORM DÖNÜŞÜMÜ
+        """Proje mürettebatını (üyeleri) listeler."""
         ms = ProjectResearcher.objects.filter(project_id=pk).select_related('researcher')
-        return Response([{"researcher_id": m.researcher.researcher_id, "full_name": m.researcher.full_name, "role": m.role} for m in ms])
+        return Response([
+            {
+                "researcher_id": m.researcher.researcher_id, 
+                "full_name": m.researcher.full_name, 
+                "role": m.role
+            } for m in ms
+        ])
 
     @researchers.mapping.post
     def add_researcher(self, request, pk=None):
-        # ORM DÖNÜŞÜMÜ
+        """Projeye yeni üye mühürler."""
         d = request.data
-        ProjectResearcher.objects.create(project_id=pk, researcher_id=d['researcher_id'], role=d.get('role', 'Researcher'), joined_at=timezone.now())
-        return Response({"detail": "Eklendi"}, status=201)
+        ProjectResearcher.objects.get_or_create(
+            project_id=pk, 
+            researcher_id=d['researcher_id'], 
+            defaults={'role': d.get('role', 'Researcher'), 'joined_at': timezone.now()}
+        )
+        return Response({"detail": "Mürettebat eklendi"}, status=201)
 
     @action(detail=True, methods=['get'])
     def funding(self, request, pk=None):
+        """Projenin finansal destek ve grant bilgilerini döner."""
         grants = FundingAgencyGrant.objects.filter(project_id=pk).select_related('funding_agency')
         return Response(FundingAgencyGrantSerializer(grants, many=True).data)
-
 class PublicationViewSet(viewsets.ModelViewSet):
     queryset = Publication.objects.all().order_by('publication_id')
     serializer_class = PublicationSerializer

@@ -39,10 +39,13 @@ class ResearcherAdmin(admin.ModelAdmin):
 # ---------------------------------------------------------
 # 2. PROJELER (PROJECTS)
 # ---------------------------------------------------------
+# server/core/admin.py
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('project_id', 'title', 'status', 'pi', 'created_at')
-    list_filter = ('status', 'department')
+    # 🛰️ MÜHÜR: 'status' alanları 'phase' olarak güncellendi
+    list_display = ('project_id', 'title', 'phase', 'pi', 'created_at')
+    list_filter = ('phase', 'department') 
     search_fields = ('title', 'summary')
     inlines = [ProjectResearcherInline]
 
