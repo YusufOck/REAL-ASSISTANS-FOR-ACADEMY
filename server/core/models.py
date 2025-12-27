@@ -34,7 +34,7 @@ class Researcher(models.Model):
     full_name = models.CharField(max_length=150)
     email = models.CharField(max_length=150, unique=True)
     title = models.CharField(max_length=100, null=True, blank=True)
-    
+    is_analyzing = models.BooleanField(default=False)
     # Rol ve Departman
     role = models.CharField(max_length=20, default='student')
     department = models.ForeignKey(
