@@ -8,26 +8,23 @@ export default function CreateProjectModal({ onClose }: { onClose: () => void })
   const [form, setForm] = useState({ title: "", summary: "", requirements: "", estimated_budget: "" })
 
   // CreateProjectModal.tsx içindeki handleCreate fonksiyonu:
+// CreateProjectModal.tsx içindeki handleCreate fonksiyonu
 const handleCreate = async () => {
   if(!form.title) return;
   setLoading(true);
-  
   try {
-    // Ölçeklenebilirlik için veriyi sanitize et (temizle)
-    const payload = {
-      ...form,
-      estimated_budget: parseFloat(form.estimated_budget) || 0
-    };
-
-    await api.post("/api/projects/", payload);
+    // 🛡️ DÜZELTME: Başındaki "/api" kısmını kaldır. 
+    // Çünkü api.ts içindeki baseURL bunu zaten sağlıyor.
+    await api.post("/projects/", form); 
+    
     onClose();
-  } catch (err: any) {
-    // Zayıf hata yönetimi yerine detaylı log al
-    console.error("Backend Hatası:", err.response?.data || err.message);
+  } catch (err: any) { 
+    // Backend hatasını detaylı logla (HTML sayfası dönüyorsa 404'tür)
+    console.error("Backend Hatası:", err.response?.data || err.message); 
   } finally {
     setLoading(false);
   }
-};
+}
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in">

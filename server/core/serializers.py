@@ -12,10 +12,14 @@ from .services import get_collaboration_suggestions
 
 # --- 1. TEMEL MODEL SERIALIZER'LAR (DEĞİŞMEDİ) ---
 
-class DepartmentSerializer(serializers.ModelSerializer):
+# serializers.py
+class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Department
-        fields = ['department_id', 'name', 'code', 'faculty']
+        model = Project
+        fields = '__all__'
+        # 🛡️ GÜVENLİK VE MANTIK DÜZELTMESİ:
+        # pi alanı kullanıcıdan alınmaz, sistem tarafından otomatik atanır.
+        read_only_fields = ['pi']
 
 
 # --- 1. PROJE SERIALIZER GÜNCELLEMESİ ---
