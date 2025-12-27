@@ -95,7 +95,7 @@ class Project(models.Model):
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
-
+    search_vector = SearchVectorField(null=True, blank=True)
     class Meta:
         db_table = 'project'
        

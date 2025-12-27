@@ -355,30 +355,30 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return Project.objects.none()
 
     # views.py (ProjectViewSet içinde)
-def perform_create(self, serializer):
-    """🚀 OTONOM MÜHÜR: Proje kaydedilirken AI motorunu uyandırır."""
-    from .services import generate_embedding
+    def perform_create(self, serializer):
+        """🚀 OTONOM MÜHÜR: Proje kaydedilirken AI motorunu uyandırır."""
+        from .services import generate_embedding
 
-    try:
-        # 1. Kullanıcının araştırmacı profilini çek
-        researcher = Researcher.objects.get(user=self.request.user)
-        
-        # 2. İLK KAYIT: instance'ı oluştururken pi'yi mühürle (Tek save yeterli)
-        instance = serializer.save(pi=researcher)
+        try:
+            # 1. Kullanıcının araştırmacı profilini çek
+            researcher = Researcher.objects.get(user=self.request.user)
+            
+            # 2. İLK KAYIT: instance'ı oluştururken pi'yi mühürle (Tek save yeterli)
+            instance = serializer.save(pi=researcher)
 
-        # 3. AI ANALİZİ: Başlık, Konu ve Gereksinimlerden anlamsal vektör üret
-        combined_text = f"{instance.title}. {instance.summary or ''}. Needs: {instance.requirements or ''}"
-        vector = generate_embedding(combined_text)
+            # 3. AI ANALİZİ: Başlık, Konu ve Gereksinimlerden anlamsal vektör üret
+            combined_text = f"{instance.title}. {instance.summary or ''}. Needs: {instance.requirements or ''}"
+            vector = generate_embedding(combined_text)
 
-        if vector:
-            instance.embedding = vector
-            # 4. GÜNCELLEME: Sadece 'embedding' alanını kaydet (Tüm satırı değil)
-            instance.save(update_fields=['embedding'])
-            print(f"✅ AI MÜHÜRÜ: '{instance.title}' projesi için semantik vektör üretildi.", flush=True)
+            if vector:
+                instance.embedding = vector
+                # 4. GÜNCELLEME: Sadece 'embedding' alanını kaydet (Tüm satırı değil)
+                instance.save(update_fields=['embedding'])
+                print(f"✅ AI MÜHÜRÜ: '{instance.title}' projesi için semantik vektör üretildi.", flush=True)
 
-    except Researcher.DoesNotExist:
-        from rest_framework.exceptions import ValidationError
-        raise ValidationError({"detail": "İşlem başarısız: Sisteme kayıtlı bir Araştırmacı profiliniz bulunamadı."})
+        except Researcher.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"detail": "İşlem başarısız: Sisteme kayıtlı bir Araştırmacı profiliniz bulunamadı."})
 
     @action(detail=True, methods=['get'])
     def suggestions(self, request, pk=None):

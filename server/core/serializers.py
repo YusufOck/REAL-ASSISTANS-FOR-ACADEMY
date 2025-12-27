@@ -224,13 +224,12 @@ class NetworkGraphSerializer(serializers.Serializer):
     nodes = NetworkNodeSerializer(many=True); edges = NetworkEdgeSerializer(many=True)
 
 class ProjectSerializer(serializers.ModelSerializer):
-    # Mürettebat ve finans verilerini iç içe (nested) almak için bunları ekle
-    # Bu ekleme, modalda mürettebatın görünmemesi sorununu da çözer.
-    members = ResearcherSerializer(many=True, read_only=True)
+    # 🛰️ Mürettebat ve Finans verilerini nested (iç içe) gönderiyoruz
+    members = ResearcherSerializer(many=True, read_only=True, source='memberships__researcher')
     funding = FundingSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = '__all__'
-        # 🛡️ KRİTİK: pi alanını buraya eklemezsen 400 hatası düzelmez
-        read_only_fields = ['pi', 'embedding', 'created_at', 'members', 'funding']    
+        # 🛡️ pi alanını mutlaka read_only yap
+        read_only_fields = ['pi', 'embedding', 'created_at', 'search_vector']    
