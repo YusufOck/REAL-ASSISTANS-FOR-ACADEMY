@@ -77,7 +77,7 @@ export default function Profile() {
     try {
       const [profileData, deptResponse] = await Promise.all([
         authService.getProfile(),
-        api.get("/api/departments/"),
+        api.get("/departments/"),
       ])
 
       setProfile(profileData)

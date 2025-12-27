@@ -35,7 +35,7 @@ export default function Register() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await api.get("/api/departments/");
+        const response = await api.get("/departments/");
         const rawData = response.data;
         const list = Array.isArray(rawData) ? rawData : rawData?.results || [];
         setDepartments(list);

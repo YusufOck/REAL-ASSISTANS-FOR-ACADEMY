@@ -147,15 +147,11 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             print(f"⚠️ Analiz/Eşleştirme Hatası: {str(e)}", flush=True)
             
     def get_queryset(self):
-        # 🛡️ CERRAHİ MÜDAHALE: 'select_related' departmanı JOIN ile tek seferde getirir.
-        # 'prefetch_related' ise tüm yetenekleri (skills) tek bir ek sorguyla paketler.
-        queryset = Researcher.objects.select_related('department').prefetch_related(
-            'skills' 
-        ).only(
-            'researcher_id', 'full_name', 'email', 'role', 'title', 'department__name'
-        )
+        # 🛡️ CERRAHİ DÜZELTME: Hata veren prefetch_related('skills') kaldırıldı.
+        # Sadece departman verisini (Foreign Key) JOIN ile çekiyoruz.
+        queryset = Researcher.objects.select_related('department').all()
         
-        # Filtreleme mantığı
+        # 🛰️ Dinamik Filtreleme (Hız için optimize edildi)
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(full_name__icontains=search)
@@ -166,12 +162,16 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             
         skills_raw = self.request.query_params.get('skills')
         if skills_raw:
+            # 🛡️ Filtreleme mantığı ilişkisel değilse bile 
+            # query bazlı çalışmaya devam edecektir.
             skill_ids = [int(s) for s in skills_raw.split(',')]
             for s_id in skill_ids:
                 queryset = queryset.filter(skills__skill_id=s_id)
                 
-        # 🚀 Performans Mührü:distinct() veri tekrarını önler, order_by ise hızı stabilize eder.
+        # Performans için sıralama ve mühürleme
         return queryset.order_by('-researcher_id').distinct()
+                
+        
     
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
