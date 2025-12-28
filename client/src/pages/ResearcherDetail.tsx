@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { api } from "@/lib/api" // 🛰️ API Instance integrated
+import { api } from "@/lib/api" 
 
 export default function ResearcherDetail() {
   const { id } = useParams()
@@ -30,7 +30,6 @@ export default function ResearcherDetail() {
   const [requestMessage, setRequestMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
 
-  // 🛡️ AUTONOMOUS LOCK: Prevents duplicate requests
   const isFetching = useRef(false)
 
   useEffect(() => {
@@ -40,18 +39,21 @@ export default function ResearcherDetail() {
 
       setLoading(true)
       try {
-        // 🛰️ DATA STATION: /researchers/me/ yerine direkt /projects/ endpoint'ini mühürledik.
         const [resProfile, resProjects, resMeProjects] = await Promise.all([
           api.get(`/researchers/${id}/`),
           api.get(`/researchers/${id}/projects/`),
-          api.get(`/projects/`), // 🚀 GÜNCELLEME: Kendi projelerini tam liste olarak buradan çekiyoruz
+          api.get(`/projects/`), 
         ])
 
         const profileRaw = resProfile.data
         const projectsData = resProjects.data
-        const meProjectsData = resMeProjects.data // 🛡️ Bu veri artık tüm projelerini içerir
+        const meProjectsRaw = resMeProjects.data // 🛡️ Ham veriyi yakala
 
-        // 🛡️ DATA SYNC: "Expertise Areas" sealing block
+        // 🛡️ KRİTİK MÜHÜR: Gelen veri liste mi yoksa paginated obje mi kontrol et
+        const otherList = Array.isArray(projectsData) ? projectsData : (projectsData?.results || [])
+        const myList = Array.isArray(meProjectsRaw) ? meProjectsRaw : (meProjectsRaw?.results || [])
+
+        // "Expertise Areas" temizleme bloğu
         let cleanProfile = Array.isArray(profileRaw) ? profileRaw.find(i => typeof i === 'object') : profileRaw;
         
         if (cleanProfile && cleanProfile.skills && Array.isArray(cleanProfile.skills)) {
@@ -59,9 +61,8 @@ export default function ResearcherDetail() {
         }
 
         setResearcher(cleanProfile)
-        setOtherProjects(projectsData)
-        // 🚀 GÜNCELLEME: meData.projects yerine direkt gelen projeler listesini mühürle
-        setMyProjects(meProjectsData || [])
+        setOtherProjects(otherList) // 🚀 Güvenli liste
+        setMyProjects(myList)       // 🚀 Güvenli liste
       } catch (error: any) {
         toast.error("Data could not be synchronized. System error (500).")
       } finally {
@@ -170,7 +171,7 @@ export default function ResearcherDetail() {
             </div>
           </div>
 
-          {/* Project List */}
+          {/* Project List - Hatanın Çözüldüğü Yer */}
           <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
             <h3 className="text-xl font-black mb-6 flex items-center gap-2">
               <FolderGit2 className="text-emerald-400" /> 

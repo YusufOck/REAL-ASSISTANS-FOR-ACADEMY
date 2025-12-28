@@ -312,65 +312,115 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['POST'], url_path='send-request')
     def send_request(self, request, pk=None):
+        """
+        🚀 İSTEK VE BİLDİRİM MÜHRÜ: 
+        İş birliği isteği oluşturur ve alıcıya anında bildirim fırlatır.
+        """
         receiver = self.get_object()
         sender = Researcher.objects.get(user=request.user)
         serializer = SendCollaborationRequestSerializer(data=request.data)
         
         if serializer.is_valid():
+            project_id = serializer.validated_data['project_id']
+            message = serializer.validated_data.get('message', '')
+            request_type = serializer.validated_data['request_type']
+
             existing_req = CollaborationRequest.objects.filter(
                 sender=sender, 
                 receiver=receiver, 
-                project_id=serializer.validated_data['project_id']
+                project_id=project_id
             ).first()
 
+            # 🛡️ Cooldown ve Mevcut İstek Kontrolleri
             if existing_req:
                 if existing_req.status == 'pending':
                     return Response({"detail": "Bu projeye zaten beklemede olan bir talebiniz var."}, status=400)
                 
-                # 🛡️ 10 GÜN KONTROLÜ
                 if existing_req.status == 'rejected':
                     cooldown_limit = existing_req.updated_at + timedelta(days=10)
                     if timezone.now() < cooldown_limit:
                         remaining_days = (cooldown_limit - timezone.now()).days
                         return Response({
-                            "detail": f"10 gün boyunca aynı proje için birden fazla istek veya davet gönderilemez. (Kalan süre: {remaining_days + 1} gün)"
+                            "detail": f"10 gün geçmeden tekrar istek gönderilemez. (Kalan: {remaining_days + 1} gün)"
                         }, status=400)
                 
-                # 🔄 İsteği Tazele (Sinyal burada otomatik çalışacak)
+                # 🔄 Mevcut İsteği Tazele
                 existing_req.status = 'pending'
-                existing_req.message = serializer.validated_data.get('message', '')
+                existing_req.message = message
                 existing_req.save()
-                return Response({"detail": "İş birliği talebiniz otonom olarak tazelendi."}, status=200)
+                req_obj = existing_req
+            else:
+                # 🛰️ Yeni İstek Kaydı
+                req_obj = CollaborationRequest.objects.create(
+                    sender=sender,
+                    receiver=receiver,
+                    project_id=project_id,
+                    request_type=request_type,
+                    message=message
+                )
 
-            # 🛰️ Yeni Kayıt (Sinyal burada otomatik çalışacak)
-            CollaborationRequest.objects.create(
-                sender=sender,
-                receiver=receiver,
-                project_id=serializer.validated_data['project_id'],
-                request_type=serializer.validated_data['request_type'],
-                message=serializer.validated_data.get('message', '')
+            # 🔔 ALICIYA BİLDİRİM MÜHRÜ:
+            # Dashboard'da görünmesini sağlayan fiziksel kayıt
+            Notification.objects.create(
+                recipient=receiver,
+                request_id=req_obj.request_id,
+                title="Yeni İş Birliği Talebi",
+                message=f"{sender.full_name}, '{req_obj.project.title}' projesi için bir {req_obj.get_request_type_display().lower()} gönderdi."
             )
+
             return Response({"detail": "İş birliği talebi fırlatıldı."}, status=201)
             
-        return Response(serializer.errors, status=400)  
+        return Response(serializer.errors, status=400)
 
     @action(detail=False, methods=['post'], url_path='respond-request')
     def respond_request(self, request):
+        """
+        🏁 YANIT VE GERİ BİLDİRİM MÜHRÜ:
+        Talebi sonuçlandırır, üyeliği mühürler ve göndericiye sonuç bildirimi atar.
+        """
         serializer = RespondCollaborationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data
+        
         try:
             with transaction.atomic():
+                # 1. Talebi Güncelle
                 r = CollaborationRequest.objects.get(request_id=d['request_id'])
-                r.status, r.response_message = d['status'], d.get('response_message', '')
+                r.status = d['status']
+                r.response_message = d.get('response_message', '')
                 r.save()
+
+                # 2. Üyelik İşlemi (Kabul edildiyse)
                 if d['status'] == 'accepted':
                     role = "Collaborator" if r.request_type == 'invite' else "Researcher"
-                    new_m = r.receiver if r.request_type == 'invite' else r.sender
-                    ProjectResearcher.objects.get_or_create(project=r.project, researcher=new_m, defaults={'role': role})
-                Notification.objects.filter(recipient=r.receiver, is_read=False).update(is_read=True)
+                    new_member = r.receiver if r.request_type == 'invite' else r.sender
+                    ProjectResearcher.objects.get_or_create(
+                        project=r.project, 
+                        researcher=new_member, 
+                        defaults={'role': role, 'joined_at': timezone.now().date()}
+                    )
+
+                # 3. GÖNDERİCİYE SONUÇ BİLDİRİMİ:
+                # İsteği atan kişiye "Kabul/Red" bilgisi gider.
+                status_label = "kabul etti" if d['status'] == 'accepted' else "reddetti"
+                Notification.objects.create(
+                    recipient=r.sender,
+                    request_id=r.request_id,
+                    title="İş Birliği Talebi Cevaplandı",
+                    message=f"{r.receiver.full_name}, '{r.project.title}' projesi için gönderdiğiniz talebi {status_label}."
+                )
+
+                # 4. Alıcının Dashboard'undaki mevcut bildirimi "Okundu" yap (Temizlik)
+                Notification.objects.filter(
+                    recipient=request.user.researcher, 
+                    request_id=r.request_id
+                ).update(is_read=True)
+
             return Response({"status": d['status']})
-        except Exception as e: return Response({"detail": str(e)}, status=500)
+        except CollaborationRequest.DoesNotExist:
+            return Response({"detail": "Talebe ulaşılamadı."}, status=404)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=500)
 
     # server/core/views.py -> ResearcherViewSet içindeki projects aksiyonu
 

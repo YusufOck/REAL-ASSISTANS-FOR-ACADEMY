@@ -258,7 +258,6 @@ export default function Dashboard() {
                       <Atom size={18} className="text-indigo-400" />
                     </CardHeader>
                     <CardContent className="h-[480px] p-8">
-                      {/* 🚀 AI ANALİZ DURUMU KONTROLÜ */}
                       {profile?.is_analyzing ? (
                         <div className="h-full flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-500">
                           <Loader2 className="h-12 w-12 animate-spin text-indigo-400" />
@@ -329,7 +328,7 @@ export default function Dashboard() {
                 {profile?.notifications?.length > 0 ? (
                   profile.notifications.map((n: any) => (
                     <div
-                      key={n.id}
+                      key={n.notification_id || n.id} // 🚀 MÜHÜR: Backend 'notification_id' değişikliği uygulandı
                       onClick={() => {
                         if (n.request_id) setSelectedRequest(n)
                         setShowNotifications(false)
@@ -340,7 +339,8 @@ export default function Dashboard() {
                     >
                       <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] font-black text-indigo-400 uppercase">{n.title}</p>
-                        <button onClick={(e) => handleDeleteNotification(e, n.id)} className="text-slate-500 hover:text-red-400">
+                        {/* 🗑️ MÜHÜR: Silme işlemi notification_id üzerinden mühürlendi */}
+                        <button onClick={(e) => handleDeleteNotification(e, n.notification_id || n.id)} className="text-slate-500 hover:text-red-400">
                           <Trash2 size={12} />
                         </button>
                       </div>
