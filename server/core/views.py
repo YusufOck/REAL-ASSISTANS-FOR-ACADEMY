@@ -333,7 +333,7 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     def send_request(self, request, pk=None):
         """
         🛡️ TEKNİK MÜHÜR: 3 Kademeli Güvenlik Bariyeri içeren İstek Motoru.
-        1. PI Yetki Kontrolü, 2. Üyelik Kontrolü, 3. 10 Günlük Cooldown.
+        🚀 GÜNCELLEME: Çift bildirim hatası engellendi, tekil mesaj mühürlendi.
         """
         receiver = self.get_object()
         sender = Researcher.objects.get(user=request.user)
@@ -344,67 +344,53 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             message = serializer.validated_data.get('message', '')
             request_type = serializer.validated_data['request_type']
 
-            from .models import Project, ProjectResearcher, CollaborationRequest
+            from .models import Project, ProjectResearcher, CollaborationRequest, Notification
             from django.utils import timezone
             from datetime import timedelta
 
-            # 🛰️ 1. ADIM: Proje Verisini ve Yürütücü Durumunu Doğrula
             project = Project.objects.get(pk=project_id)
 
-            # 🛡️ BARİYER 1: PI KONTROLÜ (Sadece Yürütücü Davet Atabilir)
+            # 🛡️ BARİYER 1 & 2: Otorite ve Üyelik Kontrolü
             if request_type == 'invite' and project.pi != sender:
-                return Response({
-                    "detail": "Bu projeye davet gönderme yetkiniz yok. Sadece proje yürütücüsü davet gönderebilir."
-                }, status=403)
+                return Response({"detail": "Sadece proje yürütücüsü davet gönderebilir."}, status=403)
 
-            # 🛡️ BARİYER 2: ÜYELİK KONTROLÜ (Zaten ekipteyse engel ol)
             if ProjectResearcher.objects.filter(project=project, researcher=receiver).exists():
-                return Response({
-                    "detail": f"{receiver.full_name} zaten bu projenin bir üyesi."
-                }, status=400)
+                return Response({"detail": f"{receiver.full_name} zaten bu projenin bir üyesi."}, status=400)
 
             # 🛰️ 2. ADIM: Mevcut İstek ve Cooldown Taraması
-            existing_req = CollaborationRequest.objects.filter(
-                sender=sender, 
-                receiver=receiver, 
-                project=project
-            ).first()
+            existing_req = CollaborationRequest.objects.filter(sender=sender, receiver=receiver, project=project).first()
 
             if existing_req:
                 if existing_req.status == 'pending':
                     return Response({"detail": "Bu projeye zaten beklemede olan bir talebiniz var."}, status=400)
                 
-                # 🛡️ BARİYER 3: 10 GÜNLÜK COOLDOWN (Reddedilenler için)
                 if existing_req.status == 'rejected':
                     cooldown_limit = existing_req.updated_at + timedelta(days=10)
                     if timezone.now() < cooldown_limit:
                         remaining_days = (cooldown_limit - timezone.now()).days
-                        return Response({
-                            "detail": f"Talebiniz reddedildiği için 10 gün beklemeniz gerekmektedir. (Kalan: {remaining_days + 1} gün)"
-                        }, status=403)
+                        return Response({"detail": f"10 gün geçmeden tekrar istek gönderilemez. (Kalan: {remaining_days + 1} gün)"}, status=403)
                 
-                # 🔄 Mevcut İsteği Tazele (Cooldown bittiyse)
                 existing_req.status = 'pending'
                 existing_req.message = message
-                existing_req.request_type = request_type
                 existing_req.save()
                 req_obj = existing_req
             else:
-                # 🛰️ Yeni İstek Kaydı
                 req_obj = CollaborationRequest.objects.create(
-                    sender=sender,
-                    receiver=receiver,
-                    project=project,
-                    request_type=request_type,
-                    message=message
+                    sender=sender, receiver=receiver, project=project,
+                    request_type=request_type, message=message
                 )
 
-            # 🔔 ALICIYA BİLDİRİM MÜHRÜ
-            Notification.objects.create(
+            # 🔔 ALICIYA TEKİL BİLDİRİM MÜHRÜ (Bilingual Style):
+            # 🛡️ 'update_or_create' kullanarak aynı request için mükerrer bildirim oluşmasını engelliyoruz.
+            Notification.objects.update_or_create(
                 recipient=receiver,
                 request_id=req_obj.request_id,
-                title="Yeni İş Birliği Talebi",
-                message=f"{sender.full_name}, '{project.title}' projesi için bir {req_obj.get_request_type_display().lower()} gönderdi."
+                defaults={
+                    "title": "Yeni İş Birliği Talebi / New Collaboration Request",
+                    "message": f"{sender.full_name}, '{project.title}' projesi için bir talep gönderdi / sent a collaboration request.",
+                    "is_read": False,
+                    "created_at": timezone.now()
+                }
             )
 
             return Response({"detail": "İş birliği talebi başarıyla fırlatıldı."}, status=201)
@@ -415,52 +401,57 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     def respond_request(self, request):
         """
         🏁 YANIT VE GERİ BİLDİRİM MÜHRÜ:
-        Talebi sonuçlandırır, üyeliği mühürler ve göndericiye sonuç bildirimi atar.
+        🚀 GÜNCELLEME: Çift bildirim yerine tekil, birleştirilmiş mesaj mühürlendi.
         """
         serializer = RespondCollaborationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data
         
+        from .models import CollaborationRequest, ProjectResearcher, Notification
+        from django.db import transaction
+        from django.utils import timezone
+
         try:
             with transaction.atomic():
                 # 1. Talebi Güncelle
-                r = CollaborationRequest.objects.get(request_id=d['request_id'])
+                r = CollaborationRequest.objects.select_related('sender', 'receiver', 'project').get(request_id=d['request_id'])
                 r.status = d['status']
                 r.response_message = d.get('response_message', '')
                 r.save()
 
-                # 2. Üyelik İşlemi (Kabul edildiyse)
+                # 2. Üyelik İşlemi
                 if d['status'] == 'accepted':
                     role = "Collaborator" if r.request_type == 'invite' else "Researcher"
                     new_member = r.receiver if r.request_type == 'invite' else r.sender
                     ProjectResearcher.objects.get_or_create(
-                        project=r.project, 
-                        researcher=new_member, 
+                        project=r.project, researcher=new_member, 
                         defaults={'role': role, 'joined_at': timezone.now().date()}
                     )
 
-                # 3. GÖNDERİCİYE SONUÇ BİLDİRİMİ:
-                # İsteği atan kişiye "Kabul/Red" bilgisi gider.
-                status_label = "kabul etti" if d['status'] == 'accepted' else "reddetti"
-                Notification.objects.create(
+                # 3. GÖNDERİCİYE SONUÇ BİLDİRİMİ (Unified Bilingual Response):
+                status_tr = "kabul etti" if d['status'] == 'accepted' else "reddetti"
+                status_en = "accepted" if d['status'] == 'accepted' else "rejected"
+                
+                # Mevcut cevabı güncelle veya yeni oluştur (Duplication engeli)
+                Notification.objects.update_or_create(
                     recipient=r.sender,
                     request_id=r.request_id,
-                    title="İş Birliği Talebi Cevaplandı",
-                    message=f"{r.receiver.full_name}, '{r.project.title}' projesi için gönderdiğiniz talebi {status_label}."
+                    defaults={
+                        "title": "İş Birliği Talebi Cevaplandı / Request Answered",
+                        "message": f"{r.receiver.full_name}, '{r.project.title}' talebinizi {status_tr} / {status_en} your request.",
+                        "is_read": False,
+                        "created_at": timezone.now()
+                    }
                 )
 
-                # 4. Alıcının Dashboard'undaki mevcut bildirimi "Okundu" yap (Temizlik)
-                Notification.objects.filter(
-                    recipient=request.user.researcher, 
-                    request_id=r.request_id
-                ).update(is_read=True)
+                # 4. Temizlik: Alıcının bildirimini "Okundu" yap
+                Notification.objects.filter(recipient=request.user.researcher, request_id=r.request_id).update(is_read=True)
 
             return Response({"status": d['status']})
         except CollaborationRequest.DoesNotExist:
             return Response({"detail": "Talebe ulaşılamadı."}, status=404)
         except Exception as e:
             return Response({"detail": str(e)}, status=500)
-
     # server/core/views.py -> ResearcherViewSet içindeki projects aksiyonu
 
     @action(detail=True, methods=['get'])
