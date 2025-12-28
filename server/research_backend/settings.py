@@ -252,5 +252,5 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "https://real-assistans-for-academy.vercel.app",
     "https://reserchos.com.tr",
-    "https://www.reserchos.com.tr"
+    "https://www.reserchos.com.tr" # Sonuna virgül eklemeyi unutma
 ]
