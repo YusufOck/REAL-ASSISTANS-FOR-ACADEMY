@@ -1,6 +1,6 @@
 // src/components/ui/CollaborationReviewModal.tsx
 import { useState } from "react"
-import { Loader2, User, X, Check, XCircle, Code, MessageSquare, Info, ShieldCheck, AlertCircle } from "lucide-react"
+import { Loader2, User, X, Check, XCircle, MessageSquare, Info, ShieldCheck, AlertCircle } from "lucide-react"
 import { Button } from "./button"
 
 export default function CollaborationReviewModal({ request, onClose, onRespond }: any) {
@@ -21,7 +21,7 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
       <div className="w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         
-        {/* 🛡️ HEADER: Title and icon change based on status */}
+        {/* 🛡️ HEADER */}
         <div className="p-7 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-2xl ${isPending ? 'bg-indigo-500/10' : 'bg-slate-500/10'}`}>
@@ -38,14 +38,13 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
         <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
           
           {/* Identity Information */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-3xl font-black text-white tracking-tighter">{request.sender_name}</p>
                 <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">{request.sender_title || "Researcher"}</p>
               </div>
               
-              {/* 🛡️ STATUS BADGE: Visible only for finalized (accepted/rejected) requests */}
               {!isPending && (
                 <div className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border ${
                   request.status === 'accepted' 
@@ -63,13 +62,21 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
               <p className="text-xs font-bold text-slate-300">Project: <span className="text-white">{request.project_name || "Not specified"}</span></p>
             </div>
 
-            {isPending && <p className="text-sm text-slate-400 italic leading-relaxed pt-2">"{request.sender_bio || "Biography not provided."}"</p>}
+            {/* 🚀 MÜHÜR: Biyografi Bölümü (Expertise Analysis yerine buraya mühürlendi) */}
+            <div className="p-6 bg-white/[0.02] border border-white/5 rounded-[2rem] space-y-2">
+               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                 <User size={12} className="text-indigo-400" /> Researcher Biography
+               </p>
+               <p className="text-sm text-slate-200 leading-relaxed italic">
+                 "{request.sender_bio || "Biography not provided."}"
+               </p>
+            </div>
           </div>
 
           {/* 🚀 MODE 1: PENDING REQUEST (Action Mode) */}
-          {isPending ? (
+          {isPending && (
             <>
-              {/* 🛰️ RESEARCHER'S INITIAL MESSAGE (NEWLY ADDED) */}
+              {/* RESEARCHER'S INITIAL MESSAGE */}
               {request.request_message && (
                 <div className="p-5 bg-indigo-500/5 border border-indigo-500/10 rounded-[2rem] space-y-2">
                   <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
@@ -81,25 +88,7 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
                 </div>
               )}
 
-              {/* Skill Matrix */}
-              <div className="space-y-4 pt-4 border-t border-white/5">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <Code size={14} /> Expertise Analysis
-                </p>
-                <div className="grid grid-cols-1 gap-4">
-                  {request.sender_skills && Object.entries(request.sender_skills).map(([skill, level]: any) => (
-                    <div key={skill} className="space-y-1.5">
-                      <div className="flex justify-between text-[11px] font-black text-slate-400 uppercase tracking-tighter">
-                        <span>{skill}</span>
-                        <span className="text-indigo-400">%{level}</span>
-                      </div>
-                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(129,140,248,0.5)] transition-all duration-1000" style={{ width: `${level}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* 🛡️ Expertise Analysis Bloğu İstek Üzerine Tasfiye Edildi */}
 
               {/* Response Message Field */}
               <div className="space-y-3 pt-4 border-t border-white/5">
@@ -115,8 +104,10 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
                 />
               </div>
             </>
-          ) : (
-            /* 🛰️ MODE 2: FINALIZED REQUEST (Summary Mode) */
+          )}
+
+          {/* 🛰️ MODE 2: FINALIZED REQUEST (Summary Mode) */}
+          {!isPending && (
             <div className="space-y-4 pt-4 border-t border-white/5">
               <div className="p-6 bg-white/[0.02] rounded-[2rem] border border-white/5 space-y-5">
                 <div>
@@ -126,7 +117,6 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
                   </p>
                 </div>
 
-                {/* 🛰️ REJECTION REASON SEAL */}
                 {request.rejection_note && (
                   <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl space-y-2">
                     <p className="text-[9px] font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
@@ -147,7 +137,7 @@ export default function CollaborationReviewModal({ request, onClose, onRespond }
           )}
         </div>
 
-        {/* 🛠️ ACTIONS: Show buttons only if pending */}
+        {/* 🛠️ ACTIONS */}
         {isPending && (
           <div className="p-8 bg-white/[0.01] border-t border-white/5 flex gap-5">
             <Button 

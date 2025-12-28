@@ -69,10 +69,6 @@ class ResearcherListSerializer(serializers.ModelSerializer):
         fields = ['researcher_id', 'full_name', 'email', 'role', 'title', 'department_name']
 
 class ResearcherMeSerializer(serializers.ModelSerializer):
-    """
-    ⚡ SİSTEMİN KALBİ (/me endpointi): 
-    Dashboard hızı için optimize edilmiş, bildirimleri içeren TEK TANIM.
-    """
     department_name = serializers.CharField(source='department.name', read_only=True)
     notif_count = serializers.SerializerMethodField()
     skills = serializers.JSONField(read_only=True) 
@@ -82,8 +78,7 @@ class ResearcherMeSerializer(serializers.ModelSerializer):
         model = Researcher
         fields = [
             'researcher_id', 'full_name', 'role', 'title', 'bio', 'department',
-            'department_name', 'skills', 'is_analyzing', 
-            'notifications', 'notif_count'
+            'department_name', 'skills', 'is_analyzing', 'notifications', 'notif_count'
         ]
 
     def get_notif_count(self, obj):
@@ -91,26 +86,25 @@ class ResearcherMeSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_notifications(self, obj):
-        """Dashboard bildirim kutusu ve Review Modal içeriği için mühürlenmiş veri."""
+        """Dashboard bildirim kutusu ve Review Modal içeriği."""
         notes = obj.notifications.all().order_by('-created_at')[:15]
         result = []
         for n in notes:
-            # N+1 performansını korumak için select_related mantığı ile isteği buluyoruz
+            # 🛡️ KRİTİK: select_related ile hızı koruyarak bio verisini çekiyoruz
             req = CollaborationRequest.objects.filter(request_id=n.request_id).select_related('sender', 'project').first() if n.request_id else None
             
             result.append({
                 'notification_id': n.notification_id,
-                'id': n.notification_id, # Frontend key uyumluluğu için
+                'id': n.notification_id,
                 'title': n.title,
                 'message': n.message,
-                'is_read': n.is_read,
-                'created_at': n.created_at.strftime("%H:%M"),
                 'request_id': n.request_id,
                 'is_actionable': bool(n.request_id),
-                # Modal detayları
                 'sender_name': req.sender.full_name if req else "Sistem",
-                'project_name': req.project.title if req else "Genel Bilgilendirme",
+                'project_name': req.project.title if req else "Genel",
                 'status': req.status if req else 'completed',
+                # 🚀 MÜHÜR: Bionun modalda görünmesi için buraya ekledik
+                'sender_bio': req.sender.bio if req and req.sender.bio else "Biography not provided.",
                 'request_message': req.message if req else ""
             })
         return result
@@ -218,9 +212,11 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         fields = ['researcher_id', 'full_name', 'role']
 
 class ProjectSerializer(serializers.ModelSerializer):
+    # 🛰️ MÜHÜR: Proje yöneticisinin ismini doğrudan pakete ekliyoruz
+    pi_name = serializers.CharField(source='pi.full_name', read_only=True)
     members = ProjectMemberSerializer(many=True, read_only=True, source='memberships')
-    funding = FundingSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Project
-        fields = '__all__'
-        read_only_fields = ['pi', 'embedding', 'created_at', 'search_vector']
+        fields = '__all__' # pi_name artık bu paketin içinde
+        read_only_fields = ['pi', 'embedding', 'created_at']

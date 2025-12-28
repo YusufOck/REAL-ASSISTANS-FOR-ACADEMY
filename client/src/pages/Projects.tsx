@@ -1,7 +1,7 @@
 // src/pages/Projects.tsx
 import { useState, useEffect, useRef } from "react"
-import { Plus, LayoutGrid, FolderKanban, Loader2, ArrowLeft } from "lucide-react" // 🚀 ArrowLeft added
-import { useNavigate } from "react-router-dom" // 🚀 useNavigate added
+import { Plus, LayoutGrid, FolderKanban, Loader2, ArrowLeft, User } from "lucide-react" // 🚀 User icon added
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import CreateProjectModal from "@/components/ui/CreateProjectModal"
 import ProjectDetailModal from "@/components/ui/ProjectDetailModal"
@@ -13,9 +13,7 @@ export default function Projects() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedProject, setSelectedProject] = useState<any>(null)
   
-  const navigate = useNavigate() // 🛰️ Navigation engine initialized
-  
-  // 🛡️ AUTONOMOUS LOCK: Prevents duplicate requests
+  const navigate = useNavigate()
   const isFetching = useRef(false);
 
   const fetchProjects = async () => {
@@ -41,7 +39,7 @@ export default function Projects() {
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500 bg-[#0b1020] min-h-screen text-slate-100">
       
-      {/* 🚀 BACK TO DASHBOARD BUTTON (TOP LEFT) */}
+      {/* 🚀 BACK TO DASHBOARD BUTTON */}
       <div className="flex justify-start">
         <Button
           variant="ghost"
@@ -94,10 +92,20 @@ export default function Projects() {
               <div className="absolute -top-4 -right-4 p-6 opacity-5 group-hover:opacity-10 group-hover:rotate-12 transition-all">
                 <FolderKanban size={120} />
               </div>
+              
               <div className="relative z-10 space-y-5">
-                <div className="h-14 w-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
+                {/* 🚀 MÜHÜR: Yürütücü Bilgisi (Her kartın en üstünde) */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 shadow-sm">
+                  <User size={12} className="text-indigo-400" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                    Yürütücü: <span className="text-white">{proj.pi_name || 'System PI'}</span>
+                  </span>
+                </div>
+
+                <div className="h-14 w-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-indigo-400 shadow-inner group-hover:bg-indigo-500/10 transition-colors">
                   <LayoutGrid size={28} />
                 </div>
+
                 <div>
                   <h3 className="text-xl font-black text-white leading-tight group-hover:text-indigo-200 transition-colors">{proj.title}</h3>
                   <div className="flex items-center gap-3 mt-3">
@@ -117,7 +125,7 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Floating Islands (Modals) */}
+      {/* Modals */}
       {showCreateModal && (
         <CreateProjectModal 
           onClose={() => { setShowCreateModal(false); fetchProjects(); }} 
