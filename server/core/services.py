@@ -177,24 +177,25 @@ def _get_all_researcher_skills_json():
 def get_collaboration_suggestions(base_researcher_id: int, limit: int = 5):
     """
     Dinamik Hibrit Eşleştirme. 
-    Sorgu sayısını azaltmak için 'all_skills' haritasını kullanır.
+    🚀 MÜHÜR: 'select_related' eklenerek KeyError hatası ve N+1 problemi çözüldü.
     """
     try:
-        # 1. Ana Kullanıcıyı Çek
-        base_user = Researcher.objects.get(pk=base_researcher_id)
+        # 1. Ana Kullanıcıyı Çek (Departmanıyla birlikte)
+        base_user = Researcher.objects.select_related('department').get(pk=base_researcher_id)
         
         # 2. Tüm yetenekleri TEK SEFERDE çek (N+1 probleminden kaçış)
         all_skills = _get_all_researcher_skills_json()
         base_skills = all_skills.get(base_researcher_id, {})
         
         # 3. Adayları Çek
-        candidates = Researcher.objects.exclude(pk=base_researcher_id)
+        # 🛰️ KRİTİK DÜZELTME: 'select_related' eklenerek departman verisi tek sorguda mühürlendi.
+        candidates = Researcher.objects.exclude(pk=base_researcher_id).select_related('department')
         
         suggestions = []
         missing_skills = [s for s, p in base_skills.items() if p < 45]
 
         for cand in candidates:
-            # ÖNEMLİ: cand.skills yerine önceden çektiğimiz all_skills haritasını kullanıyoruz!
+            # cand.skills yerine önceden çektiğimiz all_skills haritasını kullanıyoruz
             cand_skills = all_skills.get(cand.researcher_id, {})
             
             # --- TAMAMLAYICILIK %50 ---
@@ -210,17 +211,21 @@ def get_collaboration_suggestions(base_researcher_id: int, limit: int = 5):
             semantic_score = calculate_cosine_similarity(base_user.embedding, cand.embedding)
 
             # --- DİSİPLİNLERARASI %20 ---
-            dept_bonus = 0.2 if base_user.department_id != cand.department_id else 0.0
+            # 🛡️ GÜVENLİK KONTROLÜ: cand.department veya base_user.department null olabilir, kontrol et!
+            dept_bonus = 0.0
+            if cand.department and base_user.department:
+                dept_bonus = 0.2 if base_user.department_id != cand.department_id else 0.0
 
             # --- HİBRİT HESAPLAMA ---
-            # Tamamlayıcılığı normalize ediyoruz
             norm_comp = (comp_score / (len(missing_skills) or 1))
             total_score = (0.5 * norm_comp) + (0.3 * semantic_score) + (0.2 * dept_bonus)
 
-            if total_score > 0.1:
+            # Eşik değerini düşük tutarak eşleşme şansını artırıyoruz
+            if total_score > 0.05: 
                 suggestions.append({
                     "researcher_id": cand.researcher_id,
                     "full_name": cand.full_name,
+                    # 🛰️ MÜHÜR: Null güvenliği ile departman ismini al
                     "department_name": cand.department.name if cand.department else "Unknown",
                     "score": round(float(total_score), 4),
                     "match_reasons": found_reasons[:2],

@@ -103,8 +103,8 @@ class ResearcherViewSet(viewsets.ModelViewSet):
 
     def _trigger_ai_analysis(self, instance, old_bio, validated_data):
         """
-        🛡️ KRİTİK MÜHÜR: Tüm ağır işlemleri (AI + Öneriler) buraya hapsediyoruz.
-        Sadece biyografi değiştiğinde çalışır.
+        🚀 ASENKRON MÜHÜR: SIGKILL hatasını kökten çözer.
+        Tüm ağır AI, Embedding ve Öneri işlemlerini arka plan thread'ine hapseder.
         """
         new_bio = validated_data.get('bio')
         
@@ -113,51 +113,70 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             print(f"ℹ️ AI ve Öneriler Atlandı: Biyografi aynı. ({instance.full_name})", flush=True)
             return
 
-        try:
-            dept_name = instance.department.name if instance.department else "General Academic"
-            
-            # 🧠 1. Adım: Gemini Skill Extraction (10-12 saniye sürer)
-            ai_data, raw_debug = analyze_skills_with_gemini(new_bio, dept_name)
-            
-            # Veri Formatı Kontrolü (Dizi/Obje karmaşasını mühürle)
-            final_skills = {}
-            if isinstance(ai_data, list) and len(ai_data) > 0:
-                for item in ai_data:
-                    if isinstance(item, dict): final_skills.update(item)
-            elif isinstance(ai_data, dict):
-                final_skills = ai_data
+        import threading
 
-            instance.skills = final_skills if final_skills else {"DEBUG_RAW": str(raw_debug)[:200]}
-            
-            # 🗄️ ResearcherSkill modellerini otonom güncelle
-            ResearcherSkill.objects.filter(researcher=instance).delete()
-            if final_skills:
-                for s_name, s_level in final_skills.items():
-                    skill_obj, _ = Skill.objects.get_or_create(name=str(s_name)[:100])
-                    try:
-                        level_int = int(s_level)
-                    except (ValueError, TypeError):
-                        level_int = 50
-                    ResearcherSkill.objects.create(researcher=instance, skill=skill_obj, level=level_int)
+        # 🛰️ ANALİZ BAŞLADI: Dashboard'da spinner'ı yakmak için bayrağı mühürle
+        instance.is_analyzing = True
+        instance.save(update_fields=['is_analyzing'])
 
-            # 🚀 2. Adım: Embedding Üretimi (Ağır İşlem)
-            user_skills = ResearcherSkill.objects.filter(researcher=instance).select_related('skill')
-            skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
-            semantic_text = f"{instance.title}. {new_bio}. Skills: {skill_weights}"
-            instance.embedding = generate_embedding(semantic_text)
-            
-            # 🛰️ 3. Adım: Partner Önerilerini HESAPLA ve MÜHÜRLE (N+1 Sorgu Yükü Buraya Taşındı)
-            # Artık bu fonksiyon Dashboard açıldığında değil, sadece BURADA çalışacak.
-            instance.suggestions_json = get_collaboration_suggestions(instance.researcher_id, limit=5)
-            
-            # Tüm ağır verileri tek bir seferde veritabanına mühürle
-            instance.save(update_fields=['skills', 'embedding', 'suggestions_json'])
-            print(f"✅ AI Analizi ve Partner Önerileri Mühürlendi: {instance.full_name}", flush=True)
+        def background_ai_task(res_id, bio_text):
+            """Thread içinde çalışacak ağır operasyon motoru."""
+            try:
+                # 🛡️ GÜVENLİK: Thread içinde nesneyi tekrar çekmek veritabanı bütünlüğü için şarttır.
+                from .models import Researcher, Skill, ResearcherSkill
+                from .services import analyze_skills_with_gemini, generate_embedding, get_collaboration_suggestions
 
-        except Exception as e:
-            print(f"⚠️ Analiz/Eşleştirme Hatası: {str(e)}", flush=True)
-            
-    pagination_class = StandardResultsSetPagination # 🚀 Sayfalama aktif!
+                res = Researcher.objects.get(pk=res_id)
+                dept_name = res.department.name if res.department else "General Academic"
+                
+                # 🧠 1. Adım: Gemini Skill Extraction (10-12 saniye)
+                ai_data, raw_debug = analyze_skills_with_gemini(bio_text, dept_name)
+                
+                final_skills = {}
+                if isinstance(ai_data, list) and len(ai_data) > 0:
+                    for item in ai_data:
+                        if isinstance(item, dict): final_skills.update(item)
+                elif isinstance(ai_data, dict):
+                    final_skills = ai_data
+
+                res.skills = final_skills if final_skills else {"DEBUG_RAW": str(raw_debug)[:200]}
+                
+                # 🗄️ ResearcherSkill modellerini otonom güncelle
+                ResearcherSkill.objects.filter(researcher=res).delete()
+                if final_skills:
+                    for s_name, s_level in final_skills.items():
+                        skill_obj, _ = Skill.objects.get_or_create(name=str(s_name)[:100])
+                        try:
+                            level_int = int(s_level)
+                        except (ValueError, TypeError):
+                            level_int = 50
+                        ResearcherSkill.objects.create(researcher=res, skill=skill_obj, level=level_int)
+
+                # 🚀 2. Adım: Embedding Üretimi (Ağır İşlem)
+                user_skills = ResearcherSkill.objects.filter(researcher=res).select_related('skill')
+                skill_weights = ", ".join([f"{s.skill.name}:{s.level}" for s in user_skills])
+                semantic_text = f"{res.title}. {bio_text}. Skills: {skill_weights}"
+                res.embedding = generate_embedding(semantic_text)
+                
+                # 🛰️ 3. Adım: Partner Önerilerini HESAPLA ve MÜHÜRLE
+                res.suggestions_json = get_collaboration_suggestions(res.researcher_id, limit=5)
+                
+                # ✅ FİNAL: Tüm verileri mühürle ve spinner bayrağını kapat
+                res.is_analyzing = False
+                res.save(update_fields=['skills', 'embedding', 'suggestions_json', 'is_analyzing'])
+                print(f"✅ AI Analizi Arka Planda Tamamlandı: {res.full_name}", flush=True)
+
+            except Exception as e:
+                print(f"❌ Arka Plan AI Hatası: {str(e)}", flush=True)
+                # Hata durumunda bile UI'ı kilitli bırakmamak için spinner'ı kapatmayı dene
+                try:
+                    Researcher.objects.filter(pk=res_id).update(is_analyzing=False)
+                except: pass
+
+        # 🚀 ATEŞLE VE UNUT: Thread'i başlat ve Response dönerken arka planda çalışsın.
+        analysis_thread = threading.Thread(target=background_ai_task, args=(instance.researcher_id, new_bio))
+        analysis_thread.start()
+        print(f"🛰️ AI Analiz Thread'i Başlatıldı: {instance.full_name}", flush=True)
 
     # server/core/views.py
 
