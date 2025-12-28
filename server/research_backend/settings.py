@@ -26,13 +26,13 @@ SECRET_KEY = 'django-insecure-ze9%a7&&b9j1-l(nu=6a+fd$8!=+_c%+5u_fp=6pr0-n=$bsng
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-# Render'ın domaini ne olursa olsun kabul et (veya spesifik domain yaz)
-ALLOWED_HOSTS = ['*'] 
 
 # CSRF Güvenliği için (Render URL'ini sonra buraya ekleyeceğiz ama şimdilik genel izin)
 CSRF_TRUSTED_ORIGINS = [
     "https://*.onrender.com",
-    "https://real-assistans-for-academy.vercel.app" 
+    "https://real-assistans-for-academy.vercel.app",
+    "https://reserchos.com.tr",
+    "https://www.reserchos.com.tr"
 ]
 
 
@@ -100,7 +100,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # CORS middleware
+     
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -143,10 +143,13 @@ WSGI_APPLICATION = 'research_backend.wsgi.application'
 #     }
 # }
 
-
-ALLOWED_HOSTS = ['*']  # Yıldız koyarak tüm internetten erişime açıyoruz
-
-
+# Render ve yeni domain izinleri
+ALLOWED_HOSTS = [
+    '*', 
+    'reserchos.com.tr', 
+    'www.reserchos.com.tr', 
+    'real-assistans-for-academy-cbun.onrender.com'
+]
 DATABASES = {
     'default': dj_database_url.parse(
         # Link formatı: postgresql://postgres:[ŞİFREN]@db.[PROJE-KODU].supabase.co:5432/postgres
@@ -204,17 +207,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 
-SPECTACULAR_SETTINGS = {
-    'TITLE': 'Research Platform API',
-    'DESCRIPTION': 'Araştırmacı, proje, yayın, fon, etiket ve beceri yönetimi için REST API.',
-    'VERSION': '1.0.0',
-    # İleride istersen burada security vb. ekleyebiliriz.
-}
 
 
 
-import os
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 
 
 
@@ -250,15 +246,11 @@ GEMINI_API_KEY = "AIzaSyBHyXfXs6fkbcFRyr7JU1JLLnKvQYua394"
 
 
 
-from datetime import timedelta
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Oturum 60 dk açık kalır
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # 1 gün boyunca yenilenebilir
-}
-
 # --- CORS AYARLARI (React İzni) ---
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://real-assistans-for-academy.vercel.app", # 🚀 Vercel'den aldığın tam link
+    "https://real-assistans-for-academy.vercel.app",
+    "https://reserchos.com.tr",
+    "https://www.reserchos.com.tr"
 ]
