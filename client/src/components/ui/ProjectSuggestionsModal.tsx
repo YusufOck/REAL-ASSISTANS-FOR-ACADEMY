@@ -11,7 +11,7 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
   const fetchSuggestions = async () => {
     setLoading(true)
     try {
-      // 🛰️ DATA TRANSFER: Triggers the AI matching algorithm on the backend
+      // 🛰️ DATA TRANSFER: Arka plandaki AI motorunu tetikler
       const res = await api.get(`/projects/${project.project_id}/suggestions/`)
       setSuggestions(res.data)
     } catch (err) { 
@@ -21,18 +21,20 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
   }
 
   useEffect(() => { 
-    // 🛡️ AUTONOMOUS CHECK: To prevent the infinite loop in image_4b4338.png
-    // Only the ID was added to the dependency array.
     if (project?.project_id) {
       fetchSuggestions(); 
     }
   }, [project.project_id]); 
 
-  // 🚀 NAVIGATION: Closes the modal and warps to the researcher detail
   const handleViewProfile = (rid: number) => {
     onClose() 
     navigate(`/researcher/${rid}`) 
   }
+
+  // 🚀 MÜHÜR: Halihazırda projede olanları listeden temizle
+  const filteredSuggestions = suggestions.filter((s: any) => 
+    !project.members?.some((m: any) => m.researcher_id === s.researcher_id)
+  );
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in">
@@ -50,21 +52,19 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Analysis Focus */}
           <div className="p-4 bg-white/5 border border-white/5 rounded-2xl text-center">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">Analysis Focus</p>
             <p className="text-xs text-indigo-300 font-bold italic">"{project.title}"</p>
           </div>
 
-          {/* List Area */}
           <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
             {loading ? (
               <div className="py-20 flex flex-col items-center gap-3">
                 <Sparkles className="animate-spin text-indigo-500" />
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Algorithm Analyzing...</p>
               </div>
-            ) : suggestions.length > 0 ? (
-              suggestions.map((s: any) => (
+            ) : filteredSuggestions.length > 0 ? ( // 🛡️ DÜZELTME: Filtrelenmiş listeyi kontrol et
+              filteredSuggestions.map((s: any) => ( // 🛡️ DÜZELTME: Filtrelenmiş listeyi dön
                 <div key={s.researcher_id} className="p-5 bg-white/[0.03] border border-white/5 rounded-[2rem] hover:border-indigo-500/30 transition-all flex justify-between items-center group">
                   <div className="space-y-1">
                     <p className="font-black text-white text-sm tracking-tight">{s.full_name}</p>
@@ -78,7 +78,6 @@ export default function ProjectSuggestionsModal({ project, onClose }: any) {
                     </div>
                   </div>
 
-                  {/* 🛡️ ACTION: View Profile Button */}
                   <button 
                     onClick={() => handleViewProfile(s.researcher_id)}
                     className="h-10 w-10 rounded-xl bg-white/5 hover:bg-indigo-500 text-slate-400 hover:text-white flex items-center justify-center transition-all group-hover:scale-110 shadow-lg"

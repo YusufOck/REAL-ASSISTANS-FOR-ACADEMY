@@ -332,8 +332,8 @@ class ResearcherViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['POST'], url_path='send-request')
     def send_request(self, request, pk=None):
         """
-        🚀 İSTEK VE BİLDİRİM MÜHRÜ: 
-        İş birliği isteği oluşturur ve alıcıya anında bildirim fırlatır.
+        🛡️ TEKNİK MÜHÜR: 3 Kademeli Güvenlik Bariyeri içeren İstek Motoru.
+        1. PI Yetki Kontrolü, 2. Üyelik Kontrolü, 3. 10 Günlük Cooldown.
         """
         receiver = self.get_object()
         sender = Researcher.objects.get(user=request.user)
@@ -344,28 +344,49 @@ class ResearcherViewSet(viewsets.ModelViewSet):
             message = serializer.validated_data.get('message', '')
             request_type = serializer.validated_data['request_type']
 
+            from .models import Project, ProjectResearcher, CollaborationRequest
+            from django.utils import timezone
+            from datetime import timedelta
+
+            # 🛰️ 1. ADIM: Proje Verisini ve Yürütücü Durumunu Doğrula
+            project = Project.objects.get(pk=project_id)
+
+            # 🛡️ BARİYER 1: PI KONTROLÜ (Sadece Yürütücü Davet Atabilir)
+            if request_type == 'invite' and project.pi != sender:
+                return Response({
+                    "detail": "Bu projeye davet gönderme yetkiniz yok. Sadece proje yürütücüsü davet gönderebilir."
+                }, status=403)
+
+            # 🛡️ BARİYER 2: ÜYELİK KONTROLÜ (Zaten ekipteyse engel ol)
+            if ProjectResearcher.objects.filter(project=project, researcher=receiver).exists():
+                return Response({
+                    "detail": f"{receiver.full_name} zaten bu projenin bir üyesi."
+                }, status=400)
+
+            # 🛰️ 2. ADIM: Mevcut İstek ve Cooldown Taraması
             existing_req = CollaborationRequest.objects.filter(
                 sender=sender, 
                 receiver=receiver, 
-                project_id=project_id
+                project=project
             ).first()
 
-            # 🛡️ Cooldown ve Mevcut İstek Kontrolleri
             if existing_req:
                 if existing_req.status == 'pending':
                     return Response({"detail": "Bu projeye zaten beklemede olan bir talebiniz var."}, status=400)
                 
+                # 🛡️ BARİYER 3: 10 GÜNLÜK COOLDOWN (Reddedilenler için)
                 if existing_req.status == 'rejected':
                     cooldown_limit = existing_req.updated_at + timedelta(days=10)
                     if timezone.now() < cooldown_limit:
                         remaining_days = (cooldown_limit - timezone.now()).days
                         return Response({
-                            "detail": f"10 gün geçmeden tekrar istek gönderilemez. (Kalan: {remaining_days + 1} gün)"
-                        }, status=400)
+                            "detail": f"Talebiniz reddedildiği için 10 gün beklemeniz gerekmektedir. (Kalan: {remaining_days + 1} gün)"
+                        }, status=403)
                 
-                # 🔄 Mevcut İsteği Tazele
+                # 🔄 Mevcut İsteği Tazele (Cooldown bittiyse)
                 existing_req.status = 'pending'
                 existing_req.message = message
+                existing_req.request_type = request_type
                 existing_req.save()
                 req_obj = existing_req
             else:
@@ -373,21 +394,20 @@ class ResearcherViewSet(viewsets.ModelViewSet):
                 req_obj = CollaborationRequest.objects.create(
                     sender=sender,
                     receiver=receiver,
-                    project_id=project_id,
+                    project=project,
                     request_type=request_type,
                     message=message
                 )
 
-            # 🔔 ALICIYA BİLDİRİM MÜHRÜ:
-            # Dashboard'da görünmesini sağlayan fiziksel kayıt
+            # 🔔 ALICIYA BİLDİRİM MÜHRÜ
             Notification.objects.create(
                 recipient=receiver,
                 request_id=req_obj.request_id,
                 title="Yeni İş Birliği Talebi",
-                message=f"{sender.full_name}, '{req_obj.project.title}' projesi için bir {req_obj.get_request_type_display().lower()} gönderdi."
+                message=f"{sender.full_name}, '{project.title}' projesi için bir {req_obj.get_request_type_display().lower()} gönderdi."
             )
 
-            return Response({"detail": "İş birliği talebi fırlatıldı."}, status=201)
+            return Response({"detail": "İş birliği talebi başarıyla fırlatıldı."}, status=201)
             
         return Response(serializer.errors, status=400)
 
