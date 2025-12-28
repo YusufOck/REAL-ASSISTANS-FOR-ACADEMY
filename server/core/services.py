@@ -241,48 +241,70 @@ def get_collaboration_suggestions(base_researcher_id: int, limit: int = 5):
 
 # core/services.py içine ekle:
 
-def get_project_specific_suggestions(project_id, limit=5):
+def get_project_specific_suggestions(project_id, exclude_id=None, limit=5):
     """
     🧠 PROJE ODAKLI HİBRİT ALGORİTMA:
-    Proje gereksinimlerini aday araştırmacıların yetenek ve biyografileriyle kıyaslar.
+    🚀 MÜHÜR: exclude_id desteği, üyelik filtresi ve null-embedding güvenliği eklendi.
     """
     from .models import Project, Researcher
+    from django.db.models import Q
     
     try:
-        project = Project.objects.get(pk=project_id)
-        candidates = Researcher.objects.exclude(researcher_id=project.pi_id)
+        # 🛰️ Projeyi ve departmanını önceden yükle
+        project = Project.objects.select_related('department').get(pk=project_id)
+        
+        # 🛡️ GÜVENLİK: Eğer projenin embedding'i yoksa (analiz edilmediyse) boş dön
+        if not project.embedding:
+            print(f"⚠️ Uyarı: {project.title} projesinin embedding verisi eksik.")
+            return []
+
+        # 🚀 ADAY FİLTRELEME:
+        # 1. Proje Yürütücüsü olmasın
+        # 2. İsteği atan kullanıcı (exclude_id) olmasın
+        # 3. Zaten projenin bir üyesi olmasın
+        existing_member_ids = project.memberships.values_list('researcher_id', flat=True)
+        
+        candidates = Researcher.objects.exclude(
+            Q(researcher_id=project.pi_id) | 
+            Q(researcher_id=exclude_id) |
+            Q(researcher_id__in=existing_member_ids)
+        ).select_related('department')
         
         # Proje gereksinim metnini analiz için küçük harfe çevir
         req_text = (project.requirements or "").lower()
         scored_results = []
 
         for cand in candidates:
-            # 1. SEMANTİK UYUM (%50): Proje vektörü ile Araştırmacı vektörü kıyaslanır
+            # 🛡️ GÜVENLİK: Adayın embedding'i yoksa hesaplamaya sokma
+            if not cand.embedding:
+                continue
+
+            # 1. SEMANTİK UYUM (%50)
             vector_score = calculate_cosine_similarity(project.embedding, cand.embedding)
-            # Normalizasyon: 0.5-1.0 aralığını 0-1 arasına çekerek farkı keskinleştir
             norm_vector = max(0, (vector_score - 0.5) * 2) 
 
-            # 2. YETENEK UYUMU (%40): Gereksinimlerde geçen kelimelerin yeteneklerle eşleşmesi
+            # 2. YETENEK UYUMU (%40)
             skill_overlap = 0
             cand_skills = (cand.skills or {})
             for skill_name in cand_skills.keys():
                 if skill_name.lower() in req_text:
                     skill_overlap += 1
-            skill_score = min(1.0, skill_overlap / 3) # En az 3 yetenek eşleşirse tam puan
+            skill_score = min(1.0, skill_overlap / 3)
 
-            # 3. AKADEMİK/DEPARTMAN UYUMU (%10): Aynı uzmanlık alanındalarsa bonus
+            # 3. AKADEMİK/DEPARTMAN UYUMU (%10)
             dept_bonus = 1.0 if project.department_id == cand.department_id else 0.0
 
             # TOPLAM SKOR HESAPLAMA
             total_score = (norm_vector * 50) + (skill_score * 40) + (dept_bonus * 10)
             final_score = round(max(0, min(99.8, total_score)), 1)
 
-            if final_score > 20: # Barajı biraz yükselttik
+            if final_score > 15: # Barajı biraz esneterek daha fazla seçenek sunduk
                 scored_results.append({
                     "researcher_id": cand.researcher_id,
                     "full_name": cand.full_name,
                     "department_name": cand.department.name if cand.department else "General",
                     "score": final_score,
+                    "match_score": final_score, # UI uyumluluğu için eklendi
                     "match_reasons": [
                         "Yüksek Teknik Uyumluluk" if norm_vector > 0.7 else None,
                         f"{skill_overlap} Kritik Yetenek Eşleşmesi" if skill_overlap > 0 else None,

@@ -585,6 +585,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         """
         🧠 AI MATCHING ENGINE: 
         Mevcut kullanıcıyı (istek atan) dışlayarak hibrit skorlama yapar.
+        🚀 MÜHÜR: services.py ile tam parametre uyumu sağlandı.
         """
         from .services import get_project_specific_suggestions
         
@@ -605,7 +606,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         except Researcher.DoesNotExist:
             return Response({"detail": "Araştırmacı profili bulunamadı."}, status=404)
         except Exception as e:
-            return Response({"detail": str(e)}, status=500)
+            # 🛡️ DÜZELTME: 500 hatası durumunda detaylı mesaj dönerek hata ayıklamayı sağlar
+            return Response({"detail": f"Öneri motoru hatası: {str(e)}"}, status=500)
 
     @action(detail=True, methods=['get'])
     def researchers(self, request, pk=None):
