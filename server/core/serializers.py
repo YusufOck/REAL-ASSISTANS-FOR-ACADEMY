@@ -8,6 +8,7 @@ from .models import (
     FundingAgency, FundingAgencyGrant, Tag, 
     EntityTag, Skill, ProjectResearcher, CollaborationRequest, Notification, ResearcherSkill
 )
+from .services import get_collaboration_suggestions
 
 # --- 1. TEMEL MODEL SERIALIZER'LAR ---
 
@@ -26,10 +27,20 @@ class DepartmentSerializer(serializers.ModelSerializer):
         model = Department
         fields = '__all__'
 
+class FundingAgencyGrantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FundingAgencyGrant
+        fields = ['grant_id', 'project', 'funding_agency', 'program_name', 'amount', 'currency', 'start_date', 'end_date']
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['tag_id', 'name']
+
+class EntityTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EntityTag
+        fields = ['entity_tag_id', 'entity_type', 'entity_id', 'tag']
 
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
@@ -39,12 +50,19 @@ class SkillSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
+        # 🚀 KRİTİK: 'id' yerine modeldeki 'notification_id' mühürlendi
         fields = ['notification_id', 'title', 'message', 'is_read', 'created_at', 'request_id']
 
-# --- 2. ARAŞTIRMACI VE DASHBOARD MOTORLARI ---
+class SimpleNotificationSerializer(serializers.ModelSerializer):
+    """🚀 HIZ VE BİLGİ MÜHRÜ: Dashboard için hafif paket."""
+    class Meta:
+        model = Notification
+        fields = ['notification_id', 'title', 'message', 'is_read', 'created_at', 'request_id']
+
+# --- 2. ANA ARAŞTIRMACI MOTORU (DASHBOARD VE LİSTE) ---
 
 class ResearcherListSerializer(serializers.ModelSerializer):
-    """Kullanıcı aramalarında kullanılan hafif liste serializerı."""
+    """⚡ HIZ MÜHRÜ: Arama listelerinde kullanılan hafif paket."""
     department_name = serializers.CharField(source='department.name', read_only=True)
     class Meta:
         model = Researcher
@@ -52,8 +70,8 @@ class ResearcherListSerializer(serializers.ModelSerializer):
 
 class ResearcherMeSerializer(serializers.ModelSerializer):
     """
-    ⚡ SİSTEMİN KALBİ: 
-    Dashboard verilerini videodaki akışa uygun şekilde paketler.
+    ⚡ SİSTEMİN KALBİ (/me endpointi): 
+    Dashboard hızı için optimize edilmiş, bildirimleri içeren TEK TANIM.
     """
     department_name = serializers.CharField(source='department.name', read_only=True)
     notif_count = serializers.SerializerMethodField()
@@ -64,7 +82,8 @@ class ResearcherMeSerializer(serializers.ModelSerializer):
         model = Researcher
         fields = [
             'researcher_id', 'full_name', 'role', 'title', 'bio', 'department',
-            'department_name', 'skills', 'is_analyzing', 'notifications', 'notif_count'
+            'department_name', 'skills', 'is_analyzing', 
+            'notifications', 'notif_count'
         ]
 
     def get_notif_count(self, obj):
@@ -76,19 +95,21 @@ class ResearcherMeSerializer(serializers.ModelSerializer):
         notes = obj.notifications.all().order_by('-created_at')[:15]
         result = []
         for n in notes:
-            # 🛡️ KRİTİK: N+1 engellemek için select_related mantığı viewda olmalı ama burada da güvenli çekiyoruz
+            # N+1 performansını korumak için select_related mantığı ile isteği buluyoruz
             req = CollaborationRequest.objects.filter(request_id=n.request_id).select_related('sender', 'project').first() if n.request_id else None
             
             result.append({
                 'notification_id': n.notification_id,
-                'id': n.notification_id, # Frontend key uyumluluğu
+                'id': n.notification_id, # Frontend key uyumluluğu için
                 'title': n.title,
                 'message': n.message,
+                'is_read': n.is_read,
                 'created_at': n.created_at.strftime("%H:%M"),
                 'request_id': n.request_id,
                 'is_actionable': bool(n.request_id),
+                # Modal detayları
                 'sender_name': req.sender.full_name if req else "Sistem",
-                'project_name': req.project.title if req else "Genel",
+                'project_name': req.project.title if req else "Genel Bilgilendirme",
                 'status': req.status if req else 'completed',
                 'request_message': req.message if req else ""
             })
@@ -97,7 +118,10 @@ class ResearcherMeSerializer(serializers.ModelSerializer):
 class ResearcherSerializer(serializers.ModelSerializer):
     """Tam profil detay sayfası için kullanılan ağır serializer."""
     department_name = serializers.CharField(source='department.name', read_only=True)
+    suggestions = serializers.SerializerMethodField()
+    received_requests = serializers.SerializerMethodField()
     projects = serializers.SerializerMethodField()
+    notifications = serializers.SerializerMethodField() 
     skills_list = serializers.SerializerMethodField()
 
     class Meta:
@@ -107,17 +131,43 @@ class ResearcherSerializer(serializers.ModelSerializer):
     def get_skills_list(self, obj):
         return [rs.skill.name for rs in obj.researcher_skills.all()]
 
+    def get_notifications(self, obj):
+        # Detay sayfasında da MeSerializer mantığını kullanıyoruz
+        return ResearcherMeSerializer().get_notifications(obj)
+
     def get_projects(self, obj):
         from .models import Project
-        # Hem PI hem üye olduğu projeler
         projs = Project.objects.filter(Q(pi=obj) | Q(memberships__researcher=obj)).distinct()
         return [{
             'project_id': p.project_id,
             'title': p.title,
-            'status': p.phase
+            'status': p.phase,
+            'my_role': 'PI' if p.pi == obj else 'Member'
         } for p in projs]
 
-# --- 3. İŞ BİRLİĞİ VE KAYIT (DEĞİŞMEDİ) ---
+    def get_received_requests(self, obj):
+        requests = CollaborationRequest.objects.filter(receiver=obj, status='pending')
+        return [{
+            'request_id': r.request_id,
+            'sender_name': r.sender.full_name,
+            'project_name': r.project.title,
+            'status': r.status
+        } for r in requests]
+
+    def get_suggestions(self, obj):
+        return []
+
+# --- 3. AKSİYON VE KAYIT SERIALIZER'LARI ---
+
+class ResearcherOnboardSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, required=True)
+    department_id = serializers.IntegerField()
+    role = serializers.ChoiceField(choices=['student', 'academician'], default='student')
+    title = serializers.CharField(required=False, allow_blank=True)
+    bio = serializers.CharField(required=False, allow_blank=True)
+    create_project = serializers.DictField(required=False)
 
 class SendCollaborationRequestSerializer(serializers.Serializer):
     receiver_id = serializers.IntegerField()
@@ -130,6 +180,36 @@ class RespondCollaborationRequestSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=['accepted', 'rejected']) 
     response_message = serializers.CharField(required=False, allow_blank=True)
 
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+    class Meta:
+        model = User
+        fields = ('username', 'password', 'email', 'first_name', 'last_name')
+    def create(self, validated_data):
+        return User.objects.create_user(**validated_data)
+
+# --- 4. ANALİTİK VE PROJE ---
+
+class DashboardStatsSerializer(serializers.Serializer):
+    total_researchers = serializers.IntegerField()
+    total_projects = serializers.IntegerField()
+    total_publications = serializers.IntegerField()
+
+class NetworkNodeSerializer(serializers.Serializer):
+    id = serializers.IntegerField(); label = serializers.CharField(); group = serializers.CharField(required=False); title = serializers.CharField(required=False, allow_null=True)
+
+class NetworkEdgeSerializer(serializers.Serializer):
+    from_id = serializers.IntegerField(source='from'); to = serializers.IntegerField(); value = serializers.IntegerField(); type = serializers.CharField()
+
+class FundingSerializer(serializers.ModelSerializer):
+    agency_name = serializers.CharField(source='funding_agency.name', read_only=True)
+    class Meta:
+        model = FundingAgencyGrant
+        fields = ['grant_id', 'agency_name', 'amount', 'currency', 'start_date', 'end_date']
+
+class NetworkGraphSerializer(serializers.Serializer):
+    nodes = NetworkNodeSerializer(many=True); edges = NetworkEdgeSerializer(many=True)
+
 class ProjectMemberSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='researcher.full_name', read_only=True)
     researcher_id = serializers.IntegerField(source='researcher.researcher_id', read_only=True)
@@ -139,15 +219,8 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
 
 class ProjectSerializer(serializers.ModelSerializer):
     members = ProjectMemberSerializer(many=True, read_only=True, source='memberships')
+    funding = FundingSerializer(many=True, read_only=True)
     class Meta:
         model = Project
         fields = '__all__'
-        read_only_fields = ['pi', 'embedding', 'created_at']
-
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-    class Meta:
-        model = User
-        fields = ('username', 'password', 'email', 'first_name', 'last_name')
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+        read_only_fields = ['pi', 'embedding', 'created_at', 'search_vector']
