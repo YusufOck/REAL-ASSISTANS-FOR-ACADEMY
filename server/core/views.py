@@ -543,10 +543,30 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def suggestions(self, request, pk=None):
-        """🧠 AI MATCHING ENGINE: Hibrit skorlama motoru."""
+        """
+        🧠 AI MATCHING ENGINE: 
+        Mevcut kullanıcıyı (istek atan) dışlayarak hibrit skorlama yapar.
+        """
         from .services import get_project_specific_suggestions
-        suggestions = get_project_specific_suggestions(pk, limit=5)
-        return Response(suggestions)
+        
+        try:
+            # 🛰️ 1. Mevcut oturum açmış araştırmacıyı tespit et
+            current_res = Researcher.objects.get(user=request.user)
+            
+            # 🚀 2. Öneri motoruna hem proje ID'sini hem de dışlanacak kullanıcı ID'sini gönder
+            # 'exclude_id' parametresi ile kendi profilimizi listeden siliyoruz.
+            suggestions = get_project_specific_suggestions(
+                project_id=pk, 
+                exclude_id=current_res.researcher_id, 
+                limit=5
+            )
+            
+            return Response(suggestions)
+            
+        except Researcher.DoesNotExist:
+            return Response({"detail": "Araştırmacı profili bulunamadı."}, status=404)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=500)
 
     @action(detail=True, methods=['get'])
     def researchers(self, request, pk=None):
@@ -560,9 +580,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
             } for m in ms
         ])
 
+    # server/core/views.py -> ProjectViewSet içinde
+
     @researchers.mapping.post
     def add_researcher(self, request, pk=None):
-        """Projeye yeni üye mühürler."""
+        """🛡️ YETKİ MÜHRÜ: Sadece proje yöneticisi üye ekleyebilir."""
+        project = self.get_object()
+        current_researcher = Researcher.objects.get(user=request.user)
+
+        # 🚫 Güvenlik Kontrolü
+        if project.pi != current_researcher:
+            return Response(
+                {"detail": "Bu işlem için yetkiniz yok. Sadece proje yürütücüsü üye ekleyebilir."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         d = request.data
         ProjectResearcher.objects.get_or_create(
             project_id=pk, 

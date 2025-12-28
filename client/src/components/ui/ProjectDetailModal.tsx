@@ -1,30 +1,50 @@
-import { useState } from "react"
-import { X, Calendar, Wallet, UserPlus, Info, Building2 } from "lucide-react"
+// src/components/ui/ProjectDetailModal.tsx
+import { useState, useEffect } from "react"
+import { X, Calendar, Wallet, UserPlus, Info, Building2, ShieldCheck, Loader2 } from "lucide-react" // 🚀 ShieldCheck & Loader2 eklendi
 import ProjectSuggestionsModal from "./ProjectSuggestionsModal"
 import { api } from "@/lib/api"
 
 export default function ProjectDetailModal({ project, onClose, onUpdate }: any) {
   // 🛡️ CRITICAL: Django ChoiceField expects UPPERCASE.
-  // We synchronize the initial state with the data coming from the backend.
   const [phase, setPhase] = useState(project.phase?.toUpperCase() || 'PLANNING')
   const [showSuggestions, setShowSuggestions] = useState(false)
+  
+  // 🚀 YETKİ KONTROLÜ: Mevcut kullanıcıyı ve PI durumunu takip eder
+  const [myId, setMyId] = useState<number | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
 
-  // 🛰️ STRATEGY: We use the nested data coming from the serializer.
-  // The crew list comes packaged under the "members" key.
   const members = project.members || [] 
   const fundingList = project.funding || []
 
+  // 🛰️ STEP 1: Oturum açmış kullanıcının ID'sini doğrula
+  useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await api.get("/researchers/me/");
+        setMyId(res.data.researcher_id);
+      } catch (err) {
+        console.error("Auth check failed:", err);
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+    fetchMe();
+  }, []);
+
+  // 🛡️ MÜHÜR: Kullanıcı bu projenin yöneticisi mi?
+  const isPI = myId === project.pi;
+
   const updatePhase = async (newPhase: string) => {
+    // Sadece PI olanlar faz değişikliği yapabilir
+    if (!isPI) return;
+
     try {
       const uppercasePhase = newPhase.toUpperCase()
-      
-      // As long as you have fixed the search_vector error on the backend, this PATCH will work smoothly.
       await api.patch(`/projects/${project.project_id}/`, { 
         phase: uppercasePhase 
       })
-      
       setPhase(uppercasePhase)
-      onUpdate() // Refreshes the project cards on the main page
+      onUpdate()
     } catch (err: any) { 
       console.error("Status could not be updated:", err.response?.data || err.message) 
     }
@@ -36,7 +56,14 @@ export default function ProjectDetailModal({ project, onClose, onUpdate }: any) 
         
         {/* Header Section */}
         <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-          <h3 className="text-2xl font-black text-white tracking-tight">{project.title}</h3>
+          <div className="space-y-1">
+             <h3 className="text-2xl font-black text-white tracking-tight">{project.title}</h3>
+             {!checkingAuth && !isPI && (
+               <div className="flex items-center gap-2 text-indigo-400 font-black text-[9px] uppercase tracking-widest opacity-70">
+                 <ShieldCheck size={12} /> Restricted Access (Read-Only)
+               </div>
+             )}
+          </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition-all">
             <X size={24} />
           </button>
@@ -70,7 +97,7 @@ export default function ProjectDetailModal({ project, onClose, onUpdate }: any) 
             </div>
           </div>
 
-          {/* Financial Support (If any) */}
+          {/* Institutional Support */}
           {fundingList.length > 0 && (
             <div className="space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Institutional Support</p>
@@ -89,7 +116,7 @@ export default function ProjectDetailModal({ project, onClose, onUpdate }: any) 
           {/* Project Phase Control */}
           <div className="space-y-3">
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 text-center">Operational Status</p>
-            <div className="flex gap-2 p-1.5 bg-white/5 rounded-[2rem]">
+            <div className={`flex gap-2 p-1.5 bg-white/5 rounded-[2rem] ${!isPI ? 'opacity-50 pointer-events-none' : ''}`}>
               {['PLANNING', 'ACTIVE', 'COMPLETED'].map(p => (
                 <button 
                   key={p}
@@ -104,6 +131,7 @@ export default function ProjectDetailModal({ project, onClose, onUpdate }: any) 
                 </button>
               ))}
             </div>
+            {!isPI && !checkingAuth && <p className="text-[8px] text-center font-bold text-slate-600 uppercase tracking-widest">Only project manager can change status</p>}
           </div>
 
           {/* Project Crew Section */}
@@ -130,13 +158,23 @@ export default function ProjectDetailModal({ project, onClose, onUpdate }: any) 
             </div>
           </div>
 
-          {/* AI-Assisted Participant Button */}
-          <button 
-            onClick={() => setShowSuggestions(true)}
-            className="w-full h-16 rounded-[1.5rem] bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 font-black tracking-widest transition-all flex items-center justify-center gap-2 active:scale-95 shadow-xl"
-          >
-            <UserPlus size={18} /> ADD PARTICIPANT (AI-ASSISTED)
-          </button>
+          {/* 🚀 ACTION: AI-Assisted Participant Button or Protected State */}
+          {checkingAuth ? (
+            <div className="w-full h-16 flex items-center justify-center opacity-40">
+                <Loader2 className="animate-spin text-indigo-500" />
+            </div>
+          ) : isPI ? (
+            <button 
+              onClick={() => setShowSuggestions(true)}
+              className="w-full h-16 rounded-[1.5rem] bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border border-indigo-500/20 font-black tracking-widest transition-all flex items-center justify-center gap-2 active:scale-95 shadow-xl"
+            >
+              <UserPlus size={18} /> ADD PARTICIPANT (AI-ASSISTED)
+            </button>
+          ) : (
+            <div className="w-full h-16 flex items-center justify-center bg-white/5 border border-white/10 rounded-[1.5rem] text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] opacity-60">
+                <ShieldCheck size={18} className="mr-3 opacity-50" /> Read-Only Mode (Principal Investigator access required)
+            </div>
+          )}
         </div>
       </div>
 
