@@ -30,7 +30,7 @@ DEBUG = True
 ALLOWED_HOSTS = ['*'] 
 
 # CSRF Güvenliği için (Render URL'ini sonra buraya ekleyeceğiz ama şimdilik genel izin)
-CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com']
+CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com','https://real-assistans-for-academy.vercel.app']
 
 
 # Application definition
@@ -257,4 +257,6 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",      # Senin bilgisayarın (React)
     "http://127.0.0.1:5173",      # Bazen IP olarak gelir, garanti olsun
+    "https://real-assistans-for-academy.vercel.app"
+    
 ]
