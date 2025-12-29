@@ -54,7 +54,7 @@ The gateway to the ecosystem. Secure, encrypted, and designed for speed.
 
 ### 📊 Station Center (Skill Radar)
 The core visualization engine. It provides an instant audit of a researcher's technical weight.
-* **Modules:** UAV Systems, Precision Agriculture, AI Ethics, Testing & Validation.
+
 ![Skill Matrix](Ekran%20görüntüsü%202025-12-28%20182841.png)
 
 ### 📂 Project Station (Mission Control)
@@ -89,7 +89,7 @@ The interface where AI and human input merge. Biographies are refined by the AI 
 
 This ecosystem was engineered and sealed by:
 
-* **Mehmet Yusuf Ocak** - *Backend Architect & AI Integration Lead*
+* **Mehmet Yusuf Ocak** - *Database & Backend Architect & AI Integration Lead*
     * [LinkedIn](https://www.linkedin.com/in/mehmetyusufocak63/)
 * **Sadık Can Güler** - *Frontend Engineer & UI Lead*
     * [LinkedIn](https://www.linkedin.com/in/sad%C4%B1k-can-g%C3%BCler-3158a82a7/)
@@ -101,3 +101,4 @@ This ecosystem was engineered and sealed by:
 * [ ] **Mobile Intelligence:** Native mobile application for on-the-go research synchronization.
 
 *© 2025 ResearchOS - The Future of Science is Synchronized.*
+
