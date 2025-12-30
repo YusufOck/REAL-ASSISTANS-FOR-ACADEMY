@@ -242,7 +242,7 @@ SPECTACULAR_SETTINGS = {
 # settings.py dosyasının en altı
 
 # Google Gemini API Key
-GEMINI_API_KEY = "AIzaSyBHyXfXs6fkbcFRyr7JU1JLLnKvQYua394"
+GEMINI_API_KEY = "AIzaSyC8V8xXpKmtUfRPN26-7Nd--mG0r3N8qpI"
 
 
 
@@ -252,5 +252,5 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "https://real-assistans-for-academy.vercel.app",
     "https://reserchos.com.tr",
-    "https://www.reserchos.com.tr"
+    "https://www.reserchos.com.tr" # Sonuna virgül eklemeyi unutma
 ]
