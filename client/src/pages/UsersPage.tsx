@@ -36,6 +36,8 @@ export default function UsersPage() {
   
   const [search, setSearch] = useState(searchParams.get("search") || "")
   const [selectedDept, setSelectedDept] = useState(searchParams.get("department") || "")
+  // 🚀 YENİ: Role Tier State'i
+  const [selectedRole, setSelectedRole] = useState(searchParams.get("role") || "")
   const [selectedSkills, setSelectedSkills] = useState<number[]>(
     searchParams.get("skills")?.split(",").map(Number).filter(Boolean) || []
   )
@@ -52,20 +54,21 @@ export default function UsersPage() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // URL Senkronizasyonu (Role eklendi)
   useEffect(() => {
     const params: any = {};
     if (search) params.search = search;
     if (selectedDept) params.department = selectedDept;
+    if (selectedRole) params.role = selectedRole; // 🚀 Eklendi
     if (selectedSkills.length > 0) params.skills = selectedSkills.join(",");
     if (currentPage > 1) params.page = currentPage.toString();
     
     setSearchParams(params, { replace: true });
-  }, [search, selectedDept, selectedSkills, currentPage, setSearchParams]);
+  }, [search, selectedDept, selectedRole, selectedSkills, currentPage, setSearchParams]);
 
   // STEP 1: Fetch Meta Data & "Me" Data
   useEffect(() => {
     const fetchInitialData = async () => {
-      // 🚀 DÜZELTME: Eğer veriler zaten çekilmişse tekrar istek atma (Hata burada çözüldü)
       if (isMetaDataCached && departments.length > 0) return;
 
       try {
@@ -79,7 +82,6 @@ export default function UsersPage() {
         setAllSkills(sRes.data.results || sRes.data);
         setMyId(meRes.data.researcher_id);
         
-        // Veri başarıyla çekildi, kilidi kapat
         isMetaDataCached = true;
       } catch (e) { 
         console.error("Initial data could not be fetched", e);
@@ -87,9 +89,9 @@ export default function UsersPage() {
     };
     
     fetchInitialData();
-  }, [departments.length]); // Bağımlılık eklendi
+  }, [departments.length]);
 
-  // STEP 2: Fetch Researcher List
+  // STEP 2: Fetch Researcher List (Role parametresi eklendi)
   const fetchUsers = async (page: number) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -103,6 +105,7 @@ export default function UsersPage() {
       const params = new URLSearchParams();
       if (search) params.append("search", search);
       if (selectedDept) params.append("department", selectedDept);
+      if (selectedRole) params.append("role", selectedRole); // 🚀 Eklendi
       if (selectedSkills.length > 0) params.append("skills", selectedSkills.join(','));
       params.append("page", page.toString());
       
@@ -130,7 +133,7 @@ export default function UsersPage() {
       fetchUsers(currentPage);
     }, 600); 
     return () => clearTimeout(timeout);
-  }, [search, selectedDept, selectedSkills, currentPage]);
+  }, [search, selectedDept, selectedRole, selectedSkills, currentPage]);
 
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages) return;
@@ -167,14 +170,26 @@ export default function UsersPage() {
             />
           </div>
 
+          {/* Department Filter */}
           <select 
-            value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}
+            value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setCurrentPage(1); }}
             className="bg-white/5 border border-white/10 rounded-2xl py-3.5 px-6 outline-none focus:ring-2 ring-indigo-500/25 cursor-pointer min-w-[200px]"
           >
             <option value="" className="bg-[#0b1020]">All Departments</option>
             {departments.map((d) => (
               <option key={d.department_id} value={d.department_id} className="bg-[#0b1020]">{d.name}</option>
             ))}
+          </select>
+
+          {/* 🚀 YENİ: Role Tier Filter */}
+          <select 
+            value={selectedRole} 
+            onChange={(e) => { setSelectedRole(e.target.value); setCurrentPage(1); }}
+            className="bg-white/5 border border-white/10 rounded-2xl py-3.5 px-6 outline-none focus:ring-2 ring-indigo-500/25 cursor-pointer min-w-[150px]"
+          >
+            <option value="" className="bg-[#0b1020]">All Roles</option>
+            <option value="academician" className="bg-[#0b1020]">Academician</option>
+            <option value="student" className="bg-[#0b1020]">Student</option>
           </select>
 
           <div className="relative">
@@ -215,7 +230,6 @@ export default function UsersPage() {
                 <tr><td colSpan={4} className="p-32 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500 mb-4" size={48} /><p className="text-[10px] font-black uppercase tracking-widest opacity-40">Synchronizing Data...</p></td></tr>
               ) : users.length > 0 ? (
                 users.map((u) => {
-                  // 🛡️ KENDİ KİMLİK KONTROLÜ
                   const isMe = myId === u.researcher_id;
 
                   return (
@@ -236,7 +250,6 @@ export default function UsersPage() {
                       <td className="p-8 text-center"><span className="text-xs font-bold text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/5">{u.department_name || "No Department"}</span></td>
                       <td className="p-8 text-center"><span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${u.role === 'academician' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'}`}>{u.role === 'academician' ? 'Academician' : 'Student'}</span></td>
                       <td className="p-8 text-right">
-                        {/* 🚀 MÜHÜR: Eğer satırdaki kullanıcı oturum açmış kullanıcıysa butonu değiştir */}
                         {isMe ? (
                             <div className="inline-flex items-center gap-2 h-12 px-6 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-black text-[9px] tracking-[0.2em] uppercase opacity-70">
                                 <ShieldCheck size={14} /> System Operator
@@ -254,7 +267,6 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
-        {/* Pagination Alt Bölümü (Değişmedi) */}
         <div className="p-8 bg-white/[0.03] border-t border-white/10 flex items-center justify-between">
           <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Page {currentPage} / {totalPages}</p>
           <div className="flex gap-3">

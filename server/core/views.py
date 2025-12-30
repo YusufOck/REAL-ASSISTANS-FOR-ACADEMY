@@ -98,7 +98,12 @@ class ResearcherViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = {'department': ['exact'], 'title': ['icontains'], 'full_name': ['icontains']}
+    filterset_fields = {
+    'department': ['exact'],
+    'role': ['exact'],       # 🚀 Yeni eklenen Role Tier filtresi
+    'title': ['icontains'],
+    'full_name': ['icontains']
+    }
     search_fields = ['full_name', 'email', 'bio']
 
     def _trigger_ai_analysis(self, instance, old_bio, validated_data):
