@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useOutletContext } from "react-router-dom" // 🚀 useOutletContext eklendi
 import { createPortal } from "react-dom"
 
 import { authService } from "@/services/authService"
@@ -10,16 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Atom,
   Bell,
-  FolderKanban,
-  LayoutDashboard,
   Loader2,
-  LogOut,
   Search,
-  Settings,
   ShieldCheck,
-  Users,
   Sparkles,
   Trash2,
+  Menu,
 } from "lucide-react"
 
 import { toast } from "sonner"
@@ -31,6 +27,8 @@ import CollaborationReviewModal from "@/components/ui/CollaborationReviewModal"
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  // 🚀 MÜHÜR: Layout'tan gelen menü kontrolünü yakala
+  const { setIsMobileMenuOpen } = useOutletContext<{ setIsMobileMenuOpen: (v: boolean) => void }>();
 
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -38,7 +36,7 @@ export default function Dashboard() {
 
   const [showNotifications, setShowNotifications] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
-
+  
   const [skillsDraft, setSkillsDraft] = useState<Record<string, number>>({})
   const isFetching = useRef(false)
 
@@ -53,16 +51,14 @@ export default function Dashboard() {
     const calc = () => {
       if (!bellBtnRef.current) return
       const r = bellBtnRef.current.getBoundingClientRect()
-      const width = 350
+      const width = window.innerWidth < 400 ? window.innerWidth - 40 : 350 
       setNotifPos({
         top: r.bottom + 14,
         left: Math.max(12, r.right - width),
         width,
       })
     }
-
     if (showNotifications) calc()
-
     window.addEventListener("resize", calc)
     window.addEventListener("scroll", calc, true)
     return () => {
@@ -74,12 +70,10 @@ export default function Dashboard() {
   const fetchProfile = async () => {
     if (isFetching.current) return
     isFetching.current = true
-
     setIsRefreshing(true)
     try {
       const data = await authService.getProfile()
       setProfile(data)
-
       if (data?.skills) {
         const cleanSkills = Array.isArray(data.skills)
           ? data.skills.find((i: any) => typeof i === "object" && i !== null) || {}
@@ -144,211 +138,172 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#0b1020] text-slate-100 font-sans">
-      <div className="relative h-full flex overflow-hidden">
-        {/* SIDEBAR */}
-        <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-white/10 bg-white/[0.03] backdrop-blur-xl">
-          <div className="p-6 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="bg-indigo-500/15 p-2.5 rounded-2xl border border-indigo-400/20">
-                <Atom className="h-6 w-6 text-indigo-200" />
-              </div>
-              <div className="leading-tight">
-                <div className="text-lg font-black tracking-tight text-white">ResearchOS</div>
-                <div className="text-xs font-semibold text-slate-300/70">Dashboard</div>
-              </div>
-            </div>
+    // 🚀 MÜHÜR: Sidebar ve Aside silindi, Dashboard artık sadece içerik alanıdır.
+    <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0b1020] text-slate-100 font-sans">
+      
+      {/* Header - Layout ile uyumlu hale getirildi */}
+      <header className="h-20 px-4 md:px-8 border-b border-white/10 bg-[#0b1020]/55 backdrop-blur-xl flex items-center justify-between z-30 shrink-0">
+        
+        {/* Hamburger Butonu - Layout'taki menüyü açar */}
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="md:hidden p-3 bg-white/5 rounded-xl border border-white/10 text-indigo-300 active:scale-95 transition-transform"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+
+        <div className="relative w-full max-w-[440px] hidden lg:block mx-4">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300/60 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Search the system..."
+            className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-3 pl-11 text-sm outline-none placeholder:text-slate-500 focus:ring-2 ring-indigo-500/20 transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 md:gap-6 ml-auto">
+          <Button
+            onClick={fetchProfile}
+            variant="secondary"
+            className="hidden sm:inline-flex rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10 hover:bg-white/[0.09] font-black text-[10px] uppercase tracking-widest px-5 h-11"
+          >
+            {isRefreshing ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Sparkles className="w-4 h-4 mr-2 text-indigo-300" />
+            )}
+            Refresh
+          </Button>
+
+          <button
+            ref={bellBtnRef}
+            onClick={() => setShowNotifications((v) => !v)}
+            className="relative p-2.5 bg-white/5 rounded-xl border border-white/10 text-slate-300/70 hover:text-indigo-200 transition"
+          >
+            <Bell className="w-5 h-5" />
+            {profile?.notifications?.length > 0 && (
+              <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(129,140,248,0.8)]" />
+            )}
+          </button>
+
+          <div className="text-right hidden sm:block">
+            <p className="text-xs font-black text-white">{profile?.full_name}</p>
+            <p className="text-[9px] font-black text-indigo-300/60 uppercase mt-0.5 tracking-widest">
+              {profile?.title || "Researcher"}
+            </p>
           </div>
 
-          <nav className="flex-1 p-4 space-y-2">
-            <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" to="/dashboard" active />
-            <NavItem icon={<FolderKanban size={18} />} label="Project" to="/projects" />
-            <NavItem icon={<Users size={18} />} label="Users" to="/users" /> 
-            <NavItem icon={<Settings size={18} />} label="Settings" to="/profile" />
-          </nav>
+          <Link
+            to="/profile"
+            className="h-11 w-11 bg-indigo-500/10 text-indigo-300 rounded-xl border border-indigo-500/20 flex items-center justify-center font-black hover:bg-indigo-500 hover:text-white transition-all shadow-sm"
+          >
+            {profile?.full_name?.charAt(0) ?? "U"}
+          </Link>
+        </div>
+      </header>
 
-          <div className="p-4 border-t border-white/10">
-            <button
-              onClick={() => {
-                authService.logout()
-                navigate("/login")
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 text-slate-300/70 hover:text-red-300 transition hover:bg-red-500/5"
-            >
-              <LogOut size={18} />
-              <span className="text-xs font-black uppercase tracking-widest">Shut Down System</span>
-            </button>
-          </div>
-        </aside>
-
-        <section className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          <header className="h-20 px-8 border-b border-white/10 bg-[#0b1020]/55 backdrop-blur-xl flex items-center justify-between">
-            <div className="relative w-[440px] hidden sm:block">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300/60" size={18} />
-              <input
-                type="text"
-                placeholder="Search the system..."
-                className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-3 pl-11 text-sm outline-none placeholder:text-slate-500"
-              />
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8 custom-scrollbar">
+        <div className="max-w-[1200px] mx-auto space-y-8 pb-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter uppercase italic leading-none">
+                Station <span className="text-indigo-400">Center</span>
+              </h2>
+              <div className="text-emerald-400 text-[9px] font-black uppercase flex items-center gap-2 mt-3 tracking-[0.2em]">
+                <ShieldCheck className="w-3.5 h-3.5" /> System Status: Online & Synchronized
+              </div>
             </div>
+            <button onClick={fetchProfile} className="sm:hidden w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">Refresh System</button>
+          </div>
 
-            <div className="flex items-center gap-6 ml-auto">
-              <Button
-                onClick={fetchProfile}
-                variant="secondary"
-                className="hidden md:inline-flex rounded-2xl bg-white/[0.06] text-slate-100 border border-white/10 hover:bg-white/[0.09] font-black text-xs uppercase tracking-widest px-6 h-11"
-              >
-                {isRefreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Sparkles className="h-4 w-4 mr-2 text-indigo-300" />
-                )}
-                Refresh
-              </Button>
-
-              <div className="relative">
-                <button
-                  ref={bellBtnRef}
-                  onClick={() => setShowNotifications((v) => !v)}
-                  className="relative p-2 text-slate-300/70 hover:text-indigo-200 transition"
-                  aria-label="Notifications"
-                >
-                  <Bell size={22} />
-                  {profile?.notifications?.length > 0 && (
-                    <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(129,140,248,0.8)]" />
+          <div className="grid grid-cols-12 gap-6 md:gap-8">
+            {/* SKILL MATRIX */}
+            <div className="col-span-12 xl:col-span-8">
+              <Card className="bg-white/[0.04] border-white/10 rounded-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl backdrop-blur-sm">
+                <CardHeader className="p-6 md:p-8 border-b border-white/5 flex flex-row justify-between items-center bg-white/[0.01]">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
+                    Expertise Radar
+                  </CardTitle>
+                  <Atom className="w-5 h-5 text-indigo-400 animate-pulse" />
+                </CardHeader>
+                <CardContent className="h-[350px] md:h-[480px] p-4 md:p-8">
+                  {profile?.is_analyzing ? (
+                    <div className="h-full flex flex-col items-center justify-center space-y-4">
+                      <Loader2 className="w-10 h-10 animate-spin text-indigo-400" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">AI Analysis in Progress...</p>
+                    </div>
+                  ) : chartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart data={chartData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
+                        <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                        <PolarAngleAxis
+                          dataKey="subject"
+                          tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: 900 }}
+                        />
+                        <Radar dataKey="A" stroke="#818cf8" strokeWidth={3} fill="#818cf8" fillOpacity={0.15} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center italic text-slate-600 font-bold text-xs uppercase tracking-widest text-center px-6">
+                      No skill data detected in the database
+                    </div>
                   )}
-                </button>
-              </div>
-
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-black text-white">{profile?.full_name}</p>
-                <p className="text-[10px] font-black text-indigo-200 uppercase mt-1 tracking-widest">
-                  {profile?.title || "Researcher"}
-                </p>
-              </div>
-
-              <Link
-                to="/profile"
-                className="h-12 w-12 bg-white/[0.06] rounded-2xl border border-white/10 flex items-center justify-center text-white font-black hover:scale-[1.03] transition shadow-sm"
-              >
-                {profile?.full_name?.charAt(0) ?? "U"}
-              </Link>
+                </CardContent>
+              </Card>
             </div>
-          </header>
 
-          <main className="flex-1 overflow-y-auto px-8 py-8">
-            <div className="max-w-[1200px] mx-auto space-y-8 pb-4">
-              <div>
-                <h2 className="text-4xl font-black text-white tracking-tighter">
-                  Station <span className="text-indigo-300">Center</span>
-                </h2>
-                <div className="text-emerald-400 text-[10px] font-black uppercase flex items-center gap-2 mt-2 tracking-widest">
-                  <ShieldCheck size={16} /> System: Synchronized
-                </div>
-              </div>
-
-              <div className="grid grid-cols-12 gap-8">
-                {/* SKILL MATRIX */}
-                <div className="col-span-12 lg:col-span-8">
-                  <Card className="bg-white/[0.05] border-white/10 rounded-[3rem] overflow-hidden shadow-2xl">
-                    <CardHeader className="p-8 border-b border-white/10 flex flex-row justify-between items-center bg-white/[0.01]">
-                      <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
-                        Skill Matrix
-                      </CardTitle>
-                      <Atom size={18} className="text-indigo-400" />
-                    </CardHeader>
-                    <CardContent className="h-[480px] p-8">
-                      {profile?.is_analyzing ? (
-                        <div className="h-full flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-500">
-                          <Loader2 className="h-12 w-12 animate-spin text-indigo-400" />
-                          <div className="text-center space-y-1">
-                            <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-300 animate-pulse">
-                              AI is Analyzing Your Bio...
-                            </p>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                              Extracting skills and matching scores
-                            </p>
-                          </div>
-                        </div>
-                      ) : chartData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RadarChart data={chartData}>
-                            <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                            <PolarAngleAxis
-                              dataKey="subject"
-                              tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 900 }}
-                            />
-                            <Radar dataKey="A" stroke="#818cf8" strokeWidth={3} fill="#818cf8" fillOpacity={0.15} />
-                          </RadarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center italic text-slate-500 font-bold text-sm">
-                          Skill data is being synchronized...
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* SKILL UPDATE */}
-                <div className="col-span-12 lg:col-span-4">
-                  <div className="rounded-[3rem] border border-white/10 bg-white/[0.05] p-2 shadow-2xl overflow-hidden">
-                    <SkillUpdateForm
-                      initialSkills={skillsDraft}
-                      onSkillsChange={setSkillsDraft}
-                      onUpdateSuccess={fetchProfile}
-                    />
-                  </div>
-                </div>
+            {/* SKILL UPDATE */}
+            <div className="col-span-12 xl:col-span-4">
+              <div className="rounded-[2.5rem] md:rounded-[3rem] border border-white/10 bg-white/[0.04] p-2 shadow-2xl overflow-hidden h-full">
+                <SkillUpdateForm
+                  initialSkills={skillsDraft}
+                  onSkillsChange={setSkillsDraft}
+                  onUpdateSuccess={fetchProfile}
+                />
               </div>
             </div>
-          </main>
-        </section>
-      </div>
+          </div>
+        </div>
+      </main>
 
+      {/* Notifications Portal */}
       {showNotifications &&
         notifPos &&
         createPortal(
           <>
-            <div className="fixed inset-0 z-[9998]" onClick={() => setShowNotifications(false)} />
-
+            <div className="fixed inset-0 z-[9998] bg-black/20" onClick={() => setShowNotifications(false)} />
             <div
-              className="fixed z-[9999] w-[350px] bg-[#0f172a] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
-              style={{ top: notifPos.top, left: notifPos.left }}
+              className="fixed z-[9999] bg-[#0f172a] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
+              style={{ top: notifPos.top, left: notifPos.left, width: notifPos.width }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-5 border-b border-white/10 bg-white/[0.02] font-black uppercase text-[10px] tracking-widest flex justify-between items-center">
-                Notifications
-                <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">
-                  LIVE
-                </span>
+              <div className="p-5 border-b border-white/10 bg-white/[0.02] font-black uppercase text-[9px] tracking-widest flex justify-between items-center">
+                System Notifications
+                <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full text-[8px]">LIVE</span>
               </div>
-
-              <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+              <div className="max-h-[300px] md:max-h-[400px] overflow-y-auto custom-scrollbar">
                 {profile?.notifications?.length > 0 ? (
                   profile.notifications.map((n: any) => (
                     <div
-                      key={n.notification_id || n.id} // 🚀 MÜHÜR: Backend 'notification_id' değişikliği uygulandı
+                      key={n.notification_id || n.id}
                       onClick={() => {
                         if (n.request_id) setSelectedRequest(n)
                         setShowNotifications(false)
                       }}
-                      className={`p-4 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition ${
-                        n.is_actionable ? "border-l-2 border-l-indigo-500" : ""
-                      }`}
+                      className="p-4 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition"
                     >
-                      <div className="flex justify-between items-center mb-1">
-                        <p className="text-[10px] font-black text-indigo-400 uppercase">{n.title}</p>
-                        {/* 🗑️ MÜHÜR: Silme işlemi notification_id üzerinden mühürlendi */}
-                        <button onClick={(e) => handleDeleteNotification(e, n.notification_id || n.id)} className="text-slate-500 hover:text-red-400">
-                          <Trash2 size={12} />
+                      <div className="flex justify-between items-start gap-2 mb-1">
+                        <p className="text-[10px] font-black text-indigo-400 uppercase leading-tight">{n.title}</p>
+                        <button onClick={(e) => handleDeleteNotification(e, n.notification_id || n.id)} className="text-slate-600 hover:text-red-400 shrink-0">
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <p className="text-xs text-slate-300">{n.message}</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">{n.message}</p>
                     </div>
                   ))
                 ) : (
-                  <div className="p-10 text-center opacity-40 text-[10px] font-black uppercase italic">No Notifications</div>
+                  <div className="p-10 text-center opacity-30 text-[9px] font-black uppercase italic">No Active Records</div>
                 )}
               </div>
             </div>
@@ -364,40 +319,5 @@ export default function Dashboard() {
         />
       )}
     </div>
-  )
-}
-
-function NavItem({
-  icon,
-  label,
-  active = false,
-  to,
-}: {
-  icon: React.ReactNode
-  label: string
-  active?: boolean
-  to?: string
-}) {
-  const cls = `w-full flex items-center gap-4 px-5 py-4 rounded-[1.5rem] transition-all border ${
-    active
-      ? "bg-indigo-500/15 text-white border-indigo-400/20 shadow-lg"
-      : "text-slate-400 border-transparent hover:border-white/10 hover:bg-white/[0.05] hover:text-white"
-  }`
-
-  const content = (
-    <>
-      <span className={active ? "text-white" : "text-slate-500"}>{icon}</span>
-      <span className="text-[10px] font-black uppercase tracking-[0.2em]">{label}</span>
-    </>
-  )
-
-  return to ? (
-    <Link to={to} className={cls}>
-      {content}
-    </Link>
-  ) : (
-    <button type="button" className={cls}>
-      {content}
-    </button>
   )
 }

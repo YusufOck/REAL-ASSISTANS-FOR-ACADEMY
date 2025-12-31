@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useOutletContext } from "react-router-dom" // 🚀 useOutletContext eklendi
 import {
   Loader2,
   ArrowLeft,
@@ -10,9 +10,10 @@ import {
   Send,
   UserPlus,
   Users,
-  ShieldAlert, // 🚀 Yeni ikonlar
+  ShieldAlert,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Menu // 🚀 Menu eklendi
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -21,13 +22,15 @@ import { api } from "@/lib/api"
 export default function ResearcherDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  
+  // 🚀 MÜHÜR: Layout'tan gelen mobil menü kontrolü
+  const { setIsMobileMenuOpen } = useOutletContext<{ setIsMobileMenuOpen: (v: boolean) => void }>();
 
   const [researcher, setResearcher] = useState<any>(null)
   const [otherProjects, setOtherProjects] = useState<any[]>([])
   const [myProjects, setMyProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
-  // 🚀 YETKİ VE KONTROL STATE'LERİ
   const [myId, setMyId] = useState<number | null>(null)
   const [pastRequests, setPastRequests] = useState<any[]>([])
 
@@ -38,6 +41,7 @@ export default function ResearcherDetail() {
 
   const isFetching = useRef(false)
 
+  // 🛡️ MANTIK KORUNDU: Veri Çekme İşlemi
   useEffect(() => {
     const fetchData = async () => {
       if (isFetching.current) return
@@ -49,7 +53,7 @@ export default function ResearcherDetail() {
           api.get(`/researchers/${id}/`),
           api.get(`/researchers/${id}/projects/`),
           api.get(`/projects/`),
-          api.get(`/researchers/me/`) // 🛰️ Kendi kimliğini doğrula
+          api.get(`/researchers/me/`)
         ])
 
         setMyId(meInfo.data.researcher_id)
@@ -71,7 +75,6 @@ export default function ResearcherDetail() {
         setOtherProjects(otherList)
         setMyProjects(myList)
 
-        // 🛡️ Bildirim geçmişini kontrol et (Reddedilme ve bekleme durumları için)
         if (meInfo.data.notifications) {
             setPastRequests(meInfo.data.notifications.filter((n: any) => n.request_id));
         }
@@ -87,33 +90,29 @@ export default function ResearcherDetail() {
     if (id) fetchData()
   }, [id])
 
-  // 🧠 KISITLAMA KONTROL MOTORU
+  // 🛡️ MANTIK KORUNDU: Kısıtlama Motoru
   const getProjectRestriction = (project: any) => {
-    // 1. Kendi projemize davet ederken PI kontrolü
     if (requestType === "invite" && project.pi !== myId) {
-      return { restricted: true, reason: "Only Managers Can Invite", icon: <ShieldAlert size={14} /> };
+      return { restricted: true, reason: "Only Managers Can Invite", icon: <ShieldAlert className="w-3 h-3 md:w-4 md:h-4" /> };
     }
 
-    // 2. Halihazırda üye mi kontrolü
     const isAlreadyMember = project.members?.some((m: any) => m.researcher_id === Number(id));
     if (isAlreadyMember) {
-      return { restricted: true, reason: "Already in Project", icon: <CheckCircle2 size={14} /> };
+      return { restricted: true, reason: "Already in Project", icon: <CheckCircle2 className="w-3 h-3 md:w-4 md:h-4" /> };
     }
 
-    // 3. 10 Günlük Reddedilme (Cooldown) Kontrolü
     const lastRequest = pastRequests.find(r => r.project_id === project.project_id && r.status === 'rejected');
     if (lastRequest) {
-      // Not: created_at formatına göre tarih farkı hesaplanır. Simülasyon:
-      return { restricted: true, reason: "Rejected (Cooldown Active)", icon: <Clock size={14} /> };
+      return { restricted: true, reason: "Rejected (Cooldown Active)", icon: <Clock className="w-3 h-3 md:w-4 md:h-4" /> };
     }
 
     return { restricted: false, reason: "", icon: null };
   };
 
+  // 🛡️ MANTIK KORUNDU: Talep Gönderme
   const handleSendRequest = async () => {
     if (!selectedProjectId) return;
     
-    // Final Güvenlik Kontrolü
     const selectedProj = (requestType === "join_request" ? otherProjects : myProjects).find(p => p.project_id === selectedProjectId);
     const restriction = getProjectRestriction(selectedProj);
     if (restriction.restricted) {
@@ -143,118 +142,134 @@ export default function ResearcherDetail() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#0b1020]">
-        <Loader2 className="h-12 w-12 animate-spin text-indigo-400" />
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-400" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1020] text-slate-100 px-6 py-10">
-      <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="text-slate-300 hover:text-white hover:bg-white/[0.05] rounded-xl"
-        >
-          <ArrowLeft className="mr-2" /> Back to Directory
-        </Button>
+    <div className="min-h-screen bg-[#0b1020] text-slate-100 px-4 md:px-6 py-6 md:py-10 flex-1 overflow-y-auto custom-scrollbar">
+      <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-500">
+        
+        {/* HEADER BAR: 🚀 MÜHÜR: Hamburger Menü ve Geri Butonu Senkronizasyonu */}
+        <div className="flex justify-between items-center mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="text-slate-400 hover:text-white hover:bg-white/[0.05] rounded-xl px-3 h-11"
+          >
+            <ArrowLeft className="mr-2 w-4 h-4 md:w-5 md:h-5" /> 
+            <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">Back to Directory</span>
+          </Button>
+
+          {/* Mobil Menü Butonu */}
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="md:hidden p-3 bg-white/5 rounded-xl border border-white/10 text-indigo-300 active:scale-95 transition-all shadow-lg"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
 
         {/* Profile Card */}
-        <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-8 shadow-2xl">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-indigo-500/15 rounded-2xl border border-indigo-400/20">
-              <Brain className="text-indigo-300" size={32} />
+        <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white/[0.06] border border-white/15 p-6 md:p-10 shadow-2xl backdrop-blur-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-5">
+             <Brain className="w-32 h-32 md:w-48 md:h-48 text-indigo-400" />
+          </div>
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left relative z-10">
+            <div className="p-4 bg-indigo-500/15 rounded-3xl border border-indigo-400/20 shadow-inner">
+              <Brain className="text-indigo-300 w-8 h-8 md:w-10 md:h-10" />
             </div>
-            <div>
-              <h1 className="text-4xl font-black text-white">{researcher?.full_name || "Unknown Researcher"}</h1>
-              <p className="text-indigo-300 font-bold uppercase text-xs tracking-widest">{researcher?.title || "Researcher"}</p>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight uppercase italic truncate">{researcher?.full_name || "Researcher"}</h1>
+              <p className="text-indigo-400 font-bold uppercase text-[10px] md:text-xs tracking-[0.2em] mt-2">{researcher?.title || "Staff Researcher"}</p>
             </div>
           </div>
           {researcher?.bio && (
-            <p className="mt-4 text-slate-300 italic leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5">“{researcher.bio}”</p>
+            <p className="mt-6 text-slate-300 italic text-sm leading-relaxed bg-white/[0.03] p-5 rounded-2xl border border-white/5 relative z-10">
+              “{researcher.bio}”
+            </p>
           )}
         </div>
 
         {/* Request Type Selector */}
-        <div className="flex gap-4 bg-white/[0.04] border border-white/10 rounded-2xl p-2">
+        <div className="flex flex-col sm:flex-row gap-3 bg-white/[0.04] border border-white/10 rounded-[1.5rem] p-2">
           <button
             onClick={() => { setRequestType("join_request"); setSelectedProjectId(null); }}
-            className={`flex-1 py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${requestType === "join_request" ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-xl" : "text-slate-500 hover:text-slate-300"}`}
+            className={`flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${requestType === "join_request" ? "bg-indigo-500 text-white shadow-xl" : "text-slate-500 hover:bg-white/5"}`}
           >
-            <Users className="inline mr-2" size={16} /> Join Their Project
+            <Users className="w-4 h-4" /> Join Project
           </button>
           <button
             onClick={() => { setRequestType("invite"); setSelectedProjectId(null); }}
-            className={`flex-1 py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${requestType === "invite" ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-xl" : "text-slate-500 hover:text-slate-300"}`}
+            className={`flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${requestType === "invite" ? "bg-purple-600 text-white shadow-xl" : "text-slate-500 hover:bg-white/5"}`}
           >
-            <UserPlus className="inline mr-2" size={16} /> Invite to My Project
+            <UserPlus className="w-4 h-4" /> Invite Peer
           </button>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        {/* Grids */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
           {/* Expertise Areas */}
-          <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
-            <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-              <Code className="text-indigo-400" /> Expertise Areas
+          <div className="rounded-[2rem] bg-white/[0.04] border border-white/10 p-6 md:p-8 shadow-xl h-full flex flex-col">
+            <h3 className="text-lg font-black mb-6 flex items-center gap-3 uppercase italic shrink-0">
+              <Code className="text-indigo-400 w-5 h-5" /> Expertise Silhouette
             </h3>
-            <div className="space-y-5">
+            <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-1">
               {researcher?.skills && Object.entries(researcher.skills).length > 0 ? (
                 Object.entries(researcher.skills).map(([skill, level]: any) => (
-                  <div key={skill} className="space-y-1.5">
-                    <div className="flex justify-between text-[11px] font-black text-slate-300 uppercase tracking-widest">
+                  <div key={skill} className="space-y-2">
+                    <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
                       <span>{skill}</span>
-                      <span className="text-indigo-300">%{level}</span>
+                      <span className="text-indigo-400">%{level}</span>
                     </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]" style={{ width: `${level}%` }} />
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-1000" style={{ width: `${level}%` }} />
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-slate-500 italic text-sm text-center py-4">No skills indexed in the system.</p>
+                <div className="py-10 text-center opacity-30 text-[10px] font-black uppercase italic tracking-widest">No skill matrix synchronized</div>
               )}
             </div>
           </div>
 
-          {/* Project List with Restrictions */}
-          <div className="rounded-[2rem] bg-white/[0.06] border border-white/15 p-6 shadow-xl">
-            <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-              <FolderGit2 className="text-emerald-400" /> 
-              {requestType === "join_request" ? "Select Project to Join" : "Invite to Your Projects"}
+          {/* Project List */}
+          <div className="rounded-[2rem] bg-white/[0.04] border border-white/10 p-6 md:p-8 shadow-xl h-full flex flex-col">
+            <h3 className="text-lg font-black mb-6 flex items-center gap-3 uppercase italic shrink-0">
+              <FolderGit2 className="text-emerald-400 w-5 h-5" /> 
+              {requestType === "join_request" ? "Select Target" : "Source Project"}
             </h3>
-            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar flex-1">
               {(requestType === "join_request" ? otherProjects : myProjects).map((p: any) => {
                 const check = getProjectRestriction(p);
-                
                 return (
                   <div
                     key={p.project_id}
                     onClick={() => !check.restricted && setSelectedProjectId(p.project_id)}
-                    className={`p-4 rounded-2xl border-2 transition-all relative ${
+                    className={`p-4 rounded-xl border-2 transition-all relative ${
                         check.restricted 
-                        ? "opacity-40 cursor-not-allowed border-white/5 bg-transparent" 
+                        ? "opacity-40 cursor-not-allowed border-white/5" 
                         : selectedProjectId === p.project_id 
-                            ? "border-indigo-500 bg-indigo-500/10 shadow-lg" 
+                            ? "border-indigo-500 bg-indigo-500/10" 
                             : "border-white/5 bg-white/[0.03] hover:border-white/20 cursor-pointer"
                     }`}
                   >
                     <div className="flex justify-between items-start gap-4">
-                        <p className={`font-bold ${check.restricted ? "text-slate-500" : "text-slate-100"}`}>{p.title}</p>
+                        <p className={`text-xs font-bold leading-snug ${check.restricted ? "text-slate-500" : "text-white"}`}>{p.title}</p>
                         {check.restricted ? (
-                            <div className="flex flex-col items-end gap-1 shrink-0">
-                                <span className="text-[8px] font-black uppercase text-red-400 border border-red-400/20 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                    {check.icon} {check.reason}
-                                </span>
-                            </div>
+                            <span className="shrink-0 text-[7px] font-black uppercase text-red-400 border border-red-400/20 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                {check.icon} RESTRCTD
+                            </span>
                         ) : selectedProjectId === p.project_id && (
-                            <CheckCircle2 className="text-indigo-400 shrink-0" size={18} />
+                            <CheckCircle2 className="text-indigo-400 shrink-0 w-4 h-4" />
                         )}
                     </div>
                   </div>
                 )
               })}
               {(requestType === "join_request" ? otherProjects : myProjects).length === 0 && (
-                <p className="text-slate-500 italic text-sm text-center py-10 opacity-30">No compatible projects found.</p>
+                <div className="py-20 text-center opacity-20 text-[10px] font-black uppercase italic tracking-[0.2em]">No nodes detected</div>
               )}
             </div>
           </div>
@@ -262,15 +277,15 @@ export default function ResearcherDetail() {
 
         {/* Message Area */}
         {selectedProjectId && (
-          <div className="animate-in slide-in-from-bottom-4 duration-300 space-y-3">
-             <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                <AlertCircle size={12} /> Collaboration Proposal Note
+          <div className="animate-in slide-in-from-bottom-4 duration-300 space-y-4 pt-4">
+             <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] ml-2 flex items-center gap-2">
+                <AlertCircle className="w-3 h-3" /> Collaboration Proposal Pitch
              </p>
              <textarea
                value={requestMessage}
                onChange={(e) => setRequestMessage(e.target.value)}
-               className="w-full min-h-[140px] bg-white/[0.05] border border-white/10 rounded-3xl p-6 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none"
-               placeholder="Write a message that will convince this researcher to collaborate..."
+               className="w-full min-h-[150px] bg-white/[0.05] border border-white/10 rounded-[2rem] p-6 text-sm text-slate-100 placeholder:text-slate-600 focus:ring-2 ring-indigo-500/20 outline-none transition-all resize-none shadow-inner"
+               placeholder="Write a message to synchronize research objectives..."
              />
           </div>
         )}
@@ -278,9 +293,9 @@ export default function ResearcherDetail() {
         <Button
           onClick={handleSendRequest}
           disabled={!selectedProjectId || isSending}
-          className="w-full h-20 rounded-[2rem] bg-indigo-600 hover:bg-indigo-500 font-black text-lg shadow-2xl transition-all active:scale-[0.98] disabled:opacity-20 border-b-4 border-indigo-800"
+          className="w-full h-16 md:h-20 rounded-[2rem] bg-indigo-500 hover:bg-indigo-600 font-black text-sm md:text-lg uppercase tracking-[0.15em] shadow-2xl transition-all active:scale-[0.98] disabled:opacity-20 border-b-4 border-indigo-800"
         >
-          {isSending ? <Loader2 className="animate-spin" /> : <><Send className="mr-3" size={24} /> LAUNCH COLLABORATION REQUEST</>}
+          {isSending ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Send className="mr-3 w-5 h-5 md:w-6 md:h-6" /> Launch Operation</>}
         </Button>
       </div>
     </div>

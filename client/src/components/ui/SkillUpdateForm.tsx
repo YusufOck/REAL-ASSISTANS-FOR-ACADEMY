@@ -18,7 +18,7 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
   const [skills, setSkills] = useState<Record<string, number>>({});
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // ✅ data sanity check
+  // 🛡️ MANTIK KORUNDU: Data sanity check
   useEffect(() => {
     if (!initialSkills) return;
 
@@ -32,7 +32,6 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
       setSkills(initialSkills);
       onSkillsChange?.(initialSkills);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSkills]);
 
   const entries = useMemo(() => {
@@ -42,11 +41,12 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
   const updateSkill = (skillName: string, nextValue: number) => {
     setSkills((prev) => {
       const next = { ...prev, [skillName]: clamp(nextValue) };
-      onSkillsChange?.(next); // ✅ live radar
+      onSkillsChange?.(next); 
       return next;
     });
   };
 
+  // 🛡️ MANTIK KORUNDU: API Submit logic
   const handleSubmit = async () => {
     setIsUpdating(true);
     const token = localStorage.getItem("accessToken");
@@ -78,11 +78,13 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
   };
 
   return (
-    <div className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-[1.75rem] p-5 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/10">
-        <h3 className="text-sm font-black text-slate-100 flex items-center gap-2 uppercase tracking-widest">
-          <RefreshCw size={16} className="text-purple-300 animate-spin-slow" />
+    // 🚀 MÜHÜR: Padding mobilde daraltıldı
+    <div className="bg-white/[0.05] backdrop-blur-xl border border-white/10 rounded-[2rem] p-4 md:p-6 shadow-2xl h-full flex flex-col">
+      
+      {/* Header - Daha esnek hale getirildi */}
+      <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
+        <h3 className="text-xs md:text-sm font-black text-slate-100 flex items-center gap-2 uppercase tracking-widest italic">
+          <RefreshCw className="w-4 h-4 text-indigo-400 animate-spin-slow" />
           Skill Command
         </h3>
 
@@ -90,50 +92,50 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
           type="button"
           onClick={handleSubmit}
           disabled={isUpdating || entries.length === 0}
-          className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest
-                     bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/20
-                     text-slate-100 transition disabled:opacity-30 disabled:cursor-not-allowed"
+          className="px-4 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest
+                     bg-indigo-500 hover:bg-indigo-400 border border-indigo-400/20
+                     text-white transition-all disabled:opacity-30 active:scale-95 shadow-lg shadow-indigo-500/10"
         >
           {isUpdating ? (
             <span className="flex items-center gap-2">
-              <Loader2 size={14} className="animate-spin" /> Saving
+              <Loader2 className="w-3 h-3 animate-spin" /> Saving
             </span>
           ) : (
             <span className="flex items-center gap-2">
-              <Save size={14} /> Save
+              <Save className="w-3 h-3" /> Seal
             </span>
           )}
         </button>
       </div>
 
-      {/* Content */}
-      <div className="mt-4 space-y-3">
+      {/* Content - Mobilde kaydırma alanı iyileştirildi */}
+      <div className="mt-5 space-y-3 overflow-y-auto custom-scrollbar flex-1 max-h-[400px] md:max-h-none pr-1">
         {entries.length > 0 ? (
           <div className="space-y-3">
             {entries.map(([name, level]) => (
               <div
                 key={name}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-white/5 bg-white/[0.03] p-4 group transition-colors hover:bg-white/[0.05]"
               >
-                {/* Name */}
-                <div className="min-w-0">
-                  <div className="text-[10px] font-black text-slate-200/70 uppercase tracking-widest truncate">
+                {/* Name & Percentage */}
+                <div className="min-w-0 flex justify-between sm:block flex-1">
+                  <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate max-w-[150px]">
                     {name}
                   </div>
-                  <div className="text-xs font-black text-slate-100 mt-1">
+                  <div className="text-xs md:text-sm font-black text-indigo-300 sm:mt-1">
                     %{clamp(Number(level))}
                   </div>
                 </div>
 
-                {/* Controls (no slider) */}
-                <div className="flex items-center gap-2 shrink-0">
+                {/* Controls - Dokunmatik dostu boyutlar */}
+                <div className="flex items-center gap-3 shrink-0 bg-black/20 p-1.5 rounded-xl border border-white/5">
                   <button
                     type="button"
                     onClick={() => updateSkill(name, Number(level) - 5)}
-                    className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/[0.08] text-slate-100 transition active:scale-95 flex items-center justify-center"
+                    className="h-9 w-9 md:h-10 md:w-10 rounded-lg bg-white/5 hover:bg-red-500/20 text-slate-300 hover:text-red-400 transition-all active:scale-90 flex items-center justify-center border border-white/5"
                     aria-label="Decrease"
                   >
-                    <Minus size={16} />
+                    <Minus className="w-4 h-4" />
                   </button>
 
                   <input
@@ -142,29 +144,28 @@ const SkillUpdateForm: React.FC<SkillUpdateFormProps> = ({
                     type="number"
                     min={0}
                     max={100}
-                    className="h-9 w-16 rounded-xl border border-white/10 bg-[#0b1020]/40 text-slate-100 text-xs font-black text-center
-                               focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-400/30"
+                    className="w-12 md:w-16 bg-transparent text-slate-100 text-xs md:text-sm font-black text-center outline-none"
                   />
 
                   <button
                     type="button"
                     onClick={() => updateSkill(name, Number(level) + 5)}
-                    className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/[0.08] text-slate-100 transition active:scale-95 flex items-center justify-center"
+                    className="h-9 w-9 md:h-10 md:w-10 rounded-lg bg-white/5 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 transition-all active:scale-90 flex items-center justify-center border border-white/5"
                     aria-label="Increase"
                   >
-                    <Plus size={16} />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-center opacity-70">
-            <AlertCircle size={28} className="text-slate-400" />
-            <p className="text-[10px] font-black text-slate-300/70 uppercase tracking-widest mt-3 leading-relaxed">
-              No skill data.
+          <div className="flex flex-col items-center justify-center py-12 text-center opacity-40">
+            <AlertCircle className="w-10 h-10 text-slate-500 mb-4" />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+              No skill matrix found.
               <br />
-              Update your profile.
+              Synchronize via profile.
             </p>
           </div>
         )}

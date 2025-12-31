@@ -1,45 +1,43 @@
-// src/App.tsx - Landing Page Entegrasyonu ve Rotalama
+// src/App.tsx
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import { Toaster } from "@/components/ui/sonner" 
+import DashboardLayout from "./layouts/DashboardLayout" // Yeni eklendi
 
-// Sayfa Importları
 import LandingPage from "./pages/LandingPage"
 import Dashboard from "./pages/Dashboard"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
 import Profile from "./pages/Profile"
 import ResearcherDetail from "./pages/ResearcherDetail"
-// 🚀 MÜHÜR: Yeni Proje İstasyonu sayfasını rotaya ekliyoruz
 import Projects from "./pages/Projects" 
 import UsersPage from "./pages/UsersPage"
 
 function App() {
   return (
     <Router>
-      {/* Global Bildirim Sistemi */}
       <Toaster 
-          position="top-right" 
+          // 🚀 MÜHÜR: Mobil uyumlu pozisyon (Küçük ekranda bottom-center, büyükte top-right)
+          position={window.innerWidth < 768 ? "bottom-center" : "top-right"} 
           richColors 
-          theme="light" 
+          theme="dark" // Sistem temasına uygun karanlık mod
           closeButton
       />
 
       <Routes>
-        {/* --- KAMUYA AÇIK ROTALAR (Public) --- */}
+        {/* PUBLIC ROUTES */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-       
-        <Route path="/users" element={<UsersPage />} />
-        {/* --- ÖZEL ROTALAR (Private/Protected) --- */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<Profile />} />
-        {/* 🛰️ MÜHÜR: Project butonunun gideceği rota artık tanımlı */}
-        <Route path="/projects" element={<Projects />} /> 
-        <Route path="/researcher/:id" element={<ResearcherDetail />} />
 
-        {/* --- HATA YÖNETİMİ --- */}
-        {/* Tanımlanmayan tüm yolları ana sayfaya otonom olarak yönlendir */}
+        {/* 🛡️ PROTECTED DASHBOARD ROUTES (Layout Sarmalı) */}
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/projects" element={<Projects />} /> 
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/researcher/:id" element={<ResearcherDetail />} />
+        </Route>
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

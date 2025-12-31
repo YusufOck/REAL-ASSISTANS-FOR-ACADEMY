@@ -5,7 +5,8 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const labelVariants = cva(
-  "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  // 🚀 MÜHÜR: ResearchOS karakteristiği olan font-black, uppercase ve tracking eklendi
+  "text-[10px] md:text-[11px] font-black leading-none uppercase tracking-[0.2em] text-slate-500 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 transition-colors"
 )
 
 const Label = React.forwardRef<
@@ -15,7 +16,8 @@ const Label = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <LabelPrimitive.Root
     ref={ref}
-    className={cn(labelVariants(), className)}
+    // 🚀 MÜHÜR: Label metinlerinin seçimini (selection) engelleyerek dokunmatik cihazlarda daha stabil bir UI sağlandı
+    className={cn(labelVariants(), "select-none", className)}
     {...props}
   />
 ))
