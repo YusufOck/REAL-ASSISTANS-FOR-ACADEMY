@@ -110,11 +110,18 @@ WSGI_APPLICATION = 'research_backend.wsgi.application'
 # 🚀 MÜHÜR: Veritabanı Ayarı (Hassas Veri Gizlendi)
 # Supabase şifren artık kodun içinde değil, sadece .env içinde güvende.
 DATABASES = {
-    'default': dj_database_url.parse(
-        os.getenv('DATABASE_URL'),
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL'),
         conn_max_age=600,
         ssl_require=True
     )
+}
+
+# 🛠️ KRİTİK MÜDAHALE: 
+# 'server didn't return client encoding' hatasını engellemek için 
+# SSL ayarlarını doğrudan veritabanı motoru (engine) seviyesinde zorluyoruz.
+DATABASES['default']['OPTIONS'] = {
+    'sslmode': 'require',
 }
 
 # Password validation
