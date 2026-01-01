@@ -1,40 +1,66 @@
-# --- GENEL AYARLAR ---
+--- GENEL AYARLAR (OS & Editor) ---
+
 .DS_Store
 .vscode/
 .idea/
 *.log
+Thumbs.db
 
-# --- FRONTEND (React/Client) ---
+--- FRONTEND (React/Vite/Client) ---
+
 node_modules/
 dist/
 build/
 .env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-client/.env
+client/.env*
 
-# --- BACKEND (Django/Server) ---
-# Sanal Ortamlar (Hepsini kapsar)
+--- BACKEND (Django/Python/Server) ---
+
+Sanal Ortamlar
+
 venv/
 env/
 .venv/
+bin/
+include/
+lib/
+share/
 
-# Python Cache (Çöp dosyalar)
-__pycache__/
+Python Cache
+
+pycache/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Veritabanı (Local db'yi git'e atma, çakışma yapar)
+Django Veritabanı (Local)
+
 *.sqlite3
 db.sqlite3
-server/db.sqlite3
+server/**/db.sqlite3
 
-# Çevresel Değişkenler (Şifreler buradadır, SAKIN GÖNDERME)
-.env
-server/.env
+Çevresel Değişkenler (TÜM .env dosyalarını her yerde engeller)
 
-# Static & Media
+*/.env
+server/research_backend/.env
+
+Static & Media (Üretim dosyalarını git'e atma)
+
 staticfiles/
 media/
+server/staticfiles/
+server/media/
+
+Render/Vercel artifacts
+
+.render/
+.vercel/
