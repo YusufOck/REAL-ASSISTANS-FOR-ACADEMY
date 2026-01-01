@@ -112,14 +112,13 @@ WSGI_APPLICATION = 'research_backend.wsgi.application'
 DATABASES = {
     'default': dj_database_url.config(
         default=os.getenv('DATABASE_URL'),
-        conn_max_age=600,
-        ssl_require=True
+        conn_max_age=0,        # ⚠️ KRİTİK: 512MB RAM için 0 olmalı, bağlantıların şişmesini engeller.
+        ssl_require=True       # Supabase bağlantısı için SSL şarttır.
     )
 }
 
-# 🛠️ KRİTİK MÜDAHALE: 
-# 'server didn't return client encoding' hatasını engellemek için 
-# SSL ayarlarını doğrudan veritabanı motoru (engine) seviyesinde zorluyoruz.
+# 🛠️ MOTOR SEVİYESİNDE SSL: 
+# 'server didn't return client encoding' hatalarının kesin çözümüdür.
 DATABASES['default']['OPTIONS'] = {
     'sslmode': 'require',
 }
